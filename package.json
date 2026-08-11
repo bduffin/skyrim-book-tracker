@@ -1,0 +1,7 @@
+{
+  "name": "skyrim-book-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "packageManager": "yarn@4.17.1"
+}
