@@ -1,25 +1,30 @@
 {
-  "name": "skyrim-book-tracker",
-  "version": "0.1.0",
-  "private": true,
-  "license": "GPL-3.0-or-later",
-  "packageManager": "yarn@4.17.1",
-  "dependencies": {
-    "@supabase/supabase-js": "^2.112.2",
-    "next": "^16.3.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
-  },
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "lint:fix": "eslint --fix"
-  },
-  "devDependencies": {
-    "@types/node": "^26.2.0",
-    "@types/react": "^19.2.18",
-    "typescript": "6.0.3"
-  }
+    "name": "skyrim-book-tracker",
+    "version": "0.1.0",
+    "private": true,
+    "license": "GPL-3.0-or-later",
+    "packageManager": "yarn@4.17.1",
+    "dependencies": {
+        "@supabase/supabase-js": "^2.112.2",
+        "next": "^16.3.0",
+        "react": "^19.2.8",
+        "react-dom": "^19.2.8"
+    },
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "eslint .",
+        "lint:fix": "eslint --fix .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "@types/node": "^26.2.0",
+        "@types/react": "^19.2.18",
+        "eslint": "^9",
+        "eslint-config-next": "^16.3.0",
+        "prettier": "^3.9.6",
+        "typescript": "6.0.3"
+    }
 }
