@@ -1,1 +1,16 @@
 .DS_Store
+.env*.local
+.next
+next-env.d.ts
+node_modules
+tsconfig.tsbuildinfo
+
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Not using Zero-Installs.  This line is redundant, but keeping for clarity.
+.yarn/cache
