@@ -1,4 +1,5 @@
 import React from 'react';
+import { SiteHeader } from '../components/site-header';
 
 export default function RootLayout({
     children,
@@ -7,7 +8,10 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en">
-            <body>{children}</body>
+            <body>
+                <SiteHeader />
+                {children}
+            </body>
         </html>
     );
 }
