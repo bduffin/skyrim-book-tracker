@@ -8,7 +8,7 @@ export async function SiteHeader() {
     const claims = data?.claims;
 
     return (
-        <header>
+        <header className="flex justify-end border-b px-4 py-3">
             {claims ? (
                 <span>Welcome, {getDisplayName(claims)}</span>
             ) : (

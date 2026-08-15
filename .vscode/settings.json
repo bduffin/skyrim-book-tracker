@@ -1,5 +1,8 @@
 {
     "js/ts.tsdk.path": "node_modules/typescript/lib",
+    "files.associations": {
+        "*.css": "tailwindcss"
+    },
     "workbench.editor.customLabels.patterns": {
         // Custom labels recommended by Next.js for router files
         "**/app/**/page.tsx": "${dirname(1)}/${dirname} - page.tsx",
