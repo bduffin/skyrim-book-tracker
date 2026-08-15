@@ -1,6 +1,6 @@
-import { createClient } from '../lib/supabase/server';
-import { getDisplayName } from '../features/auth/get-display-name';
-import { GitHubLoginButton } from '../features/auth/components/github-login-button';
+import { createClient } from '@/lib/supabase/server';
+import { getDisplayName } from '@/features/auth/get-display-name';
+import { GitHubLoginButton } from '@/features/auth/components/github-login-button';
 
 export async function SiteHeader() {
     const supabase = await createClient();
