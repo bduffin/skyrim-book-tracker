@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Project-specific context for AI agents working in this repo. For product and architecture background, read `docs/architecture.md` and `docs/specs/` first — this file covers conventions and gotchas that aren't obvious from the code or docs alone, mostly learned the hard way while building the auth flow.
+Project-specific context for AI agents working in this repo. For product and architecture background, read `docs/architecture.md` and `docs/specs/` first — this file covers conventions and gotchas that aren't obvious from the code or docs alone, learned the hard way while building out the auth flow and the collection-tracking data model.
 
 ## Tooling
 
@@ -36,7 +36,10 @@ Project-specific context for AI agents working in this repo. For product and arc
 - `src/app/auth/callback/route.ts` is a Route Handler, not a Server Action — deliberately. It's hit by GitHub's own redirect (an external GET request that nothing in this app's own client triggers), so a Server Action can't serve it. This is the one exception to "writes go through Server Actions."
 - Two different callback URLs, easy to conflate: the GitHub OAuth App's callback URL (configured on GitHub's side) points at **Supabase's** auth server (`https://<project-ref>.supabase.co/auth/v1/callback`), not at this app. Separately, Supabase's own "Redirect URLs" allow-list (dashboard → Authentication → URL Configuration) must include this app's own callback URL (`http://localhost:3000/**` for dev, the Vercel domain(s) for prod) — that's what `redirectTo` in `signInWithOAuth` is checked against.
 - `GitHubLoginButton` (`src/features/auth/components/github-login-button.tsx`) calls `signInWithOAuth` directly from a Client Component rather than via a Server Action. This was a considered choice, not an oversight: "writes go through Server Actions" is scoped to writes on app-owned tables (like `user_book`), not to auth handshakes that touch no app data. The client version also gets the correct origin for free via `window.location.origin` across localhost/preview/prod, which a Server Action would need extra plumbing to replicate. Don't "fix" this into a Server Action without discussing it first.
-- `user_book_status` is a two-value enum: `'read'`, `'collected'`. Absence of a `user_book` row means unread and is never stored as its own enum value. There's an open question (`docs/specs/prd-browse-and-track.md`, OQ-8) about whether reverting to unread should preserve a non-empty `notes` field by adding a stored value later — check that before changing this.
+
+## Data model specifics
+
+- `user_book` tracks `is_read` and `is_collected` as two independent booleans — collecting a book and reading it are separate in-game actions, so neither implies the other (this replaced an earlier three-state `unread|read|collected` enum design). Absence of a `user_book` row means untouched (both `false`) and is never persisted as its own state — a `user_book_touched` check constraint (`is_read or is_collected`) enforces this at the DB level. There's an open question (`docs/specs/prd-browse-and-track.md`, OQ-8) about preserving a non-empty `notes` field when a user clears both flags, which that check constraint currently rules out — check that before changing this.
 
 ## Not yet set up
 

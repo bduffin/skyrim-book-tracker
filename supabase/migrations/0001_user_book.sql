@@ -1,17 +1,14 @@
 -- Migration: 0001_user_book
 -- Feature: Browse Books & Track Collection (see docs/specs/prd-browse-and-track.md §12)
 --
--- Adds per-user book tracking with a three-state status model:
---   unread -> read -> collected   ('collected' implies 'read')
+-- Adds per-user book tracking with two independent flags:
+--   is_read and is_collected -- collecting a book and reading it are
+--   separate in-game actions (you can grab a book to read later, or
+--   read one you don't keep), so neither implies the other.
 --
--- 'unread' is NOT a stored value: it is the absence of a user_book row.
--- Reverting a book to 'unread' deletes the row. Adding 'unread' to the enum
--- later (OQ-8, to preserve notes) is a non-breaking `ALTER TYPE ... ADD VALUE`.
-
--- ─────────────────────────────────────────────────────────────────────────────
--- Status enum
--- ─────────────────────────────────────────────────────────────────────────────
-create type user_book_status as enum ('read', 'collected');
+-- A row's mere existence still means "touched" (untouched = no row, not
+-- stored); the check constraint below prevents a row where both flags are
+-- false, which would be indistinguishable from no row at all.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- PLACEHOLDER reference tables.
@@ -50,18 +47,22 @@ create index book_category_idx on book (category);
 -- Per-user tracking
 -- ─────────────────────────────────────────────────────────────────────────────
 create table user_book (
-  user_id    uuid not null references auth.users (id) on delete cascade,
-  book_id    uuid not null references book (id)        on delete cascade,
-  status     user_book_status not null,
-  notes      text,
-  updated_at timestamptz not null default now(),
-  primary key (user_id, book_id)                 -- one row per (user, book)
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  book_id      uuid not null references book (id)        on delete cascade,
+  is_read      boolean not null default false,
+  is_collected boolean not null default false,
+  notes        text,
+  updated_at   timestamptz not null default now(),
+  primary key (user_id, book_id),                -- one row per (user, book)
+  constraint user_book_touched check (is_read or is_collected)
 );
 
 -- Read path: fetch the current user's rows for the 50 visible books.
 create index user_book_user_idx on user_book (user_id);
--- Progress counts per user, filtered by status.
-create index user_book_user_status_idx on user_book (user_id, status);
+-- Progress counts per user, filtered by flag (partial: only rows where the
+-- flag is true are indexed, matching the "count collected"/"count read" queries).
+create index user_book_user_read_idx      on user_book (user_id) where is_read;
+create index user_book_user_collected_idx on user_book (user_id) where is_collected;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- updated_at maintenance
