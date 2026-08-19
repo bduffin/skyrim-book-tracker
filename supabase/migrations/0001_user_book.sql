@@ -9,6 +9,12 @@
 -- A row's mere existence still means "touched" (untouched = no row, not
 -- stored); the check constraint below prevents a row where both flags are
 -- false, which would be indistinguishable from no row at all.
+--
+-- Notes live in a separate user_book_note table, not on user_book itself:
+-- user_book is the hot, frequently-toggled table, and Postgres rewrites the
+-- whole row (MVCC) on every update, so a large, rarely-changed notes column
+-- there would mean copying note text on every unrelated flag toggle. It also
+-- lets a note exist independent of whether the book is read or collected.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- PLACEHOLDER reference tables.
@@ -51,7 +57,6 @@ create table user_book (
   book_id      uuid not null references book (id)        on delete cascade,
   is_read      boolean not null default false,
   is_collected boolean not null default false,
-  notes        text,
   updated_at   timestamptz not null default now(),
   primary key (user_id, book_id),                -- one row per (user, book)
   constraint user_book_touched check (is_read or is_collected)
@@ -65,6 +70,18 @@ create index user_book_user_read_idx      on user_book (user_id) where is_read;
 create index user_book_user_collected_idx on user_book (user_id) where is_collected;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Per-user notes (split from user_book -- see top-of-file comment)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- No FK to user_book: a note can exist independent of read/collected status.
+create table user_book_note (
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  book_id    uuid not null references book (id)        on delete cascade,
+  notes      text not null,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, book_id)
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- updated_at maintenance
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function set_updated_at() returns trigger
@@ -76,6 +93,10 @@ end $$;
 
 create trigger user_book_set_updated_at
   before update on user_book
+  for each row execute function set_updated_at();
+
+create trigger user_book_note_set_updated_at
+  before update on user_book_note
   for each row execute function set_updated_at();
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -98,6 +119,22 @@ create policy user_book_update_own on user_book
               with check ((select auth.uid()) = user_id);
 
 create policy user_book_delete_own on user_book
+  for delete using ((select auth.uid()) = user_id);
+
+-- user_book_note: same owner-only pattern as user_book.
+alter table user_book_note enable row level security;
+
+create policy user_book_note_select_own on user_book_note
+  for select using ((select auth.uid()) = user_id);
+
+create policy user_book_note_insert_own on user_book_note
+  for insert with check ((select auth.uid()) = user_id);
+
+create policy user_book_note_update_own on user_book_note
+  for update using ((select auth.uid()) = user_id)
+              with check ((select auth.uid()) = user_id);
+
+create policy user_book_note_delete_own on user_book_note
   for delete using ((select auth.uid()) = user_id);
 
 -- Reference tables: public read, no client write (NFR-3).

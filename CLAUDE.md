@@ -39,7 +39,8 @@ Project-specific context for AI agents working in this repo. For product and arc
 
 ## Data model specifics
 
-- `user_book` tracks `is_read` and `is_collected` as two independent booleans — collecting a book and reading it are separate in-game actions, so neither implies the other (this replaced an earlier three-state `unread|read|collected` enum design). Absence of a `user_book` row means untouched (both `false`) and is never persisted as its own state — a `user_book_touched` check constraint (`is_read or is_collected`) enforces this at the DB level. There's an open question (`docs/specs/prd-browse-and-track.md`, OQ-8) about preserving a non-empty `notes` field when a user clears both flags, which that check constraint currently rules out — check that before changing this.
+- `user_book` tracks `is_read` and `is_collected` as two independent booleans — collecting a book and reading it are separate in-game actions, so neither implies the other (this replaced an earlier three-state `unread|read|collected` enum design). Absence of a `user_book` row means untouched (both `false`) and is never persisted as its own state — a `user_book_touched` check constraint (`is_read or is_collected`) enforces this at the DB level.
+- User notes live in a separate `user_book_note` table, not on `user_book`. Two reasons: `user_book` is the hottest, most frequently-written table (every read/collected toggle writes it), and Postgres rewrites the whole row on every update (MVCC), so a large notes column there would get copied on every unrelated flag toggle; splitting it out also means a note can exist whether or not the book is tracked at all, and clearing both flags on `user_book` never risks losing a note.
 
 ## Not yet set up
 
