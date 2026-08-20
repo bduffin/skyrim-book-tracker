@@ -45,6 +45,6 @@ Project-specific context for AI agents working in this repo. For product and arc
 ## Not yet set up
 
 - shadcn/ui is planned (`docs/architecture.md` §3) but not installed yet — Tailwind CSS itself is now set up (see "Tooling" above).
-- No sign-out UI yet — `src/components/site-header.tsx` shows static "Signed in" text for authenticated users.
+- No sign-out UI yet — `src/components/site-header.tsx` shows a "Welcome, {name}" greeting (via `getDisplayName`) for authenticated users, with no way to sign out.
 - `/auth/auth-error` doesn't receive real error detail from the callback route yet (it redirects there bare); the page already supports optional `error`/`error_description` query params if that gets wired up later.
 - License is GPL-3.0-or-later (`package.json`, `LICENSE`).
