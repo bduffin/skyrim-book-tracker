@@ -7,7 +7,8 @@ export default async function Page() {
         .select();
 
     if (error) {
-        console.error(error);
+        console.error('Failed to load instruments:', error);
+        throw new Error(error.message);
     }
 
     return (

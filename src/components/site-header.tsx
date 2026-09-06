@@ -4,8 +4,18 @@ import { GitHubLoginButton } from '@/features/auth/components/github-login-butto
 
 export async function SiteHeader() {
     const supabase = await createClient();
-    const { data } = await supabase.auth.getClaims();
-    const claims = data?.claims;
+
+    // getClaims() can throw (e.g. on a network failure) rather than
+    // returning an error, and SiteHeader renders from the root layout,
+    // which sits outside any route's error.tsx boundary. Degrade to a
+    // signed-out header rather than letting it take down the whole app.
+    let claims;
+    try {
+        const { data } = await supabase.auth.getClaims();
+        claims = data?.claims;
+    } catch (error) {
+        console.error('Unable to determine auth state:', error);
+    }
 
     return (
         <header className="flex justify-end border-b px-4 py-3">
