@@ -14,3 +14,7 @@ tsconfig.tsbuildinfo
 
 # Not using Zero-Installs.  This line is redundant, but keeping for clarity.
 .yarn/cache
+
+# Local-only UESP XML dump for the book import script (~176MB, never committed).
+# See docs/specs/prd-import-uesp-books.md §12.6.
+/data/
