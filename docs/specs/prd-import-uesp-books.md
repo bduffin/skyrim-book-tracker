@@ -1,252 +1,286 @@
 # PRD: Import UESP Book Data
 
-> Stage: PRD — derived from `docs/specs/spec-import-uesp-books.md` and grounded in `docs/architecture.md`.
-> Status: Draft for review.
+> Stage: PRD — derived from `docs/specs/spec-import-uesp-books.md`, grounded in `docs/architecture.md`.
+> Status: Rewritten against a real dump (`uespwiki-2026-08-30-current.xml.bz2`, 177MB, bzip2, MediaWiki 1.31.16, export schema 0.10). Every count below is measured from that file, not assumed.
 
 ## Core Thesis (preserved from spec)
 
-> The `book` and `book_location` tables exist but are empty — nothing populates them yet. The app can't browse or track anything until this data exists. UESP is the canonical source, but it must be accessed via their sanctioned bulk-download mechanism, not live scraping: their `robots.txt` explicitly disallows the MediaWiki API and bot crawling for all agents, and specifically names Anthropic crawlers as disallowed from the entire site.
+> The `book` and `book_location` tables exist but are empty — nothing populates them yet. The app can't browse or track anything until this data exists. UESP is the canonical source, but it must be accessed via their sanctioned bulk-download mechanism, not live scraping.
 
 ---
 
-## 0. Contradictions & Missing Info (resolved in this PRD)
+## 0. What inspecting the dump changed
 
-| #   | Type    | Issue                                                                                                                     | Resolution in this PRD                                                                                                                                                                                                                |
-| --- | ------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MI1 | Missing | Spec requires normalizing `category` to "a fixed, small taxonomy" but doesn't enumerate it.                               | Not guessed here either — the exact source template field and value set are unconfirmed until a real dump is inspected. §4 M0 makes this an explicit first build step, with a catch-all `other` bucket so nothing blocks on it. OQ-1. |
-| MI2 | Missing | Spec requires normalizing `skill` but doesn't enumerate the target set.                                                   | Enumerated explicitly: Skyrim's 18 canonical skills (§4).                                                                                                                                                                             |
-| MI3 | Missing | Spec says the dump is "~176MB compressed" but not which compression format.                                               | Handle `.gz` (Node's built-in `zlib`); error clearly on `.bz2` asking for manual decompression rather than adding an unverified dependency. OQ-2.                                                                                     |
-| MI4 | Missing | Spec has no testing/verification strategy for a script parsing messy, inconsistent real-world wikitext across ~800 pages. | Pure-function decomposition + a committed sample fixture + `yarn test` (Node's built-in test runner) + a `--dry-run` mode, so parsing logic is verified incrementally, not only against a full live run.                              |
-| MI5 | Missing | Spec's original idempotency decision covered only `book`, not `book_location`.                                            | Closed as spec Decision #5 (this session): unique constraint on `book_location(book_id, location_name, location_type)`, upserted against — requires a new migration.                                                                  |
-| MI6 | Missing | Spec didn't say whether `location_type` needs its own normalized taxonomy.                                                | Closed as spec Decision #6 (this session): stays free text; no current feature reads it structurally (checked against `prd-browse-and-track.md`).                                                                                     |
+The previous draft was written before a dump existed. Nearly every structural assumption in it was wrong. This table is the record, so the same guesses aren't made again.
+
+| Previous assumption                             | Measured reality                                                                                                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Template is `{{Book Summary}}`                  | `{{Game Book}}`. `Book Summary` appears **once** in the entire wiki.                                                                                                                       |
+| `Skyrim:` is a title prefix, namespace unknown  | Namespace **134**, a real MediaWiki namespace holding 17,515 pages.                                                                                                                        |
+| Dump is `.gz`                                   | **`.bz2`** — the case the old FR-2 treated as an error.                                                                                                                                    |
+| `--dump-date` must be supplied by hand          | The filename encodes it: `uespwiki-YYYY-MM-DD-current.xml.bz2`.                                                                                                                            |
+| `book.game_id` is a unique natural key          | 1,198 pages carry an `id`; only **1,120 are distinct**. 78 pages collide. Unusable as identity.                                                                                            |
+| Category comes from a `type` field              | `type` is `List 0`–`List 4`, present on 258 of 1,245 pages. Not a taxonomy.                                                                                                                |
+| Category can come from wiki category membership | `{{Game Book}}` injects categories at render time; a dump holds only literally-written ones.                                                                                               |
+| `book_location.notes` has no source             | Every `loc` bullet carries free-text notes after the location link.                                                                                                                        |
+| `value`/`weight` are marginal                   | The two best-populated fields in the template — 1,207 of 1,245 each.                                                                                                                       |
+| ~800 books                                      | **918** base + DLC (716 base, 142 Dragonborn, 51 Dawnguard, 9 Hearthfire), plus 327 Creation Club = 1,245. The old estimate was a fair guess at base+DLC; Creation Club is what it missed. |
 
 ---
 
 ## 1. Problem Statement
 
-The app has no book data to browse or track — `book` and `book_location` are empty, and every feature in `prd-browse-and-track.md` depends on them being populated. UESP is the only viable structured source, but its `robots.txt` disallows both the MediaWiki API and bot crawling generally, and specifically names Anthropic crawlers as disallowed site-wide. The only sanctioned mechanism is UESP's own weekly full-wiki XML dump. This task builds a local, re-runnable, dump-file-based import script that turns that raw dump into normalized rows in `book`/`book_location`, resolving the two normalization open questions (`skill`, `category`) that `prd-browse-and-track.md` depends on but defers to this task (A1, R1, OQ-2, OQ-8 there).
+The app has no book data to browse or track — `book` and `book_location` are empty, and every feature in `prd-browse-and-track.md` depends on them being populated. UESP is the only viable structured source, and its `robots.txt` disallows both the MediaWiki API and bot crawling, naming Anthropic crawlers specifically. The sanctioned mechanism is UESP's weekly full-wiki XML dump, downloaded by a human. This task builds a local, re-runnable import script that turns that dump into normalized rows, resolving the normalization questions `prd-browse-and-track.md` defers to it (A1, R1, OQ-2, OQ-8 there).
 
 ## 2. Goals and Non-Goals
 
 ### Goals
 
-- G1. Populate `book`/`book_location` from UESP's sanctioned XML dump — **the script makes zero network requests** to `en.uesp.net`/`dumps.uesp.net` (or anywhere else) at runtime. This is scoped to the script deliberately: robots.txt binds automated crawlers, not the one sanctioned bulk download a human performs, which the whole plan depends on.
-- G2. Resolve `prd-browse-and-track.md`'s OQ-2 (skill) and OQ-8 (category) with concrete, enumerated normalization — enforced in Postgres via check constraints (§12.1), not only in the import script. OQ-8 asks "fixed enum vs free-text"; this answers _fixed set_.
-- G3. Make re-running the script — same dump or a newer one — safe: no duplicate `book` or `book_location` rows.
-- G4. Keep the parsing logic verifiable in small increments (unit tests against a committed fixture, a `--dry-run` mode) rather than only checkable by running the full ~176MB dump against a live database — the wikitext being parsed is real, inconsistently-edited content across ~800 pages, not a clean structured feed.
-- G5. Record dump provenance (date, CC BY-SA 2.5 license) durably — in the run summary _and_ a README attribution section (FR-13/FR-13a), not stdout alone. Rendering attribution in the UI stays `prd-browse-and-track.md` FR-7's job.
+- G1. Populate `book`/`book_location` from the downloaded dump. **The script makes no HTTP requests except its Supabase writes** — no UESP access at runtime, and no HTTP client dependency beyond `supabase-js`.
+- G2. Resolve `prd-browse-and-track.md`'s OQ-2 (skill) and OQ-8 (category) with enumerated values enforced by Postgres check constraints, derived from the dump rather than invented.
+- G3. Make re-running safe: no duplicate or lost rows, on the same dump or a newer one.
+- G4. Import the template's full attribute set, not a minimal subset — the pages are richly populated and the UI will surface these fields.
+- G5. Keep parsing verifiable in small increments (pure functions, fixture tests, `--dry-run`) rather than only checkable against a 177MB file and a live database.
+- G6. Record dump provenance (date, CC BY-SA 2.5) durably.
 
-### Non-Goals (this PRD)
+### Non-Goals
 
-- NG1. Cover art / image import.
-- NG2. Full book text storage — a **scope** decision: this task imports structured metadata only. Not a licensing prohibition; CC BY-SA 2.5 permits redistributing the text with attribution and share-alike, and architecture.md §2.2 explicitly contemplates it ("if full text is ever stored or rendered, ensure attribution is highly visible"), it just prefers metadata. Consistent with NG6 in `prd-browse-and-track.md` and NFR-5 there.
-- NG3. Scheduled/automatic re-running (cron, CI) — manual invocation only.
-- NG4. Importing books from other TES games (Oblivion, Morrowind, ESO, etc.).
-- NG5. `location_type` normalization (spec Decision #6) — stays free text.
-- NG6. Any network access to UESP _by the script_, including for verifying dump freshness — it only ever reads a local file. The human-performed download from `dumps.uesp.net` is the sanctioned input to this task, not a violation of it.
-- NG7. Importing the template's `value` and `weight` stats — the Creation Kit base gold value and the inventory weight. Both are available and architecture.md §6 lists them as book metadata, so this is a decision rather than an oversight: no column exists for either, nothing in `prd-browse-and-track.md` reads them, and `weight` is near-constant across books (1.0 for most, 0 for notes) so it carries little signal. Cheap to add later — the template is already being parsed and re-runs are idempotent.
+- NG1. Cover art / image import. The `icon` **filename** is stored as metadata (it drives categorization); no image is fetched or hosted.
+- NG2. Full book text storage — a **scope** decision, not a licensing prohibition. CC BY-SA 2.5 permits redistribution with attribution and share-alike, and architecture.md §2.2 contemplates it. The text lives in namespace 130 (`Lore:`, 4,035 `{{Lore Book}}` pages) and this task never reads that namespace.
+- NG3. Scheduled/automatic re-running — manual invocation only.
+- NG4. Books from other TES games. Namespace 134 is Skyrim-only, so this falls out of the filter for free.
+- NG5. Real-world novels — namespace 140 (`Books:`) holds published fiction (`{{Real Book Summary}}`), not in-game items. Excluded by the namespace filter.
+- NG6. `location_type` normalization — stays free text (spec Decision #6), and in practice stays null (FR-11).
+- NG7. Spell tomes (93) and recipes (28) as tracked items — they are consumable item pages, not `{{Game Book}}` pages, and importing them would require parsing a second template (OQ-7).
 
 ## 3. Current State Analysis
 
-- **Greenfield tooling.** No `scripts/` directory, no XML/wikitext dependencies, no test runner wired up in `package.json` yet.
-- **Schema exists, placeholder-quality.** `book`/`book_location` were created in `supabase/migrations/20260819040000_user_book.sql` explicitly as placeholders "to be replaced before real data lands" — `category`/`skill` are untyped `text`. This task is that replacement: the new migration (§12.1) adds check constraints pinning both columns to the fixed taxonomies defined here, so the normalization is enforced by Postgres and not only by the import script.
-- **Neither upsert key is enforceable as-is.** `book_location` has no unique constraint at all (required before Decision #5's upsert can work), and `book.game_id` is `text unique` but **nullable**, which makes `on conflict (game_id)` unable to dedupe null keys. Both are fixed by one new migration (§12.1).
-- **`.env.local`** currently has `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` only — no service-role key yet. `.env*.local` is already gitignored.
-- **`.gitignore`** has no entry for a local dump-storage location — needs one so the ~176MB dump is never accidentally committed.
-- **Stack fit.** Node 24 (`.nvmrc`), TypeScript, Yarn 4 — supports running the script via `tsx` and reading env vars via Node's native `--env-file`, with no new runtime dependencies for either.
+- **Greenfield tooling.** No `scripts/` directory, no XML/wikitext dependencies, no test runner in `package.json`.
+- **The schema is placeholder-quality and structurally wrong for this data.** `book` has `game_id text unique` as its natural key — which the dump disproves (§0) — and no column for the identifier that does work. `category`/`skill` are untyped `text`.
+- **`.env.local`** has `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` only — no service-role key. `.env*.local` is gitignored.
+- **`.gitignore`** now ignores `/data/`, where the dump lives.
+- **Stack fit.** Node 24 (`.nvmrc`), TypeScript 6, Yarn 4.17.1 — supports `tsx` and Node's native `--env-file`.
 
 ## 4. Proposed Solution
 
-A single local script, `scripts/import-uesp.mts`, run manually via `tsx`, structured as pure parsing/mapping functions wrapped by thin I/O glue:
+A single local script, `scripts/import-uesp.mts`, run manually, structured as pure parsing/mapping functions wrapped by thin I/O glue:
 
 ```
-yarn import:uesp <dump-path> --dump-date=YYYY-MM-DD [--dry-run]   (both args required)
+yarn import:uesp data/uespwiki-2026-08-30-current.xml.bz2 [--dry-run] [--allow-remote]
         │
         ▼
-[sax, streaming] dump.xml(.gz) ──► one <page> at a time (title, ns, text)
-        │  (gzip detected by magic bytes → zlib.createGunzip(); bzip2 → clear error)
+[bzip2 -dc] ──► XML stream ──► [sax] ──► one <page> at a time
+        │  (bzip2 detected by magic bytes 'BZh'; gzip '1f 8b' also supported)
         ▼
-filter: title in "Skyrim:" space  AND  text invokes {{Book Summary}} (loose match)
-        │  matched pages only (prefix is a hard filter, not a cross-check — see FR-3)
+filter: <ns> == 134  AND  wikitext invokes {{Game Book}}   (loose match)
+        │  1,245 pages
         ▼
-extractBookSummaryTemplate(text)          [wtf_wikipedia]  ──► raw template params
+parseGameBookTemplate(wikitext)   ──► flat { key: value } params
+        │
+        ├─ identity:   <page><id>            ──► uesp_page_id  (unique, stable)
+        ├─ attributes: id/id2..id5, value, weight, author, description, icon, lorename
+        ├─ classifyCategory(params)          ──► skill_book | book | journal | note
+        │                                        | black_book
+        ├─ classifySource(smod, categories)  ──► base | dawnguard | dragonborn
+        │                                        | hearthfire | creation_club
+        ├─ normalizeSkill(params.skill)      ──► one of 18 Skyrim skills | null
+        └─ parseLocations(params.loc)        ──► [{ name, notes }]
         │
         ▼
-parseTemplateFields(rawParams)            ──► { id, skill, loc, type, ... } (strings)
-        │
-        ├─ normalizeSkill(raw.skill)      ──► one of 18 Skyrim skills | null
-        ├─ normalizeCategory(raw.type)    ──► fixed taxonomy (incl. "other" catch-all)
-        └─ mapToBookRow / mapToLocationRows
-        │
+  --dry-run ? report : write via supabase-js (service-role key)
+        │        book:          onConflict 'uesp_page_id'
+        │        book_location: replace-per-book via transactional RPC
         ▼
-  --dry-run ? log mapped rows : upsert via supabase-js (service-role key)
-        │        book:          onConflict "game_id"
-        │        book_location: onConflict "book_id,location_name,location_type"
-        ▼
-  run summary: found / imported / updated / skipped / errored (+ dump date, license note)
+  run report by category and source: found / new / updated / skipped / errored
 ```
 
-**Key design tradeoffs:**
+**Key design tradeoffs**
 
-- **Streaming XML parse (`sax`) vs. a full DOM parse.** Chosen so a multi-hundred-MB dump is never fully resident in memory; `<page>` elements in a MediaWiki dump don't nest, so accumulating one page at a time is safe. Tradeoff: slightly more state-tracking code than a one-shot `parse()` call.
-- **`wtf_wikipedia` vs. a hand-rolled template parser.** A hand-rolled brace-counter has to correctly track both `{{}}` template nesting and `[[]]` link nesting (e.g. a pipe inside `[[Windhelm|the city]]` must not be read as a template-parameter separator) on top of HTML comments and emphasis markup — real risk of breaking on the inconsistent editing found across ~800 real pages. `wtf_wikipedia` is a real MediaWiki parser, at the cost of being a genuine new dependency built for _Wikipedia's_ conventions — it renders wikitext to plain text and normalizes or drops params it doesn't recognize, and `Book Summary` is not one of its known infoboxes, so its behavior here is unverified until M0's value-level diff (R2). This is a starting choice, not a commitment: if that diff fails, M0 falls back to the hand-rolled splitter behind the same function signature and the same tests.
-- **Pure functions + fixture tests vs. testing only against the full dump.** Chosen so parsing logic iterates fast and deterministically without needing the real 176MB dump or a live database on every change. Tradeoff: the fixture can't cover every edge case in ~800 real pages, so a dry run against the real dump (M1) remains a required gate before any DB write (M2).
-- **Unique constraint + upsert vs. delete-and-reinsert for `book_location`** (spec Decision #5). Chosen to preserve row identity across re-runs at the cost of a new migration, rather than the simpler delete-then-insert.
-- **Explicit `--dump-date` flag vs. parsing a date out of the dump.** The dump's filename/internal-timestamp convention from `dumps.uesp.net` isn't confirmed, so rather than guess a parsing scheme, the person running the import supplies the date they downloaded it. Cheap, unambiguous, revisit only if this proves annoying in practice.
+- **MediaWiki page `<id>` as identity, not the Form ID.** Measured: 78 of 1,198 pages share a `|id=` value, because Creation Club items render as `fexxx8NN` placeholders (`fexxx819` alone is used by 11 pages) and DLC items as `xx……`. Upserting on that would silently merge ~44 distinct books while reporting zero duplicates. Page `<id>` is unique by MediaWiki construction, present on every page, and stable across renames. Tradeoff: a page deleted and recreated upstream gets a new id and imports as a new row — rare, and detectable via the stored title.
+- **Classification from `icon`, not from wiki categories.** Categories are template-injected and absent from the dump; replicating them would mean parsing `Template:Game Book` and reimplementing its logic. `icon` is present on 1,164 pages and cleanly separates the types the UI needs.
+- **`bzip2 -dc` subprocess over an npm bz2 library.** No new dependency, no 2–4GB intermediate file, and `bzip2` ships with macOS and every Linux distro. Tradeoff: a system dependency, checked for at startup with a clear error.
+- **Hand-rolled template parser over `wtf_wikipedia`.** Not because the markup is simple — measured, it isn't: **95% of the 1,245 pages carry a piped `[[a|b]]` link inside the template and 16% nest another template inside it** (`{{Map Link}}` 185, plus `{{DB}}`/`{{DG}}`/`{{CC}}`/`{{HF}}`, `{{Lore Link}}`, `{{Showhide/Start}}`, `{{Bug}}`, `{{sic}}`). The parser must therefore be genuinely brace- and link-aware, and that is real work — roughly 80 lines — not a shortcut. It is chosen because (a) `wtf_wikipedia` ships fetch APIs, which would make NFR-2's "no HTTP client dependency" false and hollow out R7, and (b) its documented failure mode is silently normalizing or dropping params it doesn't recognize — wrong-but-plausible values reaching the database, which skip-and-continue cannot catch. The nesting is one level of simple inline templates, not arbitrary recursion, so a brace counter is bounded. M0's value-level diff against hand-transcribed expected params is the gate on it.
+- **Replace-per-book locations over pure upsert.** Locations are the feature's point — a stale location sends a player somewhere the book isn't. Replacement happens only for books that parsed successfully, so a parse regression cannot wipe good rows.
 
 ## 5. Requirements
 
 ### Functional (FR)
 
-- **FR-1 — CLI entry.** `scripts/import-uesp.mts` takes the dump file path as a required positional argument; errors clearly (no stack trace) if missing or the file doesn't exist.
-- **FR-2 — Streaming parse.** Dump is streamed via `sax`, never fully loaded into memory: `createReadStream(path)` → (optional) `zlib.createGunzip()` → `sax.createStream()`. It must be `createGunzip()`, the stream transform — `zlib.gunzip` is the one-shot buffer API and would materialize the whole decompressed dump (well over a GB) in memory, violating NFR-1. Compression is detected by **sniffing the first bytes** (gzip `1f 8b`, bzip2 `BZh`), not by file extension, so a dump saved without its extension isn't silently fed to the XML parser as binary. A bzip2 dump produces a clear error asking the user to decompress it first (OQ-2).
-- **FR-3 — Skyrim book filter.** A page is a candidate book page only if **both** hold: its title is in UESP's `Skyrim:` space, **and** its wikitext contains a `Book Summary` template invocation. The match is **case-insensitive and tolerant of whitespace and underscores** after the braces — MediaWiki accepts `{{Book Summary`, `{{ Book Summary`, `{{book summary`, and `{{Book_Summary` as the same call, so a literal substring test would silently miss pages. The template's exact name and capitalisation are themselves unverified until a real dump is inspected (OQ-1). The `Skyrim:` space covers DLC books as well as base-game ones (e.g. `Skyrim:Deathbrand (book)`), so no separate Dawnguard/Dragonborn handling is needed. The prefix check is a **hard filter, not a cross-check**: the dump is the full wiki across all namespaces, so a template-only filter would also match other games' book pages (excluded by NG4), `Template:Book Summary`'s own documentation page, and `UESPWiki:Style_Guide/Book_Layout` — the page the spec cites as the format reference, which necessarily contains example invocations. Pages failing the prefix check are dropped and counted as `skipped` (FR-11). How the `Skyrim:` space is represented in the dump — a numbered MediaWiki namespace in `<ns>` versus a title prefix inside ns 0 — is OQ-6.
-- **FR-4 — Template extraction.** `extractBookSummaryTemplate(wikitext)` (via `wtf_wikipedia`) returns the `Book Summary` template's raw parameters, or `null` if the page (despite matching FR-3's substring check) has no parseable template.
-- **FR-5 — Field mapping.** Parsed fields (`id`, `skill`, `loc`, category-bearing field, description, uniqueness) map onto `book`/`book_location` columns. The template's `value`/`weight` stats are deliberately not imported (NG7).
-- **FR-6 — Skill normalization.** `normalizeSkill(raw)` maps free-text skill values onto one of Skyrim's 18 skills (One-Handed, Two-Handed, Archery, Block, Smithing, Heavy Armor, Light Armor, Alteration, Conjuration, Destruction, Illusion, Restoration, Enchanting, Alchemy, Sneak, Lockpicking, Pickpocket, Speech) via a lookup table matched on trimmed/lowercased substrings (R4); unmapped values → `null` + logged, never fail the run.
-- **FR-7 — Category normalization.** `normalizeCategory(raw)` maps onto a small fixed taxonomy, finalized empirically in M0 against real sample pages (MI1); unmapped values → an explicit `other` value + logged, never fail the run.
-- **FR-8 — `book` upsert.** Batched upsert (chunks of ~500) on conflict `game_id`. A page whose template yields no usable `id` is **skipped, never written with a null `game_id`** — `on conflict (game_id)` cannot dedupe NULLs (Postgres treats them as distinct), so a null key would insert a duplicate on every re-run. The new migration also makes `book.game_id` `not null` (§12.1) so the invariant holds at the DB level. Rows are **deduped by conflict key before each chunk is sent** (last occurrence wins): Postgres raises `ON CONFLICT DO UPDATE command cannot affect row a second time` if the same key appears twice in one statement, which would kill the whole ~500-row chunk. Collapsed duplicates are counted and reported in the run summary (FR-11).
-- **FR-9 — `book_location` upsert.** Requires a new migration adding `unique (book_id, location_name, location_type)` on `book_location`; upserts against that constraint (spec Decision #5). The same migration drops the now-redundant `book_location_book_idx`: the constraint's unique index has `book_id` as its leftmost column, so book_id lookups and the foreign key's `on delete cascade` both remain indexed. A book's `loc` field may list multiple locations — each becomes its own row, deduped by `(book_id, location_name, location_type)` before the upsert for the same reason as FR-8 (a `loc` list naming the same place twice would otherwise abort the statement).
-- **FR-9a — `book_id` resolution.** `book.id` is a server-generated uuid, so location rows cannot be built at mapping time. `mapToLocationRows` emits rows keyed by `game_id`; the `book` upsert chains `.select('id, game_id')` to return the uuids for the chunk it just wrote; `attachBookIds` folds those into real `book_id`s before the `book_location` upsert. A location whose `game_id` is absent from the map (its book was skipped or its chunk failed) is dropped and counted, never written with a dangling id.
-- **FR-9b — `loc` splitting.** Splitting one `loc` value into location rows is its own named pure function, `parseLocations(raw)`, unit-tested with its own fixture cases (FR-14) — it is the highest-variance parsing step here and the unique constraint depends entirely on its output being stable across runs. Its actual rules (delimiter — `<br />`? a `*` list? commas? — plus link unwrapping for `[[Whiterun|Dragonsreach]]` and whether nested location templates appear) are **not yet known**: see OQ-7, resolved in M0 against real sample pages.
-- **FR-9c — `location_type` / `notes` provenance.** No `Book Summary` field has been confirmed as the source for either column, so both are **written null** until M0 identifies one. Consequence, stated so it isn't discovered later: with `location_type` null across the board, the unique key effectively degenerates to `(book_id, location_name)` — which is still correct and still idempotent thanks to `nulls not distinct` (§12.1), but it means two genuinely different locations sharing a name would collapse into one row. If M0 finds a source for `location_type`, populating it widens the key and that collapse stops.
-- **FR-10 — `--dry-run` mode.** Parses and maps as normal but skips all Supabase writes, logging the mapped rows that would have been written instead. It constructs no Supabase client and reads no credentials, so it runs with no `SUPABASE_SERVICE_ROLE_KEY` present — M1's dry run therefore precedes M2's credential setup rather than depending on it.
-- **FR-11 — Run summary.** A PostgREST upsert returns the affected rows but not whether each was inserted or updated (`xmax = 0` isn't exposed), so the script **pre-fetches the existing `game_id` set** (`select game_id from book` — one cheap query at this table size) before writing and classifies each row against it. Logs: pages found (matched FR-3), books imported (new), updated (existing), skipped (non-`Skyrim:` page per FR-3, or no usable `id`/`game_id` per FR-8), errored (parse failure), and duplicate conflict keys collapsed before writing (FR-8/FR-9) — plus per-error book title/id for triage.
-- **FR-12 — Credentials.** Reads `SUPABASE_SERVICE_ROLE_KEY` (new var) and `NEXT_PUBLIC_SUPABASE_URL` from the environment via Node's native `--env-file=.env.local`, passed by the `import:uesp` script (§12.3/§12.4 — one canonical invocation, not three); never logs or commits the key. The client is constructed **inside the run function, never at module scope** — a module-scope client would be built at import time, so importing this module in a unit test would demand env vars and construct a client for no reason. (CLAUDE.md's module-scope rule exists for a different reason — Vercel Fluid compute sharing an instance across concurrent users' requests — which doesn't reach a single-process CLI holding a sessionless service-role client.) Under `--dry-run` no client is constructed at all and no credentials are read, which is what lets M1 run before the service-role key exists (FR-10).
-- **FR-13 — Provenance.** `--dump-date=YYYY-MM-DD` is a **required** flag — omitting it is an argument error, the same as omitting the dump path (FR-1). It costs the operator nothing and it is what makes AC-6 satisfiable on every run. It is recorded in the run summary alongside a CC BY-SA 2.5 attribution note, and written durably to the README attribution section (FR-13a) — stdout alone does not survive the terminal.
-- **FR-13a — Durable attribution.** A README section records the source (UESP), the dump date of the most recent import, and the CC BY-SA 2.5 licence. Owned by M3, when a real dump has actually been imported. This is the provenance record the spec asked for; rendering attribution in the UI remains `prd-browse-and-track.md` FR-7's job, not this task's.
-- **FR-14 — Unit-testable parsing.** `extractBookSummaryTemplate`, `parseTemplateFields`, `normalizeSkill`, `normalizeCategory`, `cleanTitle`, `cleanWikitext`, `mapToBookRow`, `parseLocations`, `mapToLocationRows`, `attachBookIds` are pure functions (no I/O), each covered by unit tests run via `yarn test` against a committed fixture (`scripts/__fixtures__/sample-dump.xml`). Tests live beside their sources as `scripts/*.test.mts`, matching the `test` script's glob (§12.3). Note that `tsconfig.json` sets `strict: false`, so the compiler will **not** enforce the `| null` unions in §12.2 — these functions handle absent values explicitly and are tested for it, rather than relying on type checking to catch it.
-- **FR-15 — Title and wikitext cleanup.** Values reaching the database are cleaned, not stored raw. `cleanTitle(pageTitle)` strips the `Skyrim:` namespace prefix and a trailing disambiguator such as ` (book)` — `book.title` renders directly in the catalogue list (`prd-browse-and-track.md` FR-1), so `Skyrim:Deathbrand (book)` is not an acceptable display title. `cleanWikitext(value)` decodes HTML entities (`&nbsp;`, `&amp;`) and strips residual markup (`''emphasis''`, `<br />`, `<ref>…</ref>`, HTML comments, leftover braces) from every stored string — titles, location names, and `description` alike. Both are pure and fixture-tested (FR-14).
+- **FR-1 — CLI entry.** Takes the dump path as a required positional argument; errors clearly (no stack trace) if missing or unreadable.
+- **FR-2 — Streaming parse.** `createReadStream` → compression detection by **magic bytes** (`BZh` → `bzip2 -dc` subprocess; `1f 8b` → `zlib.createGunzip()`; neither → treat as plain XML) → `sax.createStream()`. Never `zlib.gunzip`, which is the one-shot buffer API. Detection is by content, not extension: a truncated HTML error page named `.xml.bz2` must fail loudly rather than be parsed as XML.
+- **FR-3 — Catalog filter.** A page qualifies only if `<ns>` is **134** _and_ its wikitext invokes `{{Game Book}}`. The match is case-insensitive and tolerant of whitespace/underscores (`{{Game Book`, `{{ game book`, `{{Game_Book`). HTML comments and `<nowiki>` blocks are stripped before the test, so a commented-out example doesn't qualify. Redirect pages are skipped. Expected yield: 1,245 pages.
+- **FR-4 — Template extraction.** `parseGameBookTemplate(wikitext)` returns the template's flat parameters, or `null` if the page has no parseable invocation. Brace- and link-aware: a `|` inside `[[…|…]]` or a nested `{{…}}` is not a parameter separator.
+- **FR-5 — Identity.** `uesp_page_id` (the `<page><id>` integer) is the upsert key. `game_id` (the `|id=` Form ID) is stored as a **non-unique, nullable attribute**, alongside `game_id_extra` for `id2`–`id5` (6 pages). Placeholder prefixes (`xx`, `fexxx`) are preserved verbatim, never expanded.
+- **FR-6a — Sentinel and field semantics.** `lorename` is `none` on **734 of the 852 pages that set it** — a sentinel, not a value; it is stored as null, leaving ~118 real lore links. `description` is the short subtitle UESP shows under the title ("A hint on how to solve Shalidor's Maze") and maps to `book.description`. `note` is a **boolean flag** — its only value across 488 pages is `1` — not prose. `textnote` and `comment` are different things and **never co-occur** (0 of 1,245 pages set both): `textnote` is italicised errata about the record (variants, duplicate ids, naming errors) and maps to `errata`; `comment` is plain-text gameplay significance (quest relevance, links to other books) and maps to `gameplay_note`.
+- **FR-6 — Attribute mapping.** All populated template fields map to columns: `description` (501), `author` (486), `value` (1,207), `weight` (1,207), `icon` (1,164), `lorename` (852), `sumtitle` (233), `errata` (51), `gameplay_note` (48), and the series links `up`/`next`/`prev` (~165 each).
+- **FR-6b — Faithful import, no editorial filtering.** Every ns-134 `{{Game Book}}` page becomes a row. The script never excludes or merges books: UESP has already collapsed in-game variants to one page (a page reading "there are five versions of this book" is one book), and unobtainable or cut content stays in with its `errata` intact. Prose-based exclusion was rejected as unreliable — matching phrases like "cannot be found" yields ~19 pages including false positives such as `Amaund Motierre's Sealed Letter`, a quest item players do receive. Filtering is a browse-time concern, consistent with how `source` handles Creation Club; a curated exclusion list, if ever wanted, belongs in a hand-maintained table, not parser output. 49 pages have no `loc` field at all, which the UI can render as "no known location" from zero `book_location` rows.
+- **FR-7 — Category classification.** `classifyCategory(params)` → one of `skill_book`, `black_book`, `note`, `journal`, `book`, evaluated **in that order** — the order is load-bearing:
+    1. `skill_book` — has `skill=` (90). Must come first: `icon` is artwork and is reused, so the 25 magic-school skill books carry `SR-icon-book-SpellTome*.png` and would otherwise misclassify.
+    2. `black_book` — icon `Black Book` (7, all Dragonborn).
+    3. `note` — **`note=1` OR a Note-family icon** (`Note`/`TornNote`/`BloodstainedNote`). Union, because measured, each signal misses things the other catches: 42 Treasure Maps carry the flag with **no icon at all**, and 64 obvious notes (`Mysterious Note (Delphine)`, `Amaund Motierre's Sealed Letter`, `Museum Pamphlet`) carry the icon with no flag. The disagreement is wiki data-entry inconsistency, not a semantic distinction. `note` is boolean — its only value across 488 pages is `1`. Yield ~552.
+    4. `journal` — icon `Journal*`. Comes **after** `note` deliberately: 8 pages (the Thalmor Dossiers) carry journal artwork and `note=1`, and a dossier is a document rather than a personal journal. Yield ~198.
+    5. `book` — everything else (~444). An unrecognized icon lands here and is logged.
+
+- **FR-8 — Quest relation.** `is_quest_related` is a **boolean flag, not a category** — true when `quest` (312) or `questrel` (222) is present. A skill book can also be quest-related; a single-value taxonomy could not express that.
+- **FR-9 — Source classification.** `classifySource()` → `dawnguard` | `dragonborn` | `hearthfire` from `smod` (DG 51, DB 142, HF 9); `creation_club` from a `[[Category:Skyrim-Creation Club-…]]` link (327); otherwise `base` (~716). **`smod` alone is insufficient** — only 2 CC pages set `smod=CC` while 327 carry the category. **`mod` is the fallback when `smod` is absent** — measured, 4 pages carry `mod=[[Skyrim:Dawnguard|Dawnguard]]`, `mod=Hearthfire` or a Creation Club content name with no `smod` and no CC category link (e.g. `Skyrim:Discovering Ruunvald`, `Skyrim:Ransom Note`); classifying on `smod` alone files them as `base`. Resolution order: `smod` → CC category link → `mod` name → `base`.
+- **FR-10 — Skill normalization.** `normalizeSkill(raw)` maps onto Skyrim's 18 skills by **exact match after trim/case-fold, plus a small alias table** (`One Handed` → `One-Handed`). Not substring scanning: a value naming two skills would otherwise silently pick one. Unmapped values → `null` + logged for table extension; never fail the run.
+- **FR-11 — Location parsing.** `parseLocations(raw)` splits the `loc` field on `*` bullets (leading whitespace is inconsistent — the first bullet often has none) and per bullet extracts the location name and free-text notes. Real shape:
+
+    ```
+    *[[Skyrim:Bloodskal Barrow|Bloodskal Barrow]], one on a dresser near a double bed, and another on shelves
+    * Haknir's Shoal, on a [[Skyrim:Pirate|pirate]] boss
+    ```
+
+    The name is the link label where present and plain text otherwise; notes are everything after the first comma, with links unwrapped to their labels. A link inside the notes must not be mistaken for the location. `location_type` is written null — no source field exists for it. Present on 1,196 pages.
+
+- **FR-12 — `book` upsert.** Batched (chunks of ~500) on conflict `uesp_page_id`, deduped by conflict key before each chunk — Postgres raises `ON CONFLICT DO UPDATE command cannot affect row a second time` if a key repeats within one statement.
+- **FR-13 — `book_location` replacement.** For each successfully parsed book, replace its location set atomically via a Postgres function (`replace_book_locations(p_book_id uuid, p_rows jsonb)`) that deletes and re-inserts in one transaction. PostgREST cannot span statements transactionally, so this must be an RPC. Books that failed to parse keep their existing locations untouched.
+- **FR-14 — Target-database guard.** The script refuses to write to a non-localhost Supabase URL unless `--allow-remote` is passed, and prints the target host and row counts before the first write. The service-role key bypasses RLS: an accidental run against production writes 1,245 rows into live data with no undo.
+- **FR-15 — `--dry-run`.** Parses, classifies and maps as normal, writes nothing, constructs no Supabase client and reads no credentials — so it runs before the service-role key exists. Emits the FR-17 report.
+- **FR-16 — Credentials.** Reads `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` via `--env-file=.env.local`; never logged, never committed. The client is constructed inside the run function, not at module scope, so importing the module for tests needs no env.
+- **FR-17 — Run report.** Broken down **by category and source**, not just totals: pages found, new, updated, skipped (with reason), errored, duplicate keys collapsed, unmapped skills, unrecognized icons. Plus the dump date and a CC BY-SA 2.5 note.
+- **FR-18 — Provenance.** The dump date is parsed from the filename (`uespwiki-YYYY-MM-DD-current.xml.bz2`), with `--dump-date=YYYY-MM-DD` as an override for a renamed file. Recorded in the run report and in a README attribution section (owned by M3).
+- **FR-19 — Cleanup.** `cleanTitle(pageTitle)` strips the `Skyrim:` prefix and a trailing ` (book)` disambiguator — **only that exact suffix**, since stripping arbitrary parenthetical qualifiers would collapse many `Note`/`Journal`/`Letter` pages into identical titles. `display_title` prefers `sumtitle` where present. The full page title is stored separately as `uesp_title` for linking, debugging and attribution. `cleanWikitext(value)` decodes entities (`&nbsp;`, `&amp;`) and strips residual markup from every stored string.
+- **FR-20 — Unit-testable parsing.** `parseGameBookTemplate`, `parseLocations`, `classifyCategory`, `classifySource`, `normalizeSkill`, `cleanTitle`, `cleanWikitext`, `mapToBookRow`, `mapToLocationRows`, `attachBookIds` are pure (no I/O), each covered by tests in `scripts/*.test.mts` run via `yarn test`. Note `tsconfig.json` sets `strict: false`, so `| null` unions are not compiler-enforced — these handle absent values explicitly and are tested for it.
 
 ### Non-Functional (NFR)
 
-- **NFR-1 — Memory.** The full dump is never loaded into memory at once; peak memory scales with a single page's size, not the dump's.
-- **NFR-2 — No live UESP access from the script.** Zero network requests to `en.uesp.net` or `dumps.uesp.net` during script execution — the script has no HTTP client dependency at all. Scoped to the script: obtaining the dump is a human step performed beforehand (G1/NG6).
-- **NFR-3 — Resilience.** A single malformed or unparseable page is logged as skipped/errored; it never aborts the run. This extends to the write path: no single page's data can abort a write batch (see FR-8's conflict-key dedupe), and a failed chunk is logged and reported rather than left silently partial.
-- **NFR-4 — Idempotency.** Re-running against the same or a newer dump produces zero duplicate `book` or `book_location` rows.
-- **NFR-5 — Secrets.** The service-role key is read from env only; never logged, never committed (`.env*.local` already gitignored).
-- **NFR-6 — Scope.** The script is dev-only tooling; no route, page, or Server Action in the deployed app depends on it or imports from `scripts/`.
-- **NFR-7 — Testability.** Parsing/normalization/mapping logic is verifiable via `yarn test` without a live database or the real ~176MB dump.
+- **NFR-1 — Memory.** Peak memory scales with one page, not the dump. The decompressed stream is never buffered whole.
+- **NFR-2 — No UESP access from the script.** Zero requests to `en.uesp.net`/`dumps.uesp.net`. The only HTTP the script performs is Supabase writes. No parsing dependency may expose a fetch API (§4).
+- **NFR-3 — Resilience.** A malformed page is logged and skipped, never aborting the run. This extends to writes: no single page's data can abort a batch, and a failed chunk is reported rather than left silently partial.
+- **NFR-4 — Idempotency.** Re-running against the same or a newer dump produces no duplicate `book` rows, and location sets converge to the dump's contents.
+- **NFR-5 — Secrets.** Service-role key from env only; never logged, never committed.
+- **NFR-6 — Scope.** Dev-only tooling; nothing in `src/` imports from `scripts/`.
+- **NFR-7 — Testability.** All parsing/classification/mapping verifiable via `yarn test` with no database and no 177MB file.
 
 ## 6. Constraints and Assumptions
 
-### Constraints (from spec + architecture + this PRD)
+### Constraints
 
-- No live requests to UESP's servers or API — dump-file input only (robots.txt disallows both, and specifically names Anthropic crawlers).
-- Metadata only — no full book text stored (architecture.md §2.2, NG6).
-- CC BY-SA 2.5 attribution required in UI/README (`prd-browse-and-track.md` FR-7); this task records the dump date and license for that purpose (FR-13), it doesn't render the attribution itself.
-- Writes use the Supabase service-role key, bypassing RLS — never the app's normal Server Action path.
-- The script is a one-off local dev tool, not part of the deployed Next.js runtime.
-- The dump file itself is never committed; `.gitignore` gets a new entry for the local dump-storage convention (e.g. a `data/` directory).
-- Idempotency keys: `book.game_id` (spec Decision #2), tightened to `not null` by the new migration so the unique index can actually dedupe; `book_location(book_id, location_name, location_type)` unique constraint (spec Decision #5, same migration).
-- `location_type` stays free text, not normalized (spec Decision #6).
+- Dump-file input only; the human download from `dumps.uesp.net` is the sanctioned input to this task, not a violation of it (robots.txt binds automated crawlers).
+- Metadata only — no full book text (NG2). The text is in namespace 130, which this task never reads.
+- CC BY-SA 2.5 attribution required in UI/README (`prd-browse-and-track.md` FR-7); this task records the dump date and licence, it doesn't render the UI attribution.
+- Writes use the service-role key, bypassing RLS — never the app's Server Action path.
+- Identity is `uesp_page_id`; `game_id` is an attribute (§0, FR-5).
+- The dump is bzip2; `bzip2` must be on `PATH`.
+- Postgres 15+ (`nulls not distinct` is 15+ syntax). Verify the local Supabase CLI's image major version matches the hosted project before M2.
 
 ### Assumptions
 
-- A human downloads the dump manually and periodically; the script never fetches it.
-- `book.id` stays internally generated; `book.game_id` is the natural upsert key. **Confirmed against a real page** (`Skyrim:2920, Sun's Dusk, v11`): the template's `id` field is an 8-hex-digit Bethesda Form ID (e.g. `0001ACE3`) — a record identifier the game engine itself guarantees is unique within a single plugin's data (Bethesda's tooling won't allow two records in the same file to share a Form ID), not a display convention that could drift. This also confirms the `book`/`book_location` split matches the underlying game data model: one base object (one Form ID) can be placed at many world locations, mirroring one `book` row to many `book_location` rows. Worth spot-checking one or two more Skyrim pages in M0 to rule out a fluke, but this is a stronger basis for NFR-4/idempotency than assumed when this PRD was first drafted.
-- Some books will have missing/ambiguous fields (no skill, no known location, unmapped category) — these still import, with nulls/`other` rather than failing the run.
-- The `Skyrim:` prefix **and** a `{{Book Summary` invocation together identify Skyrim book pages as a set — neither alone is sufficient (FR-3). The `Skyrim:` space covers DLC books as well as base-game ones (confirmed: `Skyrim:Deathbrand (book)`).
-- `wtf_wikipedia`'s generic MediaWiki template parsing is compatible with UESP's specific dialect — confirmed empirically in M0, not assumed here.
-- UESP's dump is `.gz`-compressed; `.bz2` support is out of scope unless M1 finds otherwise.
+- A human downloads the dump periodically; the script never fetches it.
+- `book.id` (uuid) stays internally generated. `uesp_page_id` is the natural upsert key.
+- Pages missing fields still import, with nulls — 47 pages lack `|id=` entirely and must not be dropped.
+- Namespace 134 plus `{{Game Book}}` identifies the catalog. DLC books are in ns 134 (verified: `Skyrim:Deathbrand (book)` carries `{{Mod Header|Dragonborn}}`), so no separate DLC namespace handling is needed.
 
 ## 7. Risks and Mitigations
 
-| ID  | Risk                                                                                                                                                                        | Likelihood | Impact | Mitigation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | Category taxonomy's source field/values are unconfirmed (MI1).                                                                                                              | Med        | Med    | M0 inspects real sample pages before finalizing the mapping table; `other` catch-all means nothing blocks on an unmapped value.                                                                                                                                                                                                                                                                                                                                                                                                           |
-| R2  | `wtf_wikipedia` doesn't perfectly parse UESP's specific `Book Summary` usage.                                                                                               | Med        | Med    | The real failure mode is **silent lossiness, not crashes** — `wtf_wikipedia` targets Wikipedia's infobox conventions, renders wikitext to plain text, and normalizes or drops params it doesn't recognize; `Book Summary` isn't in its infobox set. NFR-3's skip-and-continue does nothing about a wrong-but-plausible value. Mitigation is therefore a **value-level check**: hand-transcribe the expected params for every fixture page and assert exact equality in M0's tests, so lossiness fails a test rather than reaching the DB. |
-| R3  | UESP's dump compression format (gz vs. bz2) is unverified.                                                                                                                  | Low–Med    | Low    | `.gz` auto-detected via `zlib`; `.bz2` produces a clear "decompress manually" error rather than adding an unverified dependency.                                                                                                                                                                                                                                                                                                                                                                                                          |
-| R4  | Skill/category free-text phrasing varies across pages ("Smithing +1" vs. "Smithing").                                                                                       | High       | Med    | Lookup tables match on trimmed/lowercased substrings, not exact strings; unmapped values are logged for table updates — cheap to fix since re-runs are idempotent.                                                                                                                                                                                                                                                                                                                                                                        |
-| R5  | The new `book_location` unique constraint conflicts with a future schema change.                                                                                            | Low        | Low    | Constraint is on natural business-key columns; compatible with a future dedicated location entity if that's ever needed.                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| R6  | The committed fixture doesn't cover a real edge case only present in the live dump.                                                                                         | Med        | Low    | M1's dry run against the real dump (not just the fixture) is a required exit gate before any DB write (M2).                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| R7  | A future change accidentally adds live UESP network calls.                                                                                                                  | Low        | High   | NFR-2 is explicit and testable — the script has no HTTP client dependency, so violating it requires actively adding one.                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| R8  | The exact `Book Summary` parameter names behind `description` and `is_unique` are unconfirmed (OQ-4 decides _whether_, and is closed; OQ-5 and the parameter names remain). | Med        | Low    | M0 inspects real template fields and names them; both are populated best-effort and a page lacking either still imports (nulls / `false`).                                                                                                                                                                                                                                                                                                                                                                                                |
-| R9  | Locations removed upstream are never deleted, so `book_location` drifts over successive dumps.                                                                              | Med        | Low    | **Accepted, not mitigated.** Upsert never deletes (spec Decision #5), so if a newer dump drops a location from a page, the old row persists — and neither AC-3 nor AC-4 catches it, since both only assert presence and non-duplication. No reconciliation/delete pass is added: a parse regression in `parseLocations` (FR-9b) would then silently delete real rows, which is worse than stale ones. Revisit if drift is ever observed.                                                                                                  |
-| R10 | A write chunk fails mid-run, leaving the tables partially updated.                                                                                                          | Low        | Med    | PostgREST chunks are separate statements, not one transaction, so a failed chunk leaves earlier chunks committed. The failure is logged with the chunk's `game_id`s and surfaced in the run summary as a non-zero error count; recovery is simply re-running, which is idempotent (NFR-4). No rollback is attempted.                                                                                                                                                                                                                      |
+| ID  | Risk                                                           | Likelihood | Impact | Mitigation                                                                                                                                                          |
+| --- | -------------------------------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | An accidental run against the production database.             | Med        | High   | FR-14's localhost guard plus printed target confirmation. This is the highest-severity operational risk in the task.                                                |
+| R2  | `icon` classification mis-sorts a book type.                   | Med        | Med    | Fixture cases per icon family; unrecognized icons fall to `book` and are logged with counts, so drift is visible in every run report (FR-17).                       |
+| R3  | `parseLocations` regresses and mangles location sets.          | Med        | High   | Replacement happens only for successfully parsed books (FR-13). Fixture cases for: no-link location, link-inside-notes, two copies in one location, label ≠ target. |
+| R4  | Creation Club misclassified as base game.                      | Med        | Low    | FR-9 uses the category link, not `smod` (which marks only 2 of 327). Cross-checked against `mod` count; mismatch logged.                                            |
+| R5  | Skill values vary in phrasing across pages.                    | Med        | Low    | Exact match plus alias table (FR-10); unmapped values logged, cheap to fix since re-runs are idempotent.                                                            |
+| R6  | The fixture misses an edge case present in the full dump.      | Med        | Low    | M1's dry run over all 1,245 pages is a required gate before any write, and reports by class so a whole missing class is visible.                                    |
+| R7  | A future change adds UESP network calls.                       | Low        | High   | No parsing dependency with a fetch API (§4); `supabase-js` is the only HTTP client.                                                                                 |
+| R8  | A page deleted and recreated upstream imports as a new row.    | Low        | Low    | Accepted. `uesp_title` is stored, so the duplicate is detectable.                                                                                                   |
+| R9  | A write chunk fails mid-run, leaving tables partially updated. | Low        | Med    | Chunks are separate statements, not one transaction. Failures are logged with their keys and surfaced in the report; recovery is re-running, which is idempotent.   |
+| R10 | `is_unique` has no source in the template.                     | High       | Low    | Column left **nullable and unpopulated** — "unknown" must not be stored as `false` (OQ-2).                                                                          |
 
-## 8. Milestones / Phased Rollout
+## 8. Milestones
 
-> **Prerequisite for M0, not M1:** a human-downloaded dump file must be on disk before this work starts. M0's fixture is cut from real `<page>` elements and its exit gates (R1, R2, R8, OQ-1, OQ-4, OQ-5, OQ-6, OQ-7) all resolve _against real markup_ — none of them can be met without it. The dump is the sanctioned input to this task (G1/NG6); the constraint is on what the script does at runtime.
+> **Prerequisite, satisfied:** `data/uespwiki-2026-08-30-current.xml.bz2` is on disk.
 
-- **M0 — Fixture + pure parsing functions.** Build `scripts/__fixtures__/sample-dump.xml` (a handful of real `<page>` elements: a normal skill book, a multi-location lore book, a book with no skill, a non-book page that must be filtered out, and a non-`Skyrim:` book page that must be dropped by FR-3's prefix check). Implement and unit-test (`yarn test`) `extractBookSummaryTemplate`, `parseTemplateFields`, `normalizeSkill`, `normalizeCategory`, `cleanTitle`/`cleanWikitext`, `mapToBookRow`/`parseLocations`, `mapToLocationRows`, `attachBookIds`. No DB, no streaming yet. **Exit:** tests green; `wtf_wikipedia`'s extraction confirmed correct against real UESP markup by **value-level diff** — hand-transcribed expected params per fixture page, asserted exactly, nested links/templates included (R2); category/skill mapping tables confirmed against real sample pages (resolves R1/R8 empirically). **If that diff fails**, this milestone does not block: swap `extractBookSummaryTemplate`'s internals for a hand-rolled brace/link-aware param splitter (roughly 50 lines — track `{{}}` nesting and treat `|` inside `[[]]` as literal, ignore HTML comments), drop the `wtf_wikipedia` dependency, and keep the same tests as the contract.
-- **M1 — Streaming + dry run.** Wire the `sax`-based streamer to the M0 functions; `--dry-run` logs mapped rows for the fixture and, once available, a real downloaded dump. **Exit:** dry run against the fixture produces exactly the expected rows; dry run against a real dump surfaces no unexpected crashes (R6 check).
-- **M2 — Migration + DB writes.** Apply the new migration **first** (§12.1: `book.game_id set not null`, `book.category`/`book.skill` check constraints against M0's finalised taxonomies, `book_location` unique constraint, drop of the redundant `book_location_book_idx`) — neither upsert's `on conflict` target exists without it, so this cannot follow the write step. Then the Supabase upserts (`book` on `game_id`, `book_location` on the new constraint) plus the run-summary log (FR-11/FR-13). **Exit:** migration applied; re-running against the same input produces zero duplicate/changed rows (NFR-4).
-- **M3 — Full-dump run.** Run against a real downloaded dump; add the README attribution section (FR-13a). **Exit:** success criteria in §9 met (large majority of ~800 books, resolved categories, normalized skills where applicable).
+- **M0 — Fixture + pure functions.** Cut `scripts/__fixtures__/sample-dump.xml` from real `<page>` elements: a skill book, a multi-location book (Deathbrand — 11 locations, mixed link/plain forms), a note, a journal, a magic-school skill book carrying a `SpellTome` icon (proves icon-vs-`skill=` precedence), a black book, a Creation Club book with an `fexxx` id, a page with no `|id=`, an `id2` page, a non-`{{Game Book}}` ns-134 page, and an ns-116 (Oblivion) book that must be filtered out. Attribute the excerpts as CC BY-SA in the fixture header. Implement and test all FR-20 functions. **Exit:** tests green, including a value-level diff against hand-transcribed expected params.
+- **M1 — Streaming + dry run.** Wire the bzip2/sax streamer to M0's functions. **Exit:** a dry run over the full dump reports ~1,245 books with the expected distribution (90 skill, ~444 book, ~206 journal, ~498 note, 7 black book) across five sources and no unexpected crashes.
+- **M2 — Migration + writes.** Apply the §12.1 migration **first**, then upserts, the `replace_book_locations` RPC, the target guard, and the report. **Exit:** re-running the same dump produces zero duplicates and a stable location count.
+- **M3 — Full run + attribution.** Run against the real dump; add the README attribution section. **Exit:** §9 met.
 
 ## 9. Acceptance Criteria
 
-- AC-1. Running the script against a current dump populates `book` with the large majority of Skyrim's ~800 books.
-- AC-2. Every imported book has a resolved `category` (including `other` where unmapped); skill books have a non-null, normalized `skill`. (FR-6, FR-7)
-- AC-3. Books with known locations have corresponding `book_location` rows, one per location. (FR-9)
-- AC-4. Re-running the script against the same or a newer dump produces no duplicate `book` or `book_location` rows. (NFR-4) — note this asserts non-duplication only; it does **not** assert that rows removed upstream disappear, which is accepted drift (R9).
-- AC-5. The script makes no network requests to `en.uesp.net`/`dumps.uesp.net` during execution. (NFR-2) — scoped to script runtime; the prior human download of the dump is expected input.
-- AC-6. The source dump's date and CC BY-SA 2.5 license are present in the run summary output, and in the README attribution section after a real import. (FR-13, FR-13a)
-- AC-7. `yarn test` passes with no network or DB access required — all pure parsing/normalization/mapping functions covered against the fixture. (FR-14, NFR-7)
-- AC-8. `--dry-run` against the fixture produces the exact expected mapped rows before any real DB write is attempted. (FR-10)
-- AC-9. A malformed/unparseable page is logged as skipped/errored, and the run completes rather than aborting. (NFR-3)
+- AC-1. A run against the dump imports ~1,245 books, with the distribution in M1's exit gate. (FR-3, FR-7)
+- AC-2. Every book has a category and a source from the fixed sets. Every `skill_book` has a non-null normalized `skill`. (FR-7, FR-9, FR-10)
+- AC-3. Books with locations have one `book_location` row per location, with notes populated where the source provides them. (FR-11)
+- AC-4. Re-running produces no duplicate `book` rows and no growth in `book_location`. (NFR-4)
+- AC-5. The script makes no requests to UESP during execution. (NFR-2)
+- AC-6. The dump date and CC BY-SA 2.5 licence appear in the run report and the README. (FR-18)
+- AC-7. `yarn test` passes with no network, no database, and no 177MB file. (FR-20)
+- AC-8. `--dry-run` runs to completion with no `SUPABASE_SERVICE_ROLE_KEY` set. (FR-15)
+- AC-9. A malformed page is logged and the run completes. (NFR-3)
+- AC-10. Pointing the script at a remote Supabase URL without `--allow-remote` refuses to write. (FR-14)
 
 ## 10. Success Metrics
 
-- **Coverage:** ≥ 90% of the pages matching FR-3's filter produce a `book` row. The denominator comes from the dump itself, not a hardcoded catalogue size — `prd-browse-and-track.md` MI1 explicitly refuses to canonize the "/820" figure, and this PRD shouldn't reintroduce it. (The familiar ~800 is a rough sanity check on the run, nothing more.)
-- **Data completeness:** 100% of imported books have a resolved `category` (including `other`). Skill completeness is governed by AC-2 at 100%, not by a percentage target here: an unmapped skill value is a **lookup-table gap, not missing data** (R4 logs every unmapped value for exactly this), and re-runs are idempotent, so the loop is "run → read the unmapped log → extend the table → re-run" until AC-2 holds. A first-run figure below 100% is a diagnostic that the table needs extending, not an acceptable resting state.
-- **Idempotency:** 0 duplicate rows across repeated runs — a hard requirement (AC-4), not a target.
-- **Parse failure rate:** < 5% of pages matching the `{{Book Summary` filter fail to parse; anything above that is investigated before treating an import run as final.
-- **Test coverage:** every pure function (`extractBookSummaryTemplate`, `parseTemplateFields`, `normalizeSkill`, `normalizeCategory`, `cleanTitle`, `cleanWikitext`, `mapToBookRow`, `parseLocations`, `mapToLocationRows`, `attachBookIds`) has at least one fixture-backed test case.
+- **Coverage:** ≥ 98% of the 1,245 ns-134 `{{Game Book}}` pages produce a row. The denominator is the page count, not "pages that parsed" — a filter measured against itself proves nothing.
+- **Class distribution** matches M1's dry run within a few pages; a whole class collapsing to zero is a parser regression.
+- **Skill completeness:** 100% of `skill_book` rows have a non-null skill (AC-2). An unmapped value is a lookup-table gap to fix and re-run, not an acceptable resting state.
+- **Identity integrity:** `count(*) == count(distinct uesp_page_id)`, and no book loses locations across consecutive runs of the same dump.
+- **Test coverage:** every FR-20 function has at least one fixture-backed case.
 
 ## 11. Open Questions
 
-- **OQ-1 (MI1):** The `Book Summary` template's exact name/capitalisation (FR-3 matches loosely precisely because this is unconfirmed), plus the exact category taxonomy — source template field name and canonical value set. Resolved empirically in M0; the provisional list in §12.1's `book_category_valid` check constraint must be updated to M0's finding before that migration is applied in M2.
-- **OQ-2 (MI3):** Is the UESP dump `.gz` or `.bz2`? Assumed `.gz`; confirmed (or `.bz2` support added) once a real dump is downloaded.
-- **OQ-3:** Does `dumps.uesp.net` expose a discoverable per-dump date (filename convention, HTTP header) that could later replace the manual `--dump-date` flag? Not investigated here since it would require visiting the site.
-- **OQ-4 (closed — M8):** `book.description` **is** populated by this import, best-effort, from the named `Book Summary` parameter carrying UESP's short editorial descriptor (the one-line subtitle on a book page, e.g. "The tale of a legendary pirate and his treasure"). Hard rule: a **named template parameter only, never the page's body prose** — the body is the book text NG2 excludes, and nothing may source `description` from it. M0 confirms the exact parameter name. Note that no current feature renders it: `prd-browse-and-track.md` FR-1's list row is title/category/skill/flags, and the detail page that would show a description is deferred (its NG1). It is imported anyway because it costs one field on ~800 rows and re-running is idempotent, so the alternative is a second pass later.
-- **OQ-5:** Is `book.is_unique` derivable from a `Book Summary` parameter, or from category membership (e.g. a "Unique Books" wiki category)? Confirmed in M0.
-- **OQ-6:** How is UESP's `Skyrim:` space represented in the dump — a numbered MediaWiki namespace exposed in `<page><ns>`, or a title prefix inside ns 0? Determines whether FR-3's hard filter reads `<ns>` or the title string. Confirmed in M0 against the real dump.
-- **OQ-7 (M4):** What is the real shape of the `Book Summary` `loc` field — delimiter (`<br />`, `*` list, commas, something else), whether values arrive as `[[link|label]]` pairs needing unwrapping, and whether nested location templates appear? `parseLocations` (FR-9b) can't be written until this is known. Also: does any field carry `location_type` or per-location `notes` (FR-9c), or do both stay null? Resolved in M0.
+- **OQ-1:** Should the catalog default to `skill_book` + `book` only, with `note`/`journal`/`black_book` opt-in via UI checkboxes? This is a `prd-browse-and-track.md` filter-default decision; the import stores everything with a category and source either way.
+- **OQ-2:** `is_unique` has no `{{Game Book}}` parameter. Leave permanently null, drop the column, or derive it another way? Left nullable for now (R10).
+- **OQ-3:** Model book **series** relationally (`up`/`next`/`prev`, ~165 pages each) or store the raw title strings? Currently stored as text; no feature reads them yet.
+- **OQ-4:** UESP's own "820 readable items" breakdown (307 lore books, 192 letters/notes, 97 journals, 93 spell tomes, 91 skill books, 28 recipes, 7 Black Books, 5 quest books) does not reconcile with what `{{Game Book}}` yields: skill books agree (90 + Oghma Infinium = 91) and Black Books agree exactly (7), but notes measure 295 against 192, `book` 444 against 307, and journals 110 against 97. Spell tomes and recipes are **not** `{{Game Book}}` pages at all — they are consumable item pages under a different template, so tracking them would need a second source and is currently out of scope (NG7). Worth reconciling before the progress-bar denominator is finalized in `prd-browse-and-track.md`.
 
 ---
 
 ## 12. Technical Design
 
-### 12.1 New Migration
+### 12.1 Migration
 
-`supabase/migrations/<timestamp>_import_upsert_keys.sql` (timestamp-prefixed, matching the existing `20260819040000_user_book.sql` convention).
-
-**Prerequisite: Postgres 15 or newer** — `unique nulls not distinct` is 15+ syntax and this migration will not parse on 14. Verify before M2 that the local Supabase CLI's Postgres image major version matches the hosted project's; the CLI's version comes from its own config, not from the hosted project, so the two can silently diverge.
+`supabase/migrations/<timestamp>_book_import_schema.sql`. **Requires Postgres 15+.**
 
 ```sql
--- Migration: import_upsert_keys
--- Feature: Import UESP Book Data (see docs/specs/prd-import-uesp-books.md §12, spec Decision #5)
+-- Migration: book_import_schema
+-- Feature: Import UESP Book Data (see docs/specs/prd-import-uesp-books.md §12)
 --
--- Makes both upsert keys used by the import script actually enforceable.
+-- Reshapes the placeholder book table around what the UESP dump actually
+-- provides. Safe to do destructively: both tables are still empty.
 
--- book.game_id is `text unique` but NULLABLE, and Postgres treats NULLs as
--- distinct in a unique index -- so `on conflict (game_id)` cannot dedupe rows
--- whose game_id is null, and every re-run would insert a fresh duplicate for
--- any book page lacking a Creation Kit `id`. Free to tighten now: the table
--- is still empty. The script additionally skips such pages (FR-8/FR-11), so
--- this is defense in depth against any other writer.
-alter table book
-  alter column game_id set not null;
+-- ── Identity ─────────────────────────────────────────────────────────────────
+-- The MediaWiki page id, not the Creation Kit Form ID. Measured against the
+-- 2026-08-30 dump: 1,198 of 1,245 pages carry a |id= value but only 1,120 are
+-- distinct -- Creation Club items render as `fexxx8NN` placeholders (fexxx819
+-- alone is shared by 11 pages) and DLC items as `xx......`. Upserting on that
+-- would silently merge ~44 distinct books. Page ids are unique by construction.
+alter table book add column uesp_page_id integer;
+alter table book add constraint book_uesp_page_id_unique unique (uesp_page_id);
+alter table book alter column uesp_page_id set not null;
 
--- Replaces the placeholder free-text category/skill columns with the fixed
--- taxonomies this task defines (§3, G2; closes prd-browse-and-track.md OQ-8's
--- "fixed enum vs free-text" question in favour of a fixed set). Check
--- constraints rather than Postgres enum types: the value sets are still being
--- confirmed empirically in M0, and revising a check constraint later is a
--- drop-and-re-add in a new migration, where `alter type` on an enum is
--- materially harder to reverse.
---
--- The exact `category` values below are PROVISIONAL until M0 finalises the
--- taxonomy against real sample pages (OQ-1) -- this migration lands in M2,
--- after M0, so the list must be updated to M0's finding before it is applied.
--- The 18 skill values are known now and are not provisional.
-alter table book
-  add constraint book_category_valid
-  check (category in ('skill_book', 'lore_book', 'quest_book', 'other'));
+-- game_id demotes from key to attribute: still useful, no longer trusted to be
+-- unique, and absent on 47 pages.
+alter table book drop constraint if exists book_game_id_key;
+alter table book add column game_id_extra text[]; -- |id2..|id5, 6 pages
 
-alter table book
-  add constraint book_skill_valid
+-- ── Attributes ───────────────────────────────────────────────────────────────
+alter table book add column uesp_title       text not null;  -- 'Skyrim:Deathbrand (book)'
+alter table book add column source           text not null;
+alter table book add column icon             text;
+alter table book add column author           text;
+alter table book add column value            integer;        -- base gold, pre-modifiers
+alter table book add column weight           numeric(6, 2);  -- 1.0 most books, 0 notes
+alter table book add column lorename         text;   -- null when the source says 'none' (734 pages)
+alter table book add column errata           text;   -- |textnote: variants, duplicate ids, naming errors (51)
+alter table book add column gameplay_note    text;   -- |comment: quest relevance, links to other books (48)
+alter table book add column series_up        text;
+alter table book add column series_prev      text;
+alter table book add column series_next      text;
+alter table book add column is_quest_related boolean not null default false;
+
+-- is_unique has no source parameter in {{Game Book}} (R10/OQ-2). Unknown must
+-- not be stored as false, so the not-null default is removed.
+alter table book alter column is_unique drop not null;
+alter table book alter column is_unique drop default;
+
+alter table book add constraint book_category_valid
+  check (category in ('skill_book', 'book', 'journal', 'note', 'black_book'));
+
+alter table book add constraint book_source_valid
+  check (source in ('base', 'dawnguard', 'dragonborn', 'hearthfire', 'creation_club'));
+
+alter table book add constraint book_skill_valid
   check (
     skill is null
     or skill in (
@@ -257,52 +291,50 @@ alter table book
     )
   );
 
--- Enables upserting book_location rows idempotently across re-runs of the
--- import script, mirroring book.game_id's role for the book table.
---
--- `nulls not distinct` matters here: location_type is nullable free text
--- (Decision #6, never normalized), and Postgres's default unique semantics
--- treat NULL as distinct from any other NULL. Without this clause, two rows
--- for the same book_id/location_name with a NULL location_type would NOT
--- collide on conflict -- re-running the import would insert a duplicate
--- instead of upserting, silently breaking the idempotency this constraint
--- exists for.
+-- A skill book without a skill is a parse failure, not valid data (AC-2).
+alter table book add constraint book_skill_book_has_skill
+  check (category <> 'skill_book' or skill is not null);
+
+create index book_source_idx    on book (source);
+create index book_quest_rel_idx on book (is_quest_related) where is_quest_related;
+
+-- ── Locations ────────────────────────────────────────────────────────────────
+-- Replaced per book rather than upserted (FR-13), so no unique constraint is
+-- needed as a conflict target -- but one still guards against a parser emitting
+-- the same location twice for one book. `nulls not distinct` because
+-- location_type is always null for now (no source field) and Postgres would
+-- otherwise treat every null as distinct.
 alter table book_location
   add constraint book_location_unique
   unique nulls not distinct (book_id, location_name, location_type);
 
--- Superseded by the unique index that the constraint above creates: book_id is
--- its leftmost column, so book_id-only lookups AND the book_id foreign key's
--- ON DELETE CASCADE are both still served by an index afterwards. Keeping this
--- separate single-column index would just duplicate storage/maintenance cost.
--- `if exists` so the migration is safe to apply to a database where an earlier
--- attempt already removed it.
+-- Superseded by the unique index above, whose leftmost column is book_id --
+-- book_id lookups and the FK's on-delete cascade both stay indexed.
 drop index if exists book_location_book_idx;
+
+-- Atomic per-book location replacement. PostgREST cannot span statements
+-- transactionally, so delete-then-insert must live in the database.
+create or replace function replace_book_locations(p_book_id uuid, p_rows jsonb)
+returns void language plpgsql as $$
+begin
+  delete from book_location where book_id = p_book_id;
+  insert into book_location (book_id, location_name, location_type, notes)
+  select p_book_id,
+         r->>'location_name',
+         r->>'location_type',
+         r->>'notes'
+    from jsonb_array_elements(p_rows) as r;
+end $$;
 ```
 
 ### 12.2 Script Structure (`scripts/import-uesp.mts`)
 
-Pure functions (unit-tested, no I/O):
-
 ```ts
-type RawTemplateParams = Record<string, string>;
+type RawParams = Record<string, string>;
 
-type ParsedBook = {
-    gameId: string;
-    title: string;
-    rawSkill: string | null;
-    rawCategory: string | null;
-    rawLocations: string[];
-    description: string | null;
-    isUnique: boolean;
-};
-
-function extractBookSummaryTemplate(wikitext: string): RawTemplateParams | null;
-function parseTemplateFields(
-    params: RawTemplateParams,
-    title: string,
-): ParsedBook;
-
+type Category = 'skill_book' | 'book' | 'journal' | 'note' | 'black_book';
+type Source =
+    'base' | 'dawnguard' | 'dragonborn' | 'hearthfire' | 'creation_club';
 type Skill =
     | 'One-Handed'
     | 'Two-Handed'
@@ -322,72 +354,96 @@ type Skill =
     | 'Lockpicking'
     | 'Pickpocket'
     | 'Speech';
-type Category = 'skill_book' | 'lore_book' | 'quest_book' | 'other'; // finalized in M0
 
+type ParsedPage = {
+    uespPageId: number; // <page><id> -- the identity
+    uespTitle: string; // 'Skyrim:Deathbrand (book)'
+    params: RawParams;
+    categoryLinks: string[]; // explicitly-written [[Category:...]] links
+};
+
+// Brace- and link-aware: '|' inside [[a|b]] or {{x|y}} is not a separator.
+function parseGameBookTemplate(wikitext: string): RawParams | null;
+
+function classifyCategory(params: RawParams): Category;
+function classifySource(params: RawParams, categoryLinks: string[]): Source;
 function normalizeSkill(raw: string | null): Skill | null;
-function normalizeCategory(raw: string | null): Category;
+
+// '*[[Skyrim:X|X]], on a shelf' -> [{ name: 'X', notes: 'on a shelf' }]
+function parseLocations(
+    rawLoc: string,
+): { name: string; notes: string | null }[];
+
+function cleanTitle(uespTitle: string, sumtitle?: string): string;
+function cleanWikitext(value: string): string;
 
 type BookRow = {
-    game_id: string; // 8-hex-digit Bethesda Form ID, e.g. "0001ACE3" (confirmed §6)
+    uesp_page_id: number;
+    uesp_title: string;
     title: string;
     category: Category;
+    source: Source;
     skill: Skill | null;
+    game_id: string | null;
+    game_id_extra: string[] | null;
     description: string | null;
-    is_unique: boolean;
+    author: string | null;
+    value: number | null;
+    weight: number | null;
+    icon: string | null;
+    lorename: string | null;
+    errata: string | null;
+    gameplay_note: string | null;
+    series_up: string | null;
+    series_prev: string | null;
+    series_next: string | null;
+    is_quest_related: boolean;
+    is_unique: boolean | null;
 };
-// book_id is unknown at mapping time (book.id is a server-generated uuid), so
-// the pure mapper emits rows keyed by game_id and the I/O glue swaps in the
-// real uuid once the book upsert returns it -- see FR-9a.
+
 type MappedLocation = {
-    gameId: string;
+    uespPageId: number;
     location_name: string;
-    location_type: string | null;
+    location_type: null;
     notes: string | null;
 };
 type LocationRow = {
-    book_id: string;
     location_name: string;
-    location_type: string | null;
+    location_type: null;
     notes: string | null;
 };
 
-function cleanTitle(pageTitle: string): string; // 'Skyrim:Deathbrand (book)' -> 'Deathbrand'
-function cleanWikitext(value: string): string; // entities decoded, residual markup stripped
-function mapToBookRow(parsed: ParsedBook): BookRow;
-// Splitting rules unknown until M0 -- see FR-9b / OQ-7.
-function parseLocations(rawLoc: string): string[];
-function mapToLocationRows(parsed: ParsedBook): MappedLocation[];
+function mapToBookRow(page: ParsedPage): BookRow;
+function mapToLocationRows(page: ParsedPage): MappedLocation[];
 function attachBookIds(
     rows: MappedLocation[],
-    idsByGameId: Map<string, string>,
-): LocationRow[];
+    idsByPageId: Map<number, string>,
+): Map<string, LocationRow[]>;
 ```
 
-I/O glue (not unit-tested directly — exercised via `--dry-run` against the fixture and, in M1, a real dump):
+I/O glue (exercised via `--dry-run`, not unit-tested directly):
 
-- Stream the dump file with `sax`, auto-gunzip on `.gz`.
-- Per `<page>`: filter (FR-3) → `extractBookSummaryTemplate` → `parseTemplateFields` → normalize → map.
-- `--dry-run`: log mapped rows. Otherwise: dedupe by conflict key (FR-8/FR-9), then batch-upsert `book` (chunks of ~500, `onConflict: 'game_id'`) with `.select('id, game_id')` chained so each chunk returns its uuids; fold those into a `game_id → id` map, `attachBookIds` the mapped locations, then upsert `book_location` (`onConflict: 'book_id,location_name,location_type'`).
-- Track counters (found/imported/updated/skipped/errored) and print the run summary, including `--dump-date` and a CC BY-SA 2.5 note.
+- Detect compression by magic bytes; spawn `bzip2 -dc` or `zlib.createGunzip()`; pipe into `sax.createStream()`.
+- Per `<page>`: filter (FR-3) → parse → classify → map.
+- Pre-fetch existing `uesp_page_id`s into a Set so the report can distinguish new from updated — a PostgREST upsert does not reveal which rows it inserted.
+- Dedupe by conflict key, batch-upsert `book` (chunks of ~500, `onConflict: 'uesp_page_id'`) with `.select('id, uesp_page_id')` so each chunk returns its uuids; build the id map, then call `replace_book_locations` per successfully parsed book.
+- Guard the target host (FR-14) before the first write.
 
-### 12.3 New Dependencies
+### 12.3 Dependencies
 
-> Versions below are illustrative, not verified against the live npm registry — resolve actual versions via `yarn add <pkg>` at build time rather than treating these as pinned.
+> Versions are illustrative — resolve via `yarn add` at build time.
 
-`@supabase/supabase-js` is **already a dependency** (`^2.112.2`) — do not re-add it. Everything below is genuinely new.
+`@supabase/supabase-js` is **already a dependency** (`^2.112.2`); do not re-add it. `wtf_wikipedia` is **not** used (§4). `bzip2` is a system binary, not an npm package — checked for at startup.
 
 ```json
 {
     "devDependencies": {
         "tsx": "^4",
         "sax": "^1",
-        "wtf_wikipedia": "^10",
         "@types/sax": "^1"
     }
 }
 ```
-
-`package.json` scripts addition:
 
 ```json
 {
@@ -398,32 +454,20 @@ I/O glue (not unit-tested directly — exercised via `--dry-run` against the fix
 }
 ```
 
-Script and test files are `.mts`, not `.ts`. `package.json` has no `"type"` field, so a `.ts` under `scripts/` would resolve as CommonJS while `tsconfig.json` is set to `module: esnext` / `moduleResolution: bundler` — `.mts` is unambiguously ESM without making the whole repo (and Next 16's config resolution) ESM to get there. `tsconfig.json`'s `include` already covers `**/*.mts`.
+Script and test files are `.mts`, not `.ts`: `package.json` has no `"type"` field, so a `.ts` under `scripts/` resolves as CommonJS while `tsconfig.json` is set to `module: esnext` / `moduleResolution: bundler`. `.mts` is unambiguously ESM without making the whole repo ESM. `tsconfig.json`'s `include` already covers `**/*.mts`.
 
-### 12.4 Env
-
-`.env.local` gains one new var (never committed — `.env*.local` is already gitignored):
-
-```
-SUPABASE_SERVICE_ROLE_KEY=
-```
-
-One canonical invocation, already wired into the `import:uesp` script above (§12.3):
+### 12.4 Running it
 
 ```bash
-yarn import:uesp data/uesp-dump.xml.gz --dump-date=2026-09-01 [--dry-run]
+yarn import:uesp data/uespwiki-2026-08-30-current.xml.bz2 --dry-run
 ```
 
-which expands to `node --env-file=.env.local --import tsx scripts/import-uesp.mts …`. Note `--import tsx`, not `-r tsx/cjs` — the require hook is CommonJS-only and would fail on an ESM-only dependency, and it must match the loader the `test` script uses.
+`.env.local` gains `SUPABASE_SERVICE_ROLE_KEY=` (never committed). The dump date is read from the filename; `--dump-date=YYYY-MM-DD` overrides. Writing to a non-localhost URL requires `--allow-remote` (FR-14).
 
 ### 12.5 Existing checks
 
-`tsconfig.json`'s `include` is `**/*.ts` / `**/*.mts` with only `node_modules` excluded, so `scripts/**` is picked up by the project's existing checks from the first file. Per CLAUDE.md, that means `scripts/**` must pass `eslint`, `tsc --noEmit -p tsconfig.json`, and `prettier --check` like any other source — the ESLint config is flat and applies to `.`, so no new lint setup is needed, but Node-globals usage in the script should be verified against it once. CLAUDE.md's "No CI is wired up yet … that's the only check there is" list gains `yarn test` as part of this task.
+`tsconfig.json`'s `include` is `**/*.ts` / `**/*.mts`, so `scripts/**` is covered by the project's existing checks from the first file. Per CLAUDE.md it must pass `eslint`, `tsc --noEmit -p tsconfig.json`, and `prettier --check`. That check list gains `yarn test` as part of this task.
 
-### 12.6 `.gitignore` addition
+### 12.6 `.gitignore`
 
-```
-/data/
-```
-
-— the conventional local-only location for the downloaded dump file.
+`/data/` is already ignored — the dump lives there and is never committed.
