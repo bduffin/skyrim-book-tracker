@@ -13,18 +13,18 @@
 
 The previous draft was written before a dump existed. Nearly every structural assumption in it was wrong. This table is the record, so the same guesses aren't made again.
 
-| Previous assumption                             | Measured reality                                                                                                                                                                           |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Template is `{{Book Summary}}`                  | `{{Game Book}}`. `Book Summary` appears **once** in the entire wiki.                                                                                                                       |
-| `Skyrim:` is a title prefix, namespace unknown  | Namespace **134**, a real MediaWiki namespace holding 17,515 pages.                                                                                                                        |
-| Dump is `.gz`                                   | **`.bz2`** — the case the old FR-2 treated as an error.                                                                                                                                    |
-| `--dump-date` must be supplied by hand          | The filename encodes it: `uespwiki-YYYY-MM-DD-current.xml.bz2`.                                                                                                                            |
-| `book.game_id` is a unique natural key          | 1,198 pages carry an `id`; only **1,120 are distinct**. 78 pages collide. Unusable as identity.                                                                                            |
-| Category comes from a `type` field              | `type` is `List 0`–`List 4`, present on 258 of 1,245 pages. Not a taxonomy.                                                                                                                |
-| Category can come from wiki category membership | `{{Game Book}}` injects categories at render time; a dump holds only literally-written ones.                                                                                               |
-| `book_location.notes` has no source             | Every `loc` bullet carries free-text notes after the location link.                                                                                                                        |
-| `value`/`weight` are marginal                   | The two best-populated fields in the template — 1,207 of 1,245 each.                                                                                                                       |
-| ~800 books                                      | **918** base + DLC (716 base, 142 Dragonborn, 51 Dawnguard, 9 Hearthfire), plus 327 Creation Club = 1,245. The old estimate was a fair guess at base+DLC; Creation Club is what it missed. |
+| Previous assumption                             | Measured reality                                                                                                                                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Template is `{{Book Summary}}`                  | `{{Game Book}}`. `Book Summary` appears **once** in the entire wiki.                                                                                                                                     |
+| `Skyrim:` is a title prefix, namespace unknown  | Namespace **134**, a real MediaWiki namespace holding 17,515 pages.                                                                                                                                      |
+| Dump is `.gz`                                   | **`.bz2`** — the case the old FR-2 treated as an error.                                                                                                                                                  |
+| `--dump-date` must be supplied by hand          | The filename encodes it: `uespwiki-YYYY-MM-DD-current.xml.bz2`.                                                                                                                                          |
+| `book.game_id` is a unique natural key          | 1,206 pages carry a `\|id=` key and 1,198 a non-empty value; only **1,120 values are distinct**, so 78 pages collide. Counts are of non-empty values — an empty id cannot collide. Unusable as identity. |
+| Category comes from a `type` field              | `type` is `List 0`–`List 4`, present on 258 of 1,245 pages. Not a taxonomy.                                                                                                                              |
+| Category can come from wiki category membership | `{{Game Book}}` injects categories at render time; a dump holds only literally-written ones.                                                                                                             |
+| `book_location.notes` has no source             | Every `loc` bullet carries free-text notes after the location link.                                                                                                                                      |
+| `value`/`weight` are marginal                   | The two best-populated fields in the template — 1,207 of 1,245 each.                                                                                                                                     |
+| ~800 books                                      | **916** base + DLC (712 base, 142 Dragonborn, 52 Dawnguard, 10 Hearthfire), plus 329 Creation Club = 1,245. The old estimate was a fair guess at base+DLC; Creation Club is what it missed.              |
 
 ---
 
@@ -50,7 +50,7 @@ The app has no book data to browse or track — `book` and `book_location` are e
 - NG3. Scheduled/automatic re-running — manual invocation only.
 - NG4. Books from other TES games. Namespace 134 is Skyrim-only, so this falls out of the filter for free.
 - NG5. Real-world novels — namespace 140 (`Books:`) holds published fiction (`{{Real Book Summary}}`), not in-game items. Excluded by the namespace filter.
-- NG6. `location_type` normalization — stays free text (spec Decision #6), and in practice stays null (FR-11).
+- NG6. `location_type` **normalization** — it carries the FR-11 extraction tier (`place` / `carrier` / `nearby`) and is otherwise free text, never mapped to a curated taxonomy of place kinds. Nothing in `prd-browse-and-track.md` reads it.
 - NG7. Spell tomes (93) and recipes (28) as tracked items — they are consumable item pages, not `{{Game Book}}` pages, and importing them would require parsing a second template (OQ-7).
 
 ## 3. Current State Analysis
@@ -79,12 +79,12 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
         │
         ├─ identity:   <page><id>            ──► uesp_page_id  (unique, stable)
         ├─ attributes: id/id2..id5, value, weight, author, description, icon, lorename
-        ├─ classifyCategory(params)          ──► skill_book | book | journal | note
+        ├─ classifyCategory(parsedPage)      ──► skill_book | book | journal | note
         │                                        | black_book
         ├─ classifySource(smod, categories)  ──► base | dawnguard | dragonborn
         │                                        | hearthfire | creation_club
         ├─ normalizeSkill(params.skill)      ──► one of 18 Skyrim skills | null
-        └─ parseLocations(params.loc)        ──► [{ name, notes }]
+        └─ parseLocations(params.loc)        ──► [{ name, notes, locationType }]
         │
         ▼
   --dry-run ? report : write via supabase-js (service-role key)
@@ -109,39 +109,49 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 - **FR-1 — CLI entry.** Takes the dump path as a required positional argument; errors clearly (no stack trace) if missing or unreadable.
 - **FR-2 — Streaming parse.** `createReadStream` → compression detection by **magic bytes** (`BZh` → `bzip2 -dc` subprocess; `1f 8b` → `zlib.createGunzip()`; neither → treat as plain XML) → `sax.createStream()`. Never `zlib.gunzip`, which is the one-shot buffer API. Detection is by content, not extension: a truncated HTML error page named `.xml.bz2` must fail loudly rather than be parsed as XML.
 - **FR-3 — Catalog filter.** A page qualifies only if `<ns>` is **134** _and_ its wikitext invokes `{{Game Book}}`. The match is case-insensitive and tolerant of whitespace/underscores (`{{Game Book`, `{{ game book`, `{{Game_Book`). HTML comments and `<nowiki>` blocks are stripped before the test, so a commented-out example doesn't qualify. Redirect pages are skipped. Expected yield: 1,245 pages.
-- **FR-4 — Template extraction.** `parseGameBookTemplate(wikitext)` returns the template's flat parameters, or `null` if the page has no parseable invocation. Brace- and link-aware: a `|` inside `[[…|…]]` or a nested `{{…}}` is not a parameter separator.
+- **FR-4 — Template extraction.** `parseGameBookTemplate(wikitext)` returns the `{{Game Book}}` template's flat parameters, or `null` if the page has no parseable invocation. **A page may carry more than one template**, and one signal lives outside `{{Game Book}}`: the Oghma Infinium's `artifacttype=Daedric Artifact` is in a separate `{{Artifact Summary}}` block. `parseArtifactSummary(wikitext)` extracts it, and `[[Category:Skyrim-Items-Artifacts]]` is captured in `categoryLinks` as a cross-check — both appear on exactly that one page. Classification therefore consumes the whole `ParsedPage`, not `params` alone (FR-7).
+
+    **Do not merge the two templates into one `params` map.** `{{Artifact Summary}}` defines `type`, `value` and `weight` under the same names as `{{Game Book}}`, and its `type` is `[[Skyrim:Books|Book]]` where Game Book's is `List 0`–`List 4` — merging would silently corrupt the field FR-7 once relied on. Each template gets its own named parser; only `artifactType` crosses over. This is the general pattern: `params` is Game Book only, other templates get named parsers, page-level links go to `categoryLinks` (which is already how Creation Club detection works). Brace- and link-aware: a `|` inside `[[…|…]]` or a nested `{{…}}` is not a parameter separator.
+
 - **FR-5 — Identity.** `uesp_page_id` (the `<page><id>` integer) is the upsert key. `game_id` (the `|id=` Form ID) is stored as a **non-unique, nullable attribute**, alongside `game_id_extra` for `id2`–`id5` (6 pages). Placeholder prefixes (`xx`, `fexxx`) are preserved verbatim, never expanded.
 - **FR-6a — Sentinel and field semantics.** `lorename` is `none` on **734 of the 852 pages that set it** — a sentinel, not a value; it is stored as null, leaving ~118 real lore links. `description` is the short subtitle UESP shows under the title ("A hint on how to solve Shalidor's Maze") and maps to `book.description`. `note` is a **boolean flag** — its only value across 488 pages is `1` — not prose. `textnote` and `comment` are different things and **never co-occur** (0 of 1,245 pages set both): `textnote` is italicised errata about the record (variants, duplicate ids, naming errors) and maps to `errata`; `comment` is plain-text gameplay significance (quest relevance, links to other books) and maps to `gameplay_note`.
-- **FR-6 — Attribute mapping.** All populated template fields map to columns: `description` (501), `author` (486), `value` (1,207), `weight` (1,207), `icon` (1,164), `lorename` (852), `sumtitle` (233), `errata` (51), `gameplay_note` (48), and the series links `up`/`next`/`prev` (~165 each).
+- **FR-6 — Attribute mapping.** All populated template fields map to columns: `description` (501), `author` (486), `value` (1,207, stored as text — 3 pages carry dual values like `65 (Skill Book)<br>6 (Normal)`), `weight` (1,207, all numeric), `icon` (1,164), `lorename` (852), `sumtitle` (233), `errata` (51), `gameplay_note` (48), `artifact_type` (1), and the series links `up`/`next`/`prev` (~165 each).
 - **FR-6b — Faithful import, no editorial filtering.** Every ns-134 `{{Game Book}}` page becomes a row. The script never excludes or merges books: UESP has already collapsed in-game variants to one page (a page reading "there are five versions of this book" is one book), and unobtainable or cut content stays in with its `errata` intact. Prose-based exclusion was rejected as unreliable — matching phrases like "cannot be found" yields ~19 pages including false positives such as `Amaund Motierre's Sealed Letter`, a quest item players do receive. Filtering is a browse-time concern, consistent with how `source` handles Creation Club; a curated exclusion list, if ever wanted, belongs in a hand-maintained table, not parser output. 49 pages have no `loc` field at all, which the UI can render as "no known location" from zero `book_location` rows.
-- **FR-7 — Category classification.** `classifyCategory(params)` → one of `skill_book`, `black_book`, `note`, `journal`, `book`, evaluated **in that order** — the order is load-bearing:
-    1. `skill_book` — has `skill=` (90). Must come first: `icon` is artwork and is reused, so the 25 magic-school skill books carry `SR-icon-book-SpellTome*.png` and would otherwise misclassify.
+- **FR-7 — Category classification.** `classifyCategory(page: ParsedPage)` → one of `skill_book`, `black_book`, `note`, `journal`, `book`, evaluated **in that order** — the order is load-bearing:
+    1. `skill_book` — has `skill=` **or** a non-null `artifactType` (91). Note `artifactType` is **not** a `{{Game Book}}` parameter (FR-4) — reading it from `params` would silently leave Oghma as `book`. The artifact branch exists for the Oghma Infinium alone: it is the one book whose whole purpose is raising skills (+5 across a chosen path of six), so `skill=` cannot hold it, and UESP counts it as a skill book. Keyed on `artifacttype` / `[[Category:Skyrim-Items-Artifacts]]`, both of which appear on exactly one page — a data signal, not a title match. Must come first: `icon` is artwork and is reused, so the 25 magic-school skill books carry `SR-icon-book-SpellTome*.png` and would otherwise misclassify.
     2. `black_book` — icon `Black Book` (7, all Dragonborn).
-    3. `note` — **`note=1` OR a Note-family icon** (`Note`/`TornNote`/`BloodstainedNote`). Union, because measured, each signal misses things the other catches: 42 Treasure Maps carry the flag with **no icon at all**, and 64 obvious notes (`Mysterious Note (Delphine)`, `Amaund Motierre's Sealed Letter`, `Museum Pamphlet`) carry the icon with no flag. The disagreement is wiki data-entry inconsistency, not a semantic distinction. `note` is boolean — its only value across 488 pages is `1`. Yield ~552.
-    4. `journal` — icon `Journal*`. Comes **after** `note` deliberately: 8 pages (the Thalmor Dossiers) carry journal artwork and `note=1`, and a dossier is a document rather than a personal journal. Yield ~198.
-    5. `book` — everything else (~444). An unrecognized icon lands here and is logged.
+    3. `note` — **`note=1` OR a Note-family icon** (`Note`/`TornNote`/`BloodstainedNote`), **unless** the icon is Journal-family _and_ the title contains "Journal" (see tier 4). Union, because measured, each signal misses what the other catches: 42 Treasure Maps carry the flag with **no icon at all**, and 64 obvious notes (`Mysterious Note (Delphine)`, `Amaund Motierre's Sealed Letter`, `Museum Pamphlet`) carry the icon with no flag. The disagreement is wiki data-entry inconsistency, not a semantic distinction. `note` is boolean — its only value across 488 pages is `1`. Yield 550.
+    4. `journal` — icon `Journal*`. Ordered **after** `note`, with a title tiebreak. 8 pages carry journal artwork _and_ `note=1`: three Thalmor Dossiers (Ulfric, Delphine, Esbern), `Heddic's Volunruud Notes`, `Daynas Valen's Notes`, `Red Eagle's Rite`, `Sculptor Visthar's Journal` and `Urzog's Journal`. Note-before-journal is right for the first six; the tiebreak — Journal icon **and** "Journal" in the title wins over `note=1` — recovers the last two, which are journals by name. Measured: exactly 2 pages move, and all 8 land correctly. Yield 200.
+    5. `book` — everything else (397). An unrecognized icon lands here and is logged.
 
 - **FR-8 — Quest relation.** `is_quest_related` is a **boolean flag, not a category** — true when `quest` (312) or `questrel` (222) is present. A skill book can also be quest-related; a single-value taxonomy could not express that.
-- **FR-9 — Source classification.** `classifySource()` → `dawnguard` | `dragonborn` | `hearthfire` from `smod` (DG 51, DB 142, HF 9); `creation_club` from a `[[Category:Skyrim-Creation Club-…]]` link (327); otherwise `base` (~716). **`smod` alone is insufficient** — only 2 CC pages set `smod=CC` while 327 carry the category. **`mod` is the fallback when `smod` is absent** — measured, 4 pages carry `mod=[[Skyrim:Dawnguard|Dawnguard]]`, `mod=Hearthfire` or a Creation Club content name with no `smod` and no CC category link (e.g. `Skyrim:Discovering Ruunvald`, `Skyrim:Ransom Note`); classifying on `smod` alone files them as `base`. Resolution order: `smod` → CC category link → `mod` name → `base`.
+- **FR-9 — Source classification.** `classifySource()` → `dawnguard` | `dragonborn` | `hearthfire` from `smod` (DG, DB, HF); `creation_club` from a `[[Category:Skyrim-Creation Club-…]]` link; otherwise `base`. Measured yield with the `mod` fallback applied: base 712, creation_club 329, dragonborn 142, dawnguard 52, hearthfire 10. **`smod` alone is insufficient** — only 2 CC pages set `smod=CC` while 327 carry the category. **`mod` is the fallback when `smod` is absent** — measured, 4 pages carry `mod=[[Skyrim:Dawnguard|Dawnguard]]`, `mod=Hearthfire` or a Creation Club content name with no `smod` and no CC category link (e.g. `Skyrim:Discovering Ruunvald`, `Skyrim:Ransom Note`); classifying on `smod` alone files them as `base`. Resolution order: `smod` → CC category link → `mod` name → `base`.
 - **FR-10 — Skill normalization.** `normalizeSkill(raw)` maps onto Skyrim's 18 skills by **exact match after trim/case-fold, plus a small alias table** (`One Handed` → `One-Handed`). Not substring scanning: a value naming two skills would otherwise silently pick one. Unmapped values → `null` + logged for table extension; never fail the run.
-- **FR-11 — Location parsing.** `parseLocations(raw)` splits the `loc` field on `*` bullets (leading whitespace is inconsistent — the first bullet often has none) and per bullet extracts the location name and free-text notes. Real shape:
+- **FR-11 — Location parsing.** `parseLocations(raw)` splits the `loc` field on `*` bullets. The split rule must be explicit rather than assumed — three different counting methods gave 2,343 / 2,495 / 3,537 bullets, which is itself evidence the format needs specifying. Within a bullet, templates (`{{Map Link|…}}`, `{{DB}}`) are stripped and link anchors dropped (`[[Skyrim:Bleak Falls Barrow (place)#Bleak Falls Temple|Bleak Falls Temple]]` → `Bleak Falls Temple`). Extraction runs in **tiers**, because a leading-link-else-plain-text rule misreads roughly a quarter of bullets:
 
-    ```
-    *[[Skyrim:Bloodskal Barrow|Bloodskal Barrow]], one on a dresser near a double bed, and another on shelves
-    * Haknir's Shoal, on a [[Skyrim:Pirate|pirate]] boss
-    ```
+    | Tier | Shape                         | Example                                                           | `location_name`         | `location_type` |
+    | ---- | ----------------------------- | ----------------------------------------------------------------- | ----------------------- | --------------- |
+    | 1    | Leading link                  | `*[[Skyrim:Bloodskal Barrow\|Bloodskal Barrow]], on a dresser`    | link label              | `place`         |
+    | 2    | Held/carried by (81)          | `* Carried by [[Skyrim:Assassin\|Assassins]]`                     | the NPC label           | `carrier`       |
+    | 3    | Distance from a landmark (68) | `* 630 ft WSW of [[Skyrim:Ivarstead\|Ivarstead]] {{Map Link\|…}}` | the landmark label      | `nearby`        |
+    | 4    | Link present, not leading     | `* On Anders' skeleton in [[Skyrim:Twilight Sepulcher\|…]]`       | first place-like link   | `place`         |
+    | 5    | Plain text                    | `* Haknir's Shoal, on a pirate boss`                              | text before first comma | `place`         |
 
-    The name is the link label where present and plain text otherwise; notes are everything after the first comma, with links unwrapped to their labels. A link inside the notes must not be mistaken for the location. `location_type` is written null — no source field exists for it. Present on 1,196 pages.
+    Notes are everything after the location, links unwrapped to their labels — a link inside the notes must never be taken for the location. **Tier 2 matters most**: without it, 81 bullets store an NPC as if it were a place. Rows are deduped on `(location_name, notes)` before the RPC call, since no DB constraint guards this any more (§12.1) — but the same place with _different_ notes is valid and must survive, as 15 books legitimately have (`Alduin is Real` lists College of Winterhold twice, for the Arcanaeum and the Arch-Mage's Quarters).
+
+    **Presence:** 1,196 pages carry a `|loc=` key, but 146 of those are empty — usable location text exists on ~1,050 pages, and 195 books have no locations at all. A missing key and an empty value are treated **identically**: the book still goes to the RPC with `locations: []`, which is what clears stale rows (FR-13).
+
+    `location_type` therefore carries the extraction tier rather than staying null. This **supersedes spec Decision #6's "stays null"** — the tier is already computed to parse the bullet correctly, and recording it is what keeps a carrier distinguishable from a place. The column remains free text, un-normalized beyond these three values, and nothing in `prd-browse-and-track.md` reads it yet.
 
 - **FR-12 — `book` upsert.** Batched (chunks of ~500) on conflict `uesp_page_id`, deduped by conflict key before each chunk — Postgres raises `ON CONFLICT DO UPDATE command cannot affect row a second time` if a key repeats within one statement.
-- **FR-13 — `book_location` replacement.** For each successfully parsed book, replace its location set atomically via a Postgres function (`replace_book_locations(p_book_id uuid, p_rows jsonb)`) that deletes and re-inserts in one transaction. PostgREST cannot span statements transactionally, so this must be an RPC. Books that failed to parse keep their existing locations untouched.
+- **FR-13 — `book_location` replacement.** Locations are replaced, not upserted, so a location removed upstream disappears. One `replace_book_locations(p_books jsonb)` RPC call **per book chunk**, not per book: PostgREST cannot span statements transactionally so the delete-and-insert must live in the database, and one call per book would mean **1,245 round trips** (every parsed book is sent, including the 195 with no locations) for roughly **2,500 location rows** across ~1,050 books — pure round-trip waste. Batching alongside the FR-12 book chunks makes it ~3 calls for the whole catalog. Each call is one transaction. Only books in the payload are touched, so books that failed to parse keep their existing locations; a parsed book with **zero** locations is still included with an empty array, which is what clears stale rows for a book whose `loc` field was removed upstream. The function returns its inserted row count for the run report. It is `security invoker` with a pinned empty `search_path`, and `EXECUTE` is **revoked from `public` and granted only to `service_role`** — otherwise it would be callable by `anon`, whose writes are blocked only by the absence of an INSERT/DELETE policy on `book_location` rather than by an explicit grant.
 - **FR-14 — Target-database guard.** The script refuses to write to a non-localhost Supabase URL unless `--allow-remote` is passed, and prints the target host and row counts before the first write. The service-role key bypasses RLS: an accidental run against production writes 1,245 rows into live data with no undo.
 - **FR-15 — `--dry-run`.** Parses, classifies and maps as normal, writes nothing, constructs no Supabase client and reads no credentials — so it runs before the service-role key exists. Emits the FR-17 report.
 - **FR-16 — Credentials.** Reads `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` via `--env-file=.env.local`; never logged, never committed. The client is constructed inside the run function, not at module scope, so importing the module for tests needs no env.
-- **FR-17 — Run report.** Broken down **by category and source**, not just totals: pages found, new, updated, skipped (with reason), errored, duplicate keys collapsed, unmapped skills, unrecognized icons. Plus the dump date and a CC BY-SA 2.5 note.
+- **FR-17 — Run report.** Broken down **by category and source**, not just totals: pages found, new, updated, skipped (with reason), errored, duplicate keys collapsed, unmapped skills, unrecognized icons. It must also report the numbers that catch an FR-11 regression, which a category-only breakdown cannot: **location rows by tier** (`place` / `carrier` / `nearby` — expect ~81 carriers, ~68 nearby), **books with zero locations** (expect ~195), and **pages whose `value` is non-numeric** (expect 3), and **`skill_book` rows with a null `skill`** (expect exactly 1 — the Oghma Infinium; any other is a parse failure the constraint no longer catches). A tier-2 regression that silently turns carriers back into places leaves every category count unchanged. Plus the dump date and a CC BY-SA 2.5 note.
 - **FR-18 — Provenance.** The dump date is parsed from the filename (`uespwiki-YYYY-MM-DD-current.xml.bz2`), with `--dump-date=YYYY-MM-DD` as an override for a renamed file. Recorded in the run report and in a README attribution section (owned by M3).
 - **FR-19 — Cleanup.** `cleanTitle(pageTitle)` strips the `Skyrim:` prefix and a trailing ` (book)` disambiguator — **only that exact suffix**, since stripping arbitrary parenthetical qualifiers would collapse many `Note`/`Journal`/`Letter` pages into identical titles. `display_title` prefers `sumtitle` where present. The full page title is stored separately as `uesp_title` for linking, debugging and attribution. `cleanWikitext(value)` decodes entities (`&nbsp;`, `&amp;`) and strips residual markup from every stored string.
-- **FR-20 — Unit-testable parsing.** `parseGameBookTemplate`, `parseLocations`, `classifyCategory`, `classifySource`, `normalizeSkill`, `cleanTitle`, `cleanWikitext`, `mapToBookRow`, `mapToLocationRows`, `attachBookIds` are pure (no I/O), each covered by tests in `scripts/*.test.mts` run via `yarn test`. Note `tsconfig.json` sets `strict: false`, so `| null` unions are not compiler-enforced — these handle absent values explicitly and are tested for it.
+- **FR-20 — Unit-testable parsing.** `parseGameBookTemplate`, `parseArtifactSummary`, `parseLocations`, `classifyCategory`, `classifySource`, `normalizeSkill`, `cleanTitle`, `cleanWikitext`, `mapToBookRow`, `mapToLocationRows`, `attachBookIds` are pure (no I/O), each covered by tests in `scripts/*.test.mts` run via `yarn test`. Note `tsconfig.json` sets `strict: false`, so `| null` unions are not compiler-enforced — these handle absent values explicitly and are tested for it.
 
 ### Non-Functional (NFR)
 
@@ -163,7 +173,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 - Writes use the service-role key, bypassing RLS — never the app's Server Action path.
 - Identity is `uesp_page_id`; `game_id` is an attribute (§0, FR-5).
 - The dump is bzip2; `bzip2` must be on `PATH`.
-- Postgres 15+ (`nulls not distinct` is 15+ syntax). Verify the local Supabase CLI's image major version matches the hosted project before M2.
+- No special Postgres version requirement. The `nulls not distinct` dependency (15+) disappeared when the `book_location` unique constraint was dropped (§12.1). Still worth confirming the local Supabase CLI's Postgres major matches the hosted project before M2, since the CLI's version comes from its own config.
 
 ### Assumptions
 
@@ -191,29 +201,67 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 
 > **Prerequisite, satisfied:** `data/uespwiki-2026-08-30-current.xml.bz2` is on disk.
 
-- **M0 — Fixture + pure functions.** Cut `scripts/__fixtures__/sample-dump.xml` from real `<page>` elements: a skill book, a multi-location book (Deathbrand — 11 locations, mixed link/plain forms), a note, a journal, a magic-school skill book carrying a `SpellTome` icon (proves icon-vs-`skill=` precedence), a black book, a Creation Club book with an `fexxx` id, a page with no `|id=`, an `id2` page, a non-`{{Game Book}}` ns-134 page, and an ns-116 (Oblivion) book that must be filtered out. Attribute the excerpts as CC BY-SA in the fixture header. Implement and test all FR-20 functions. **Exit:** tests green, including a value-level diff against hand-transcribed expected params.
-- **M1 — Streaming + dry run.** Wire the bzip2/sax streamer to M0's functions. **Exit:** a dry run over the full dump reports ~1,245 books with the expected distribution (90 skill, ~444 book, ~206 journal, ~498 note, 7 black book) across five sources and no unexpected crashes.
+- **M0 — Fixture + pure functions.** Cut `scripts/__fixtures__/sample-dump.xml` from real `<page>` elements, attributed as CC BY-SA in the fixture header. Deathbrand alone does **not** represent the data — its 11 bullets are all well-formed leading links, which is the easy case. Required cases:
+
+    | Case                                       | Why                                                                                                                                                                                      | Example                              |
+    | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+    | Multi-location, leading links              | FR-11 tier 1                                                                                                                                                                             | `Deathbrand` (11 bullets)            |
+    | Same place twice, different notes          | FR-11 dedupe must not collapse these; 15 such books exist                                                                                                                                | `Alduin is Real`                     |
+    | `Carried by [[NPC]]`                       | FR-11 tier 2 — the NPC-as-place bug                                                                                                                                                      | any of the 81                        |
+    | Distance + `{{Map Link}}`                  | FR-11 tier 3 and template stripping                                                                                                                                                      | `630 ft WSW of [[Ivarstead]]`        |
+    | Link not at bullet start                   | FR-11 tier 4                                                                                                                                                                             | `On Anders' skeleton in [[…]]`       |
+    | Empty `\|loc=`                             | must yield `locations: []`, not "no key"                                                                                                                                                 | one of the 146                       |
+    | No `\|loc=` key at all                     | same handling as empty                                                                                                                                                                   | one of the 49                        |
+    | Magic-school skill book                    | icon-vs-`skill=` precedence (FR-7 tier 1)                                                                                                                                                | any `SpellTome*` icon                |
+    | `note=1` + Journal icon, non-journal title | FR-7 note-before-journal ordering                                                                                                                                                        | `Thalmor Dossier: Ulfric Stormcloak` |
+    | Treasure map                               | `note=1` with no icon at all                                                                                                                                                             | `Treasure Map III`                   |
+    | `note=1` + Journal icon + "Journal" title  | FR-7 title tiebreak — must land as `journal`                                                                                                                                             | `Urzog's Journal`                    |
+    | Note icon, no flag                         | the other half of the union                                                                                                                                                              | `Mysterious Note (Delphine)`         |
+    | Dual `\|value=`                            | must store verbatim, not fail the insert                                                                                                                                                 | `Vernaccus and Bourlor`              |
+    | Nested template in the body                | parser brace-awareness (16% of pages)                                                                                                                                                    | any `{{Map Link}}` page              |
+    | `lorename=none`                            | sentinel → null                                                                                                                                                                          | any of the 734                       |
+    | Creation Club `fexxx` id                   | identity collision case                                                                                                                                                                  | any CC book                          |
+    | No `\|id=`                                 | must import, not skip                                                                                                                                                                    | one of the 47                        |
+    | `black_book`                               | Whole category (7) had no fixture                                                                                                                                                        | `Black Book: Waking Dreams (book)`   |
+    | `Black Book` in title, empty icon          | Must land as `book`, NOT `black_book`                                                                                                                                                    | `Skyrim:Black Book (book)`           |
+    | Oghma Infinium                             | `artifacttype` lives in a **separate `{{Artifact Summary}}` block**, not in `{{Game Book}}` — a Game-Book-only parse leaves it as `book`. Must classify `skill_book` with a null `skill` | `Oghma Infinium`                     |
+    | `\|id2=` present                           | FR-5 `game_id_extra`                                                                                                                                                                     | one of the 6                         |
+    | `smod=DB` / `DG` / `HF`                    | FR-9 resolution step 1                                                                                                                                                                   | one each                             |
+    | CC category link                           | FR-9 resolution step 2                                                                                                                                                                   | any of the 329                       |
+    | `mod=` with no `smod`                      | FR-9 resolution step 3 — the 4 pages that would otherwise file as `base`                                                                                                                 | `Skyrim:Discovering Ruunvald`        |
+    | Plain base game                            | FR-9 fallthrough                                                                                                                                                                         | any of the 712                       |
+    | Semicolon-heavy `loc`                      | FR-11 splitting stress                                                                                                                                                                   | `The Legend of Red Eagle`            |
+    | Malformed page                             | AC-9                                                                                                                                                                                     | hand-damaged                         |
+    | Non-`{{Game Book}}` ns-134 page            | filter                                                                                                                                                                                   | any                                  |
+    | ns-116 Oblivion book                       | namespace filter                                                                                                                                                                         | any                                  |
+
+    Implement and test all FR-20 functions. **Exit:** tests green, including a value-level diff of hand-transcribed expected params for each case above.
+
+- **M1 — Streaming + dry run.** Wire the bzip2/sax streamer to M0's functions. **Exit:** a dry run over the full dump reports ~1,245 books with the expected distribution (91 skill, 397 book, 200 journal, 550 note, 7 black book) across the five sources (712 base, 329 creation_club, 142 dragonborn, 52 dawnguard, 10 hearthfire); location tiers in range (~81 carrier, ~68 nearby, remainder place); ~195 books with zero locations; the 3 non-numeric `value` pages present with their strings intact; the unmapped-skill list empty or entirely known; and no unexpected crashes.
 - **M2 — Migration + writes.** Apply the §12.1 migration **first**, then upserts, the `replace_book_locations` RPC, the target guard, and the report. **Exit:** re-running the same dump produces zero duplicates and a stable location count.
 - **M3 — Full run + attribution.** Run against the real dump; add the README attribution section. **Exit:** §9 met.
 
 ## 9. Acceptance Criteria
 
 - AC-1. A run against the dump imports ~1,245 books, with the distribution in M1's exit gate. (FR-3, FR-7)
-- AC-2. Every book has a category and a source from the fixed sets. Every `skill_book` has a non-null normalized `skill`. (FR-7, FR-9, FR-10)
+- AC-2. Every book has a category and a source from the fixed sets. Every `skill_book` has a non-null normalized `skill` **except exactly one** — the Oghma Infinium, which raises six skills and is identified by `artifact_type` (FR-7). A second null-skill `skill_book` is a parse failure and is rejected by the partial unique index in §12.1. (FR-7, FR-9, FR-10)
 - AC-3. Books with locations have one `book_location` row per location, with notes populated where the source provides them. (FR-11)
-- AC-4. Re-running produces no duplicate `book` rows and no growth in `book_location`. (NFR-4)
+- AC-4. Re-running the same dump leaves `book_location` **identical, not merely non-larger** — equal row count and an equal multiset of `(uesp_page_id, location_name, notes)`. Non-growth alone would pass while a parser regression silently deleted half the locations, which is the failure mode replacement introduces. (NFR-4)
+- AC-4a. A book whose `loc` was cleared upstream ends with zero `book_location` rows after a re-run. (FR-11, FR-13)
+- AC-4b. A book listing the same place twice with different notes imports both rows. (FR-11)
 - AC-5. The script makes no requests to UESP during execution. (NFR-2)
 - AC-6. The dump date and CC BY-SA 2.5 licence appear in the run report and the README. (FR-18)
 - AC-7. `yarn test` passes with no network, no database, and no 177MB file. (FR-20)
 - AC-8. `--dry-run` runs to completion with no `SUPABASE_SERVICE_ROLE_KEY` set. (FR-15)
 - AC-9. A malformed page is logged and the run completes. (NFR-3)
-- AC-10. Pointing the script at a remote Supabase URL without `--allow-remote` refuses to write. (FR-14)
+- AC-10. Pointing the script at a remote Supabase URL without `--allow-remote` refuses to write, and every run prints the target host before the first write. (FR-14)
+- AC-11. The 3 dual-value pages import with their `value` string intact, not truncated or nulled. (FR-6)
 
 ## 10. Success Metrics
 
 - **Coverage:** ≥ 98% of the 1,245 ns-134 `{{Game Book}}` pages produce a row. The denominator is the page count, not "pages that parsed" — a filter measured against itself proves nothing.
 - **Class distribution** matches M1's dry run within a few pages; a whole class collapsing to zero is a parser regression.
-- **Skill completeness:** 100% of `skill_book` rows have a non-null skill (AC-2). An unmapped value is a lookup-table gap to fix and re-run, not an acceptable resting state.
+- **Skill completeness:** every `skill_book` row has a non-null skill except the single `artifact_type` row (AC-2). An unmapped value is a lookup-table gap to fix and re-run, not an acceptable resting state.
 - **Identity integrity:** `count(*) == count(distinct uesp_page_id)`, and no book loses locations across consecutive runs of the same dump.
 - **Test coverage:** every FR-20 function has at least one fixture-backed case.
 
@@ -230,7 +278,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 
 ### 12.1 Migration
 
-`supabase/migrations/<timestamp>_book_import_schema.sql`. **Requires Postgres 15+.**
+`supabase/migrations/<timestamp>_book_import_schema.sql`.
 
 ```sql
 -- Migration: book_import_schema
@@ -259,7 +307,10 @@ alter table book add column uesp_title       text not null;  -- 'Skyrim:Deathbra
 alter table book add column source           text not null;
 alter table book add column icon             text;
 alter table book add column author           text;
-alter table book add column value            integer;        -- base gold, pre-modifiers
+-- text, not integer: 3 pages carry dual values (`65 (Skill Book)<br>6 (Normal)`
+-- on Vernaccus and Bourlor, `20 / 5` on Fragment: On Artaeum), two of them skill
+-- books where the distinction is real. An integer column would fail those inserts.
+alter table book add column value            text;           -- base gold, verbatim from the source
 alter table book add column weight           numeric(6, 2);  -- 1.0 most books, 0 notes
 alter table book add column lorename         text;   -- null when the source says 'none' (734 pages)
 alter table book add column errata           text;   -- |textnote: variants, duplicate ids, naming errors (51)
@@ -268,6 +319,7 @@ alter table book add column series_up        text;
 alter table book add column series_prev      text;
 alter table book add column series_next      text;
 alter table book add column is_quest_related boolean not null default false;
+alter table book add column artifact_type    text;           -- |artifacttype from {{Artifact Summary}}
 
 -- is_unique has no source parameter in {{Game Book}} (R10/OQ-2). Unknown must
 -- not be stored as false, so the not-null default is removed.
@@ -291,40 +343,97 @@ alter table book add constraint book_skill_valid
     )
   );
 
--- A skill book without a skill is a parse failure, not valid data (AC-2).
+-- A skill book without a skill is a parse failure, not valid data (AC-2) -- with
+-- exactly one legitimate exception. The Oghma Infinium grants +5 across six
+-- skills in a chosen path, so {{Game Book}}'s single-valued |skill= is empty on
+-- it; it is identified instead by |artifacttype=Daedric Artifact. Measured: one
+-- page in 1,245 carries artifact_type, and it is that one.
 alter table book add constraint book_skill_book_has_skill
-  check (category <> 'skill_book' or skill is not null);
+  check (category <> 'skill_book' or skill is not null or artifact_type is not null);
+
+-- The check above permits a null-skill skill book; this index permits only ONE.
+-- A second is never valid data -- unlike the book_location case, where repeated
+-- location names are legitimate -- so it belongs at write time, not only in the
+-- run report. Indexing `category` (constant under the predicate) rather than a
+-- constant expression keeps this a plain, unambiguous partial unique index.
+-- Note the failure mode: a violation aborts the whole ~500-book upsert chunk
+-- rather than logging one row. That is the intent -- the data is wrong, loudly.
+create unique index book_single_null_skill_idx
+  on book (category)
+  where category = 'skill_book' and skill is null;
 
 create index book_source_idx    on book (source);
 create index book_quest_rel_idx on book (is_quest_related) where is_quest_related;
 
 -- ── Locations ────────────────────────────────────────────────────────────────
--- Replaced per book rather than upserted (FR-13), so no unique constraint is
--- needed as a conflict target -- but one still guards against a parser emitting
--- the same location twice for one book. `nulls not distinct` because
--- location_type is always null for now (no source field) and Postgres would
--- otherwise treat every null as distinct.
-alter table book_location
-  add constraint book_location_unique
-  unique nulls not distinct (book_id, location_name, location_type);
+-- NO unique constraint on book_location. Replacement (FR-13) is the idempotency
+-- mechanism, so no conflict target is needed -- and a unique constraint here
+-- would reject valid data: 15 books legitimately list the same place twice with
+-- different notes (e.g. `Alduin is Real` -> College of Winterhold/Arcanaeum AND
+-- College of Winterhold/Arch-Mage's Quarters). Both rows share a location_type,
+-- so unique (book_id, location_name, location_type) makes the second illegal,
+-- and because the insert runs inside replace_book_locations(), one violation
+-- rolls back the whole chunk -- including its delete -- leaving every book in
+-- that chunk on stale locations. Duplicate (name, notes) pairs are deduped in
+-- the script instead (FR-11).
+--
+-- book_location_book_idx is therefore KEPT: with no unique index to cover it,
+-- it is the only index on the book_id foreign key, serving both lookups and the
+-- on-delete cascade.
 
--- Superseded by the unique index above, whose leftmost column is book_id --
--- book_id lookups and the FK's on-delete cascade both stay indexed.
-drop index if exists book_location_book_idx;
-
--- Atomic per-book location replacement. PostgREST cannot span statements
--- transactionally, so delete-then-insert must live in the database.
-create or replace function replace_book_locations(p_book_id uuid, p_rows jsonb)
-returns void language plpgsql as $$
+-- Batched, atomic location replacement. PostgREST cannot span statements
+-- transactionally, so delete-then-insert must live in the database; and calling
+-- it once per book would mean 1,245 round trips for roughly 2,500 location rows
+-- across ~1,050 books, so it takes a batch.
+--
+-- Scope matters: the delete is limited to the book_ids present in the payload,
+-- so books absent from this call (ones that failed to parse) keep their existing
+-- locations untouched. A book WITH no locations must still be included, with an
+-- empty array -- that is what clears rows for a book whose loc field was removed
+-- upstream.
+create or replace function replace_book_locations(p_books jsonb)
+returns integer
+language plpgsql
+security invoker          -- the caller's RLS applies; the import runs as service_role
+set search_path = ''      -- no mutable search_path; tables are schema-qualified below
+as $$
+declare
+  v_book_ids uuid[];
+  v_inserted integer;
 begin
-  delete from book_location where book_id = p_book_id;
-  insert into book_location (book_id, location_name, location_type, notes)
-  select p_book_id,
-         r->>'location_name',
-         r->>'location_type',
-         r->>'notes'
-    from jsonb_array_elements(p_rows) as r;
+  select array_agg((b->>'book_id')::uuid)
+    into v_book_ids
+    from jsonb_array_elements(p_books) as b;
+
+  delete from public.book_location where book_id = any(v_book_ids);
+
+  insert into public.book_location (book_id, location_name, location_type, notes)
+  select (b->>'book_id')::uuid,
+         l->>'location_name',
+         l->>'location_type',
+         l->>'notes'
+    from jsonb_array_elements(p_books) as b
+   cross join lateral jsonb_array_elements(
+           case when jsonb_typeof(b->'locations') = 'array'
+                then b->'locations' else '[]'::jsonb end) as l;
+
+  -- jsonb_typeof guard, not coalesce: coalesce only swaps SQL NULL, so an
+  -- explicit JSON `"locations": null` would still reach jsonb_array_elements
+  -- and throw, rolling back the chunk. An empty p_books makes array_agg
+  -- return SQL NULL, so `= any(NULL)` deletes nothing -- a no-op, as intended.
+  get diagnostics v_inserted = row_count;
+  return v_inserted;
 end $$;
+
+-- Postgres grants EXECUTE on a new function to PUBLIC by default, and Supabase's
+-- anon/authenticated roles inherit that. An anonymous call would currently fail
+-- anyway -- book_location has RLS enabled with only a public SELECT policy, so
+-- the delete and insert are denied -- but that safety rests on a policy being
+-- *absent* rather than on an explicit grant, which is the wrong thing to depend
+-- on. Deny by default and hand EXECUTE only to the role the import runs as.
+revoke execute on function replace_book_locations(jsonb) from public;
+revoke execute on function replace_book_locations(jsonb) from anon, authenticated;
+grant  execute on function replace_book_locations(jsonb) to service_role;
 ```
 
 ### 12.2 Script Structure (`scripts/import-uesp.mts`)
@@ -358,21 +467,26 @@ type Skill =
 type ParsedPage = {
     uespPageId: number; // <page><id> -- the identity
     uespTitle: string; // 'Skyrim:Deathbrand (book)'
-    params: RawParams;
+    params: RawParams; // {{Game Book}} params ONLY
+    artifactType: string | null; // {{Artifact Summary}}'s |artifacttype -- a DIFFERENT template
     categoryLinks: string[]; // explicitly-written [[Category:...]] links
 };
 
 // Brace- and link-aware: '|' inside [[a|b]] or {{x|y}} is not a separator.
 function parseGameBookTemplate(wikitext: string): RawParams | null;
 
-function classifyCategory(params: RawParams): Category;
+// Takes the whole page, not params: the journal tiebreak needs uespTitle, and the
+// skill_book artifact branch needs artifactType, which is not a Game Book param.
+function classifyCategory(page: ParsedPage): Category;
+function parseArtifactSummary(wikitext: string): string | null;
 function classifySource(params: RawParams, categoryLinks: string[]): Source;
 function normalizeSkill(raw: string | null): Skill | null;
 
-// '*[[Skyrim:X|X]], on a shelf' -> [{ name: 'X', notes: 'on a shelf' }]
+// '*[[Skyrim:X|X]], on a shelf' -> [{ name: 'X', notes: 'on a shelf', locationType: 'place' }]
+type LocationTier = 'place' | 'carrier' | 'nearby';
 function parseLocations(
     rawLoc: string,
-): { name: string; notes: string | null }[];
+): { name: string; notes: string | null; locationType: LocationTier }[];
 
 function cleanTitle(uespTitle: string, sumtitle?: string): string;
 function cleanWikitext(value: string): string;
@@ -388,7 +502,7 @@ type BookRow = {
     game_id_extra: string[] | null;
     description: string | null;
     author: string | null;
-    value: number | null;
+    value: string | null; // verbatim; 3 pages carry dual values
     weight: number | null;
     icon: string | null;
     lorename: string | null;
@@ -398,27 +512,35 @@ type BookRow = {
     series_prev: string | null;
     series_next: string | null;
     is_quest_related: boolean;
+    artifact_type: string | null;
     is_unique: boolean | null;
 };
 
 type MappedLocation = {
     uespPageId: number;
     location_name: string;
-    location_type: null;
+    location_type: string | null;
     notes: string | null;
 };
 type LocationRow = {
     location_name: string;
-    location_type: null;
+    location_type: string | null;
     notes: string | null;
 };
 
 function mapToBookRow(page: ParsedPage): BookRow;
 function mapToLocationRows(page: ParsedPage): MappedLocation[];
+// Shapes the RPC payload for a whole chunk: one entry per parsed book,
+// including books with an empty locations array (clears stale rows).
+type LocationBatchEntry = { book_id: string; locations: LocationRow[] };
+
+// Takes EVERY successfully parsed book in the chunk, not just flattened location
+// rows -- a book with zero locations has no MappedLocation entries, so it could
+// never be represented from that input, and omitting it would leave stale rows.
 function attachBookIds(
-    rows: MappedLocation[],
+    parsed: { uespPageId: number; locations: LocationRow[] }[],
     idsByPageId: Map<number, string>,
-): Map<string, LocationRow[]>;
+): LocationBatchEntry[];
 ```
 
 I/O glue (exercised via `--dry-run`, not unit-tested directly):
@@ -426,7 +548,7 @@ I/O glue (exercised via `--dry-run`, not unit-tested directly):
 - Detect compression by magic bytes; spawn `bzip2 -dc` or `zlib.createGunzip()`; pipe into `sax.createStream()`.
 - Per `<page>`: filter (FR-3) → parse → classify → map.
 - Pre-fetch existing `uesp_page_id`s into a Set so the report can distinguish new from updated — a PostgREST upsert does not reveal which rows it inserted.
-- Dedupe by conflict key, batch-upsert `book` (chunks of ~500, `onConflict: 'uesp_page_id'`) with `.select('id, uesp_page_id')` so each chunk returns its uuids; build the id map, then call `replace_book_locations` per successfully parsed book.
+- Dedupe by conflict key, batch-upsert `book` (chunks of ~500, `onConflict: 'uesp_page_id'`) with `.select('id, uesp_page_id')` so each chunk returns its uuids; build the id map, then make **one** `replace_book_locations` call for that whole chunk — including parsed books that have no locations, so their stale rows are cleared.
 - Guard the target host (FR-14) before the first write.
 
 ### 12.3 Dependencies
@@ -471,3 +593,26 @@ yarn import:uesp data/uespwiki-2026-08-30-current.xml.bz2 --dry-run
 ### 12.6 `.gitignore`
 
 `/data/` is already ignored — the dump lives there and is never committed.
+
+---
+
+## 13. Handoff to `prd-browse-and-track.md`
+
+That PRD **has been patched** against this import: its OQ-2 and OQ-8 are closed, MI2 and the old R1 deleted, FR-3 gained a required `source` filter with the real enum values, FR-5's total is tied to the default scope, and §12.1's reference DDL matches the schema this task builds. What follows is only what remains.
+
+### Still open there
+
+1. **OQ-1 — the default catalog scope. Blocker for browse M1**, because the progress denominator falls out of it. Measured options:
+
+    | Default scope                                    | Count   |
+    | ------------------------------------------------ | ------- |
+    | `skill_book` + `book`, all sources               | 488     |
+    | `skill_book` + `book`, base + DLC only           | 460     |
+    | `skill_book` + `book` + `black_book`, base + DLC | **467** |
+    | Everything                                       | 1,245   |
+
+    Recommended: **467** — `skill_book` + `book` + `black_book` at base + DLC. The 7 Black Books are flagship Dragonborn collectibles and excluding them from a completion tracker would be an odd default; notes (550), journals (200) and Creation Club (329) stay opt-in.
+
+2. **The null-skill skill book.** Oghma Infinium is `skill_book` with `skill = null`, so it appears under no skill chip. Browse must decide whether it shows only under `category=skill_book`, gets an "artifact" affordance, or is otherwise surfaced — otherwise M2's skill filter silently loses the game's most notable book.
+
+3. **Optional:** whether the list MVP shows any location teaser at all. Deferring is fine; it should just be explicit, given this import produces ~2,500 location rows with placement notes that nothing yet renders.

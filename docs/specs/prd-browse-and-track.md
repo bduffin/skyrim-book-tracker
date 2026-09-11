@@ -11,14 +11,13 @@
 
 ## 0. Contradictions & Missing Info (resolve before/during build)
 
-| #   | Type      | Issue                                                                           | Resolution in this PRD                                                                                                              |
-| --- | --------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| MI1 | Missing   | No canonical total book count (the "/820" denominator).                         | Compute total dynamically from `book` table; do not hardcode. OQ-1.                                                                 |
-| MI2 | Missing   | `skill` is nullable free-text ("Smithing +1") in arch §6 — no clean filter key. | Require a normalized `skill` value (enum or controlled string) populated by the data-import task. Skill filter depends on it. OQ-2. |
-| MI3 | Missing   | Spec has no title **search**; arch §8 references search inputs.                 | Out of scope for this PRD; tracked as OQ-3.                                                                                         |
-| MI4 | Missing   | No sort order specified.                                                        | Default sort: title A→Z. OQ-4.                                                                                                      |
-| MI5 | Ambiguous | Success criterion 5: unauthenticated controls "disabled/hidden."                | **Decision:** render controls **disabled** with a sign-in affordance (discoverability > hiding). OQ-5.                              |
-| MI6 | Missing   | No defined behavior when a toggle Server Action fails.                          | Optimistic state **rolls back** + non-blocking error toast. FR-4.                                                                   |
+| #   | Type      | Issue                                                            | Resolution in this PRD                                                                                                                            |
+| --- | --------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MI1 | Missing   | No canonical total book count (the "/820" denominator).          | Compute dynamically from `book`, never hardcoded — but the count depends on which categories and sources are in the default scope, which is OQ-1. |
+| MI3 | Missing   | Spec has no title **search**; arch §8 references search inputs.  | Out of scope for this PRD; tracked as OQ-3.                                                                                                       |
+| MI4 | Missing   | No sort order specified.                                         | Default sort: title A→Z. OQ-4.                                                                                                                    |
+| MI5 | Ambiguous | Success criterion 5: unauthenticated controls "disabled/hidden." | **Decision:** render controls **disabled** with a sign-in affordance (discoverability > hiding). OQ-5.                                            |
+| MI6 | Missing   | No defined behavior when a toggle Server Action fails.           | Optimistic state **rolls back** + non-blocking error toast. FR-4.                                                                                 |
 
 ---
 
@@ -30,9 +29,9 @@ Skyrim completionists have no lightweight, persistent, web-based way to track wh
 
 ### Goals
 
-- G1. Let any visitor browse the full Skyrim book catalog with rich metadata (title, category, skill, locations).
+- G1. Let any visitor browse the Skyrim book catalog with its list-level metadata (title, category, source, skill). Location data exists and is rich — ~2,500 rows with placement notes — but rendering it is the deferred detail page (NG1), not this PRD.
 - G2. Let an authenticated user mark a book as collected and have it persist across sessions and characters.
-- G3. Let a user filter the catalog by category, skill, and collection status, with shareable URLs.
+- G3. Let a user filter the catalog by category, source, skill, and collection status, with shareable URLs.
 - G4. Show overall collection progress at a glance.
 - G5. Enforce a strict server-first architecture: zero direct DB calls from Client Components; all `user_book` writes through a Server Action under RLS.
 
@@ -43,7 +42,7 @@ Skyrim completionists have no lightweight, persistent, web-based way to track wh
 - NG3. Saved filter presets / named collections.
 - NG4. _(Removed — `read` is now in scope; see FR-4 and the `is_read`/`is_collected` flags.)_
 - NG5. Full-text **title search** (MI3 / OQ-3).
-- NG6. Storing or rendering full book text (metadata only — licensing constraint).
+- NG6. Storing or rendering full book text — a **scope** decision, not a licensing one. CC BY-SA 2.5 permits redistribution with attribution; see `prd-import-uesp-books.md` NG2.
 - NG7. Auth/sign-up/sign-in flows (separate spec; assumed to exist).
 - NG8. UESP data import/seeding (separate task; assumed done).
 - NG9. AI features, real-time/collaboration, per-category progress charts beyond a single summary bar.
@@ -53,7 +52,7 @@ Skyrim completionists have no lightweight, persistent, web-based way to track wh
 - **Greenfield.** No tracking exists in the app today.
 - **Data source.** UESP (CC BY-SA) provides structured book data: titles, categories, skill effects, locations. Attribution required in UI and README.
 - **Assumed-present dependencies:** (a) Supabase Auth with working sign-in; (b) `book` and `book_location` tables seeded from UESP; (c) Next.js App Router + Tailwind scaffolding per architecture — Tailwind is installed; shadcn/ui is not yet installed but will be added soon.
-- **Data model (arch §6):** `book` (id, uesp/game id, title, category, nullable skill, is_unique, metadata), `book_location` (book_id, location_name, type, notes), `user_book` (user_id, book_id, is_read, is_collected, updated_at), `user_book_note` (user_id, book_id, notes, updated_at).
+- **Data model (as built by the import task):** `book` (id, `uesp_page_id` identity, `uesp_title`, title, `category` — one of `skill_book`/`book`/`journal`/`note`/`black_book`, `source` — one of `base`/`dawnguard`/`dragonborn`/`hearthfire`/`creation_club`, nullable normalized `skill`, description, author, value, weight, icon, `is_quest_related`, `artifact_type`, nullable `is_unique`), `book_location` (book_id, location_name, location_type, notes), `user_book`, `user_book_note`. Catalog size is **1,245** books: 916 base+DLC and 329 Creation Club; by category 550 notes, 397 books, 200 journals, 91 skill books, 7 black books. One skill book (Oghma Infinium) has a null `skill` — it raises six at once — so grouping skill books _by_ skill must handle it.
 - **Pain points (from spec):** no unified have-vs-left view; no filtering by category/skill/status; progress lost on new characters.
 - **Architectural constraints already decided:** Server Components default; client interactivity opt-in; RLS on `user_*`; reference tables publicly readable but not user-writable.
 
@@ -68,7 +67,7 @@ A single **server-rendered book list page** at e.g. `/books` (route name OQ-6), 
 5. **Unauthenticated** users get the full list with status controls rendered **disabled** plus a sign-in prompt; the progress bar shows catalog total only.
 
 ```
-URL (?category=&skill=&read=&collected=&page=)
+URL (?category=&source=&skill=&read=&collected=&page=)
         │  soft-nav
         ▼
 [Server Component: /books page]
@@ -87,18 +86,18 @@ URL (?category=&skill=&read=&collected=&page=)
 
 - **`useOptimistic` + Server Action (chosen)** vs a client-side query/cache library. Chosen for fewer moving parts and native App Router fit. Tradeoff: cross-row cache coordination (e.g., progress bar consistency) leans on `revalidatePath`/server re-render rather than a client cache. If live refetch-on-filter or richer cache invalidation becomes painful, revisit this tradeoff for the list specifically.
 - **Filter state in URL (per Decision #1)** vs client/server state. Chosen for shareability and back-button correctness. Tradeoff: every filter change is a server round-trip; mitigated by Next.js soft navigation + the <1s render budget.
-- **Sparse rows (upsert/delete)** vs a row per (user, book). Per Decision #4, untouched = absent row, so setting either flag `true` = upsert and clearing both flags = delete. Tradeoff: storage stays proportional to actual progress (most users touch a fraction of 800+ books) at the cost of a `LEFT JOIN ... COALESCE(is_read, false), COALESCE(is_collected, false)` on every read. The alternative (pre-seed a row per book per user) makes reads trivial but explodes write volume on signup and storage — rejected for a side-project scale.
+- **Sparse rows (upsert/delete)** vs a row per (user, book). Per Decision #4, untouched = absent row, so setting either flag `true` = upsert and clearing both flags = delete. Tradeoff: storage stays proportional to actual progress (most users touch a fraction of the 1,245-book catalog) at the cost of a `LEFT JOIN ... COALESCE(is_read, false), COALESCE(is_collected, false)` on every read. The alternative (pre-seed a row per book per user) makes reads trivial but explodes write volume on signup and storage — rejected for a side-project scale.
 - **Two independent flags (`is_read` / `is_collected`)** vs the original `collected` implies `read` monotonic enum — **revised from the initial design**. Reading and collecting are separate in-game actions (you can grab a book to read later, or read one you don't keep), so treating them as one ladder was wrong by domain, not just a simplification. Tradeoff: progress/filters now track two dimensions instead of one (no more single "read-or-better" figure), and each row needs two toggles instead of one segmented control — more UI surface, but each toggle's meaning is unambiguous.
 
 ## 5. Requirements
 
 ### Functional (FR)
 
-- **FR-1 — Book list (Server Component).** Render a paginated list (50/page, Decision #3) of books. Each row shows: title, category, skill (if any), and the current user's `is_read`/`is_collected` flags (independent; absent row = both `false`). Renders fully server-side (no client data waterfall).
+- **FR-1 — Book list (Server Component).** Render a paginated list (50/page, Decision #3) of books. Each row shows: title, category, source, skill (if any), and the current user's `is_read`/`is_collected` flags (independent; absent row = both `false`). Renders fully server-side (no client data waterfall).
 - **FR-2 — Public browse.** Unauthenticated users can view the full list and all metadata. Both flags render `false` for all rows; the read/collected controls render **disabled** with a sign-in affordance (MI5).
-- **FR-3 — Filters (Client Component, URL-backed).** Controls for: category, skill, read status, and collected status — each filterable independently (e.g. `all | true | false` per flag), not a single combined status. State persists in URL query params (e.g. `?category=skill&read=false&collected=true&page=1`) and is shareable/bookmarkable. Changing a filter resets to page 1 and updates the list via soft navigation (no full reload). Skill filter options derive from the normalized skill values (MI2).
+- **FR-3 — Filters (Client Component, URL-backed).** Controls for: **category**, **source**, skill, read status, and collected status — each filterable independently (e.g. `all | true | false` per flag), not a single combined status. Category values are the five the import enforces: `skill_book`, `book`, `journal`, `note`, `black_book`. Source values are `base`, `dawnguard`, `dragonborn`, `hearthfire`, `creation_club`. Both come from DB check constraints, so filter options are a fixed list, not derived from distinct values. Skill options are Skyrim's 18 canonical skills, likewise constrained. State persists in URL query params (e.g. `?category=skill_book&source=base&read=false&collected=true&page=1`) and is shareable/bookmarkable. Changing a filter resets to page 1 and updates the list via soft navigation (no full reload). **A `source` filter is required rather than optional**: Creation Club is 329 of 1,245 books and is mostly notes and journals, so without it the default list is dominated by paid add-on content.
 - **FR-4 — Read/Collected controls (Client Component + Server Action).** Authenticated user toggles a book's `is_read` and `is_collected` flags independently — toggling one never changes or implies the other. UI updates optimistically per flag; a Server Action validates the Supabase session and writes `user_book` under RLS — **upsert** the changed flag(s), **delete** the row once both flags are `false`. On success, server state is revalidated so the progress bar stays truthful. On failure, the optimistic change rolls back and a non-blocking error toast appears (MI6). The write path never trusts a client-supplied `user_id`.
-- **FR-5 — Progress summary.** A progress bar shows `<collected> collected · <read> read / <total>` (total computed dynamically, MI1; `collected` and `read` are independent counts, not combined). It reflects true DB state after any change. For unauthenticated users it shows `0 / <total>` or total only.
+- **FR-5 — Progress summary.** A progress bar shows `<collected> collected · <read> read / <total>` (total computed dynamically, MI1; `collected` and `read` are independent counts, not combined). `<total>` is the count within the **default scope** (OQ-1), not `count(book)` — the unscoped figure is 1,245 including 550 notes and 329 Creation Club books, which is a materially different product from the ~467-book "real books" catalog OQ-1 recommends. It reflects true DB state after any change. For unauthenticated users it shows `0 / <total>` or total only.
 - **FR-6 — Pagination.** 50 books/page; page in URL. Stable ordering (default title A→Z, MI4) so pagination is deterministic.
 - **FR-7 — Attribution.** UESP CC BY-SA attribution visible in the UI (and README per arch §2).
 
@@ -125,7 +124,7 @@ URL (?category=&skill=&read=&collected=&page=)
 
 ### Assumptions (from spec)
 
-- A1. UESP data is pre-seeded into `book` and `book_location` (separate import task), **including a normalized `skill` value** (this PRD's added requirement, MI2).
+- A1. UESP data is pre-seeded into `book` and `book_location` by `prd-import-uesp-books.md`, with normalized `skill`, `category` and `source` all enforced by DB check constraints. **Satisfied except for OQ-1** — the data is ready; the default scope over it is not yet decided.
 - A2. Auth (sign-up/sign-in) exists via a separate spec.
 - A3. A book with no `user_book` row is untouched (neither read nor collected); no pre-population.
 - A4. Performance targets (<1s, 500ms) are reasonable given a single-app Vercel + Supabase deployment and a catalog on the order of hundreds–low thousands of books.
@@ -134,7 +133,7 @@ URL (?category=&skill=&read=&collected=&page=)
 
 | ID  | Risk                                                                    | Likelihood | Impact | Mitigation                                                                                                                                                  |
 | --- | ----------------------------------------------------------------------- | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | Skill filter unusable because `skill` is free-text (MI2).               | High       | High   | Make the import task populate a normalized `skill` key; derive filter options from distinct values; gate FR-3 skill filter on this.                         |
+| R1  | Default scope makes "completion" feel unachievable or trivial (OQ-1).   | High       | Med    | Decide the default category/source scope before M1 — the denominator follows from it. Notes and journals are 750 of 1,245 books; Creation Club another 329. |
 | R2  | Progress bar drifts from DB after optimistic toggles (consistency).     | Med        | Med    | Server Action calls `revalidatePath` so the next server render recomputes counts; treat client optimistic value as transient only.                          |
 | R3  | <1s render breached at scale (large catalog + joins per page).          | Med        | Med    | Paginate (50), index `book(title)`, `user_book(user_id, book_id)`; left-join only the 50 visible books, not the whole catalog; count via a cheap aggregate. |
 | R4  | URL param tampering / invalid filter values.                            | Med        | Low    | Validate & whitelist params server-side (zod); fall back to defaults on bad input.                                                                          |
@@ -146,18 +145,18 @@ URL (?category=&skill=&read=&collected=&page=)
 
 ## 8. Milestones / Phased Rollout
 
-- **M0 — Foundations (prereq verification).** Confirm assumed dependencies: auth works; `book`/`book_location` seeded with normalized `skill`; RLS policies on `user_book` in place. Exit: a smoke query returns books and the session helper returns a user id.
-- **M1 — Read-only browse (public).** Server Component list with title/category/skill, pagination (50/page), default sort, UESP attribution. No auth needed. Exit: FR-1, FR-6, FR-7; NFR-1 met for anonymous.
-- **M2 — Filters.** URL-backed category + read/collected filters (skill filter only if R1 resolved), soft-nav, page reset. Exit: FR-3 (category, read, collected), shareable URLs.
+- **M0 — Foundations (prereq verification).** Confirm assumed dependencies: auth works; `book`/`book_location` seeded by the import task with normalized `skill`/`category`/`source`; **the default scope (OQ-1) is decided**; RLS policies on `user_book` in place. Exit: a smoke query returns books and the session helper returns a user id.
+- **M1 — Read-only browse (public).** Server Component list with title/category/source/skill, scoped to the OQ-1 default, pagination (50/page), default sort, UESP attribution. No auth needed. Exit: FR-1, FR-6, FR-7; NFR-1 met for anonymous.
+- **M2 — Filters.** URL-backed category, source, skill and read/collected filters, soft-nav, page reset. Exit: FR-3, shareable URLs.
 - **M3 — Tracking.** Read/collected toggles via Server Action + `useOptimistic`, RLS-enforced writes, rollback-on-failure, progress bar. Exit: FR-4, FR-5, NFR-2/3/6.
-- **M4 — Unauthenticated polish + skill filter.** Disabled controls + sign-in affordance; enable skill filter once normalized data lands. Exit: FR-2, remaining FR-3, MI5.
+- **M4 — Unauthenticated polish.** Disabled controls + sign-in affordance. Exit: FR-2, MI5.
 - **M5 — Hardening.** RLS tests, param validation (R4), perf pass against NFR-1, a11y pass (NFR-7). Exit: all acceptance criteria green.
 
 ## 9. Acceptance Criteria
 
-- AC-1. List page renders server-side, 50 books/page, each row showing title, category, skill (when present), and the current user's `is_read`/`is_collected` flags. (FR-1)
+- AC-1. List page renders server-side, 50 books/page, each row showing title, category, source, skill (when present), and the current user's `is_read`/`is_collected` flags. (FR-1)
 - AC-2. An anonymous visitor sees the full list and metadata; every read/collected control is rendered **disabled** with a visible sign-in affordance. (FR-2, MI5)
-- AC-3. Setting category/skill/read/collected filters updates the visible list **without a full page reload** and is reflected in the URL query params; copying the URL reproduces the filtered view. Changing a filter resets to page 1. (FR-3)
+- AC-3. Setting category/source/skill/read/collected filters updates the visible list **without a full page reload** and is reflected in the URL query params; copying the URL reproduces the filtered view. Changing a filter resets to page 1. (FR-3)
 - AC-4. Toggling a book's `read` or `collected` flag updates the UI instantly, independently of the other flag; the `user_book` write goes through a Server Action that derives `user_id` from the session (upsert the changed flag(s), delete once both are `false`); on failure the UI rolls back and shows an error toast. Setting `collected` works regardless of the current `read` value, and vice versa. (FR-4)
 - AC-5. The progress bar shows independent collected and read counts over a dynamically computed total, and matches the DB after any change (verified by reload). (FR-5, MI1)
 - AC-6. Static/audit check: **no** Client Component performs a direct DB call; all writes route through a Server Action. (NFR-3/4)
@@ -178,14 +177,12 @@ URL (?category=&skill=&read=&collected=&page=)
 
 ## 11. Open Questions
 
-- **OQ-1 (MI1):** Is "total" the full `book` count, or scoped to current filters? (Affects whether progress is global or per-filter.) _Recommendation: global total in the bar; optionally show filtered count separately._
-- **OQ-2 (MI2):** What is the normalized `skill` representation, and is the import task already producing it? Filter UX (and R1) depends on this.
+- **OQ-1 (MI1) — blocker for M1.** What is the **default catalog scope**, and is the progress total that scope or the current filters? The import stores all 1,245 books with a category and a source precisely so this is a UI decision, but the denominator depends on it. _Recommendation: default to `skill_book` + `book` + `black_book` at `base` + DLC sources — **467 books** — with notes (550), journals (200) and Creation Club (329) opt-in; global total for that scope in the bar, filtered count shown separately. For reference: the same categories at all sources is 488, and without Black Books, 460. The 7 Black Books are flagship Dragonborn collectibles, so excluding them from a completion tracker would be a strange default._
 - **OQ-3 (MI3):** Is title search in or out for the first release? Spec omits it; architecture references it.
 - **OQ-4 (MI4):** Default sort and available sort options (title, category, collected-first)?
 - **OQ-5 (MI5):** Unauthenticated track controls — disabled (recommended) vs hidden vs inline sign-in prompt?
 - **OQ-6:** Route/IA — `/books`, `/`, or `/collection`? Where does the progress bar live relative to filters?
 - **OQ-7:** Empty-state copy when filters match zero books.
-- **OQ-8:** Category taxonomy — fixed enum vs free-text from UESP (mirrors the skill concern for the category filter).
 
 ---
 
@@ -196,20 +193,30 @@ URL (?category=&skill=&read=&collected=&page=)
 > - Untouched is represented by **row absence** in `user_book` (Decision #4); `is_read` and `is_collected` are independent booleans, neither implying the other. A `check` constraint blocks a persisted row where both are `false` (that state means "delete the row," not "store falsy flags").
 > - `notes` lives in a separate `user_book_note` table, not on `user_book` — see §12.1.
 > - `book` / `book_location` are seeded by the separate import task; their DDL is shown only to anchor the RLS and the read join, and to record the indexes this feature needs.
-> - Targets Supabase Postgres. Run as a single migration (e.g. `supabase/migrations/0001_user_book.sql`).
+> - Targets Supabase Postgres. Shipped as `supabase/migrations/20260819040000_user_book.sql`; the `book`/`book_location` reshape lands in the import task's own migration.
 
 ### 12.1 Schema (DDL)
 
 ```sql
 -- ── Reference tables (owned by the import task; shown for context) ─────────
+-- Shape after the import task's migration (prd-import-uesp-books.md §12.1):
 -- create table book (
---   id          uuid primary key default gen_random_uuid(),
---   game_id     text unique,                 -- UESP/game identifier
---   title       text not null,
---   category    text not null,               -- TODO normalize (OQ-8)
---   skill       text,                         -- normalized key required for filter (MI2)
---   description text,
---   is_unique   boolean not null default false
+--   id           uuid primary key default gen_random_uuid(),
+--   uesp_page_id integer not null unique,     -- identity; MediaWiki page id
+--   uesp_title   text not null,               -- 'Skyrim:Deathbrand (book)'
+--   title        text not null,               -- display title
+--   game_id      text,                        -- Creation Kit form id: NOT unique,
+--                                             -- 78 pages collide via xx/fexxx placeholders
+--   category     text not null,               -- check: skill_book|book|journal|note|black_book
+--   source       text not null,               -- check: base|dawnguard|dragonborn|hearthfire|creation_club
+--   skill        text,                        -- check: one of Skyrim's 18 skills. Non-null for every
+--                                             -- skill_book EXCEPT Oghma Infinium, which raises six at
+--                                             -- once and is identified by artifact_type instead
+--   artifact_type text,                        -- 'Daedric Artifact'; set on exactly one book
+--   description  text, author text, value text, weight numeric(6,2),
+--   icon         text, lorename text, errata text, gameplay_note text,
+--   is_quest_related boolean not null default false,
+--   is_unique    boolean                      -- NULLABLE: no source field exists, so unknown
 -- );
 -- create table book_location ( ... book_id uuid references book(id) ... );
 
@@ -236,9 +243,10 @@ create index user_book_user_read_idx      on user_book (user_id) where is_read;
 create index user_book_user_collected_idx on user_book (user_id) where is_collected;
 -- Catalog ordering / pagination (default title A→Z, MI4) -- on book:
 -- create index book_title_idx on book (title);
--- Skill / category filters (MI2/OQ-8) -- on book:
+-- Skill / category / source filters (FR-3) -- on book:
 -- create index book_skill_idx    on book (skill);
 -- create index book_category_idx on book (category);
+-- create index book_source_idx   on book (source);
 
 -- ── Per-user notes ─────────────────────────────────────────────────────────
 -- Split from user_book: no FK to it, so a note can exist independent of
@@ -409,17 +417,23 @@ export async function setBookFlags(
 
 ```ts
 // One page of books with the current user's flags (absent row = both false).
+export type BookCategory =
+    'skill_book' | 'book' | 'journal' | 'note' | 'black_book';
+export type BookSource =
+    'base' | 'dawnguard' | 'dragonborn' | 'hearthfire' | 'creation_club';
+
 export type BookRow = {
     id: string;
     title: string;
-    category: string;
+    category: BookCategory;
+    source: BookSource;
     skill: string | null;
     isRead: boolean; // coalesced: missing user_book -> false
     isCollected: boolean; // coalesced: missing user_book -> false
 };
 
 export type ProgressSummary = {
-    total: number; // count(book) — dynamic (MI1)
+    total: number; // count(book) within the default scope — dynamic (MI1/OQ-1)
     collected: number; // count(user_book where is_collected)
     read: number; // count(user_book where is_read)
 };

@@ -28,7 +28,7 @@ Pain points:
 
 A logged-in user can:
 
-1. Browse all Skyrim books with rich metadata (title, category, skill, locations).
+1. Browse the Skyrim book catalog with its list-level metadata (title, category, source, skill). Location data is imported and rich, but rendering it is the deferred detail page (`prd-browse-and-track.md` NG1), not this release.
 2. Mark any book as read and/or collected, independently (both default unset).
 3. See overall and per-category progress at a glance.
 4. Filter the list by category, skill, read status, or collected status.
@@ -61,9 +61,9 @@ A logged-in user can:
 
 - [ ] Paginated book list rendered as a Server Component.
 - [ ] Each row shows: title, category, skill (if any), and the current user's `read`/`collected` flags (independent; both default unset).
-- [ ] Filter controls for category, skill, read status, and collected status (each filterable independently) — state persisted in URL query params.
+- [ ] Filter controls for category, **source**, skill, read status, and collected status (each filterable independently) — state persisted in URL query params. Category values are `skill_book`/`book`/`journal`/`note`/`black_book`; source values are `base`/`dawnguard`/`dragonborn`/`hearthfire`/`creation_club`.
 - [ ] Status controls — toggle a book's `read` and `collected` flags independently (each with optimistic update, confirmed via Server Action).
-- [ ] Progress summary bar (e.g., "142 collected · 318 read / 820") visible on the list page.
+- [ ] Progress summary bar (e.g., "142 collected · 318 read / 467") visible on the list page. The denominator is the catalog's default scope, computed dynamically — never a hardcoded figure. The full imported catalog is 1,245 books; the default scope over it is `prd-browse-and-track.md` OQ-1, which recommends 467.
 - [ ] Unauthenticated users can browse books but cannot track status.
 
 **Nice-to-have (out of scope for this spec):**
@@ -81,7 +81,7 @@ A logged-in user can:
 - Status is two independent booleans: `is_read` and `is_collected`. Neither implies the other — a book can be collected but unread, read but not collected, or both. Both default to unset, represented by the absence of a `user_book` row (not stored).
 - A book with no `user_book` row is treated as untouched (neither read nor collected; no pre-population needed). Clearing both flags deletes the row.
 - Pagination is 50 books per page.
-- Filter state lives in URL query params (e.g., `?category=skill&collected=false&page=1`) for shareability.
+- Filter state lives in URL query params (e.g., `?category=skill_book&source=base&collected=false&page=1`) for shareability.
 
 ---
 
@@ -100,7 +100,7 @@ A logged-in user can:
 
 | #   | Question                | Decision                                                                                            |
 | --- | ----------------------- | --------------------------------------------------------------------------------------------------- |
-| 1   | Filter state location   | URL query params (e.g. `?category=skill&read=false&collected=false&page=1`)                         |
+| 1   | Filter state location   | URL query params (e.g. `?category=skill_book&read=false&collected=false&page=1`)                    |
 | 2   | Status model            | Two independent booleans `is_read` / `is_collected`; neither implies the other; both-unset = no row |
 | 3   | Pagination size         | 50 books per page                                                                                   |
 | 4   | Missing `user_book` row | Default to untouched (both flags unset); no pre-population; clearing both flags deletes the row     |
