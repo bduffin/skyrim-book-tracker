@@ -122,8 +122,14 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 
 - **FR-5 — Identity.** `uesp_page_id` (the `<page><id>` integer) is the upsert key. `game_id` (the `|id=` Form ID) is stored as a **non-unique, nullable attribute**, alongside `game_id_extra` for `id2`–`id5` (6 pages). Placeholder prefixes (`xx`, `fexxx`) are preserved verbatim, never expanded.
 - **FR-6a — Sentinel and field semantics.** `lorename` is `none` on **729 of the 845 books that set it** — a sentinel, not a value; it is stored as null, leaving 116 real lore links. `description` is the short subtitle UESP shows under the title ("A hint on how to solve Shalidor's Maze") and maps to `book.description`. `note` is a **boolean flag** — its only value across 488 pages is `1` — not prose. `textnote` and `comment` are different things and **never co-occur** (0 of 1,207 pages set both): `textnote` is italicised errata about the record (variants, duplicate ids, naming errors) and maps to `errata`; `comment` is plain-text gameplay significance (quest relevance, links to other books) and maps to `gameplay_note`.
-- **FR-6 — Attribute mapping.** All populated template fields map to columns: `description` (462 on the book page, 573 after the FR-4a lore fallback), `author` (461, 571 after fallback), `value` (1,207, stored as text — 3 pages carry dual values like `65 (Skill Book)<br>6 (Normal)`), `weight` (1,207, all numeric), `icon` (1,164), `lorename` (852), `sumtitle` (233), `errata` (49, 152 after fallback), `gameplay_note` (48), `artifact_type` (1), and the series links `up`/`next`/`prev` (~165 each).
+- **FR-6 — Attribute mapping.** All populated template fields map to columns: `description` (462 on the book page, 573 after the FR-4a lore fallback), `author` (461, 571 after fallback), `value` (1,207, stored as text — 3 pages carry dual values like `65 (Skill Book)<br>6 (Normal)`), `weight` (1,207, all numeric), `icon` (1,164), `lorename` (852), `sumtitle` (233), `errata` (49, 152 after fallback), `gameplay_note` (48), `artifact_type` (1), `is_obtainable` (false on 1), and the series links `up`/`next`/`prev` (~165 each).
 - **FR-6b — Faithful import, no editorial filtering.** Every ns-134 `{{Game Book}}` page becomes a row. The script never excludes or merges books: UESP has already collapsed in-game variants to one page (a page reading "there are five versions of this book" is one book), and unobtainable or cut content stays in with its `errata` intact. Prose-based exclusion was rejected as unreliable — matching phrases like "cannot be found" yields ~19 pages including false positives such as `Amaund Motierre's Sealed Letter`, a quest item players do receive. Filtering is a browse-time concern, consistent with how `source` handles Creation Club; a curated exclusion list, if ever wanted, belongs in a hand-maintained table, not parser output. 49 pages have no `loc` field at all, which the UI can render as "no known location" from zero `book_location` rows.
+- **FR-6c — Obtainability.** `is_obtainable` marks books a player cannot actually acquire, so browse can exclude them from a completion denominator without every query carrying an id list. It is **curated, not inferred**: the importer sets it `false` from a short, explicit, documented list of signals, currently just the title suffix `(unused pages)`. Prose matching was rejected for this — searching for phrases like "cannot be found" yields ~19 pages including false positives such as `Amaund Motierre's Sealed Letter`, a quest item players do receive.
+
+    Measured: one book qualifies — `Skyrim:Shalidor's Insights (unused pages)`, which documents cut assets (an unused page "written in Portuguese", another a design document for Septimus Signus's Outpost) and sits beside its real sibling `Skyrim:Shalidor's Insights (book)`. Without the flag it classifies as `book`/`base` and lands inside the recommended default scope, leaving a completionist permanently at 431/432. A survey of every parenthetical title suffix across all 1,207 books found no other cut-content family — the rest are disambiguators, place names, DLC markers and volume numbers.
+
+    `true` therefore means "nothing has marked this otherwise", not "verified obtainable". This is faithful-import (FR-6b) intact: nothing is dropped, one row is flagged.
+
 - **FR-7 — Category classification.** `classifyCategory(page: ParsedPage)` → one of `skill_book`, `black_book`, `note`, `journal`, `book`, evaluated **in that order** — the order is load-bearing:
     1. `skill_book` — has `skill=` **or** a non-null `artifactType` (91). Note `artifactType` is **not** a `{{Game Book}}` parameter (FR-4) — reading it from `params` would silently leave Oghma as `book`. The artifact branch exists for the Oghma Infinium alone: it is the one book whose whole purpose is raising skills (+5 across a chosen path of six), so `skill=` cannot hold it, and UESP counts it as a skill book. Keyed on `artifacttype` / `[[Category:Skyrim-Items-Artifacts]]`, both of which appear on exactly one page — a data signal, not a title match. Must come first: `icon` is artwork and is reused, so the 25 magic-school skill books carry `SR-icon-book-SpellTome*.png` and would otherwise misclassify.
     2. `black_book` — icon `Black Book` (7, all Dragonborn).
@@ -331,6 +337,14 @@ alter table book add column series_next      text;
 alter table book add column is_quest_related boolean not null default false;
 alter table book add column artifact_type    text;           -- |artifacttype from {{Artifact Summary}}
 
+-- CURATED, not derived (FR-6c). `true` means "nothing has marked this
+-- otherwise", NOT "verified obtainable" -- do not trust it as complete.
+-- Exactly one book is false today: Skyrim:Shalidor's Insights (unused pages),
+-- a page documenting cut game assets that would otherwise sit in the default
+-- browse scope as an un-completable base-game book. No index: at ~1,200 rows a
+-- sequential scan beats an index lookup.
+alter table book add column is_obtainable boolean not null default true;
+
 -- is_unique has no source parameter in {{Game Book}} (R10/OQ-2). Unknown must
 -- not be stored as false, so the not-null default is removed.
 alter table book alter column is_unique drop not null;
@@ -523,6 +537,7 @@ type BookRow = {
     series_next: string | null;
     is_quest_related: boolean;
     artifact_type: string | null;
+    is_obtainable: boolean;
     is_unique: boolean | null;
 };
 
@@ -618,10 +633,10 @@ That PRD **has been patched** against this import: its OQ-2 and OQ-8 are closed,
     | ------------------------------------------------ | ------- |
     | `skill_book` + `book`, all sources               | 451     |
     | `skill_book` + `book`, base + DLC only           | 425     |
-    | `skill_book` + `book` + `black_book`, base + DLC | **432** |
+    | `skill_book` + `book` + `black_book`, base + DLC | **431** |
     | Everything                                       | 1,207   |
 
-    Recommended: **432** — `skill_book` + `book` + `black_book` at base + DLC. The 7 Black Books are flagship Dragonborn collectibles and excluding them from a completion tracker would be an odd default; notes (550), journals (199) and Creation Club (326) stay opt-in.
+    Recommended: **431** — `skill_book` + `book` + `black_book` at base + DLC, and `is_obtainable` (FR-6c), which excludes one cut-content page. The 7 Black Books are flagship Dragonborn collectibles and excluding them from a completion tracker would be an odd default; notes (550), journals (199) and Creation Club (326) stay opt-in.
 
 2. **The null-skill skill book.** Oghma Infinium is `skill_book` with `skill = null`, so it appears under no skill chip. Browse must decide whether it shows only under `category=skill_book`, gets an "artifact" affordance, or is otherwise surfaced — otherwise M2's skill filter silently loses the game's most notable book.
 
