@@ -31,14 +31,14 @@ The previous draft was written before a dump existed. Nearly every structural as
 
 ## 1. Problem Statement
 
-The app has no book data to browse or track — `book` and `book_location` are empty, and every feature in `prd-browse-and-track.md` depends on them being populated. UESP is the only viable structured source, and its `robots.txt` disallows both the MediaWiki API and bot crawling, naming Anthropic crawlers specifically. The sanctioned mechanism is UESP's weekly full-wiki XML dump, downloaded by a human. This task builds a local, re-runnable import script that turns that dump into normalized rows, resolving the normalization questions `prd-browse-and-track.md` defers to it (A1, R1, OQ-2, OQ-8 there).
+The app has no book data to browse or track — `book` and `book_location` are empty, and every feature in `prd-browse-and-track.md` depends on them being populated. UESP is the only viable structured source, and its `robots.txt` disallows both the MediaWiki API and bot crawling, naming Anthropic crawlers specifically. The sanctioned mechanism is UESP's weekly full-wiki XML dump, downloaded by a human. This task builds a local, re-runnable import script that turns that dump into normalized rows, resolving the skill and category normalization that `prd-browse-and-track.md` FR-3 depends on.
 
 ## 2. Goals and Non-Goals
 
 ### Goals
 
 - G1. Populate `book`/`book_location` from the downloaded dump. **The script makes no HTTP requests except its Supabase writes** — no UESP access at runtime, and no HTTP client dependency beyond `supabase-js`.
-- G2. Resolve `prd-browse-and-track.md`'s OQ-2 (skill) and OQ-8 (category) with enumerated values enforced by Postgres check constraints, derived from the dump rather than invented.
+- G2. Resolve the skill and category normalization that `prd-browse-and-track.md` FR-3 depends on, with enumerated values enforced by Postgres check constraints and derived from the dump rather than invented.
 - G3. Make re-running safe: no duplicate or lost rows, on the same dump or a newer one.
 - G4. Import the template's full attribute set, not a minimal subset — the pages are richly populated and the UI will surface these fields.
 - G5. Keep parsing verifiable in small increments (pure functions, fixture tests, `--dry-run`) rather than only checkable against a 177MB file and a live database.
@@ -52,7 +52,7 @@ The app has no book data to browse or track — `book` and `book_location` are e
 - NG4. Books from other TES games. Namespace 134 is Skyrim-only, so this falls out of the filter for free.
 - NG5. Real-world novels — namespace 140 (`Books:`) holds published fiction (`{{Real Book Summary}}`), not in-game items. Excluded by the namespace filter.
 - NG6. `location_type` **normalization** — it carries the FR-11 extraction tier (`place` / `carrier` / `nearby`) and is otherwise free text, never mapped to a curated taxonomy of place kinds. Nothing in `prd-browse-and-track.md` reads it.
-- NG7. Spell tomes (93) and recipes (28) as tracked items — they are consumable item pages, not `{{Game Book}}` pages, and importing them would require parsing a second template (OQ-7).
+- NG7. Spell tomes (93) and recipes (28) as tracked items — they are consumable item pages, not `{{Game Book}}` pages, and importing them would require parsing a second template (OQ-4).
 
 ## 3. Current State Analysis
 
@@ -124,18 +124,23 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 - **FR-6a — Sentinel and field semantics.** `lorename` is `none` on **729 of the 845 books that set it** — a sentinel, not a value; it is stored as null, leaving 116 real lore links. `description` is the short subtitle UESP shows under the title ("A hint on how to solve Shalidor's Maze") and maps to `book.description`. `note` is a **boolean flag** — its only value across 488 pages is `1` — not prose. `textnote` and `comment` are different things and **never co-occur** (0 of 1,207 pages set both): `textnote` is italicised errata about the record (variants, duplicate ids, naming errors) and maps to `errata`; `comment` is plain-text gameplay significance (quest relevance, links to other books) and maps to `gameplay_note`.
 - **FR-6 — Attribute mapping.** All populated template fields map to columns: `description` (462 on the book page, 573 after the FR-4a lore fallback), `author` (461, 571 after fallback), `value` (1,207, stored as text — 3 pages carry dual values like `65 (Skill Book)<br>6 (Normal)`), `weight` (1,207, all numeric), `icon` (1,164), `lorename` (852), `sumtitle` (233), `errata` (49, 152 after fallback), `gameplay_note` (48), `artifact_type` (1), `is_obtainable` (false on 1), and the series links `up`/`next`/`prev` (~165 each).
 - **FR-6b — Faithful import, no editorial filtering.** Every ns-134 `{{Game Book}}` page becomes a row. The script never excludes or merges books: UESP has already collapsed in-game variants to one page (a page reading "there are five versions of this book" is one book), and unobtainable or cut content stays in with its `errata` intact. Prose-based exclusion was rejected as unreliable — matching phrases like "cannot be found" yields ~19 pages including false positives such as `Amaund Motierre's Sealed Letter`, a quest item players do receive. Filtering is a browse-time concern, consistent with how `source` handles Creation Club; a curated exclusion list, if ever wanted, belongs in a hand-maintained table, not parser output. 49 pages have no `loc` field at all, which the UI can render as "no known location" from zero `book_location` rows.
-- **FR-6c — Obtainability.** `is_obtainable` marks books a player cannot actually acquire, so browse can exclude them from a completion denominator without every query carrying an id list. It is **curated, not inferred**: the importer sets it `false` from a short, explicit, documented list of signals, currently just the title suffix `(unused pages)`. Prose matching was rejected for this — searching for phrases like "cannot be found" yields ~19 pages including false positives such as `Amaund Motierre's Sealed Letter`, a quest item players do receive.
+- **FR-6c — Obtainability.** `is_obtainable` marks books a player cannot actually acquire, so browse can exclude them from a completion denominator without every query carrying an id list.
 
-    Measured: one book qualifies — `Skyrim:Shalidor's Insights (unused pages)`, which documents cut assets (an unused page "written in Portuguese", another a design document for Septimus Signus's Outpost) and sits beside its real sibling `Skyrim:Shalidor's Insights (book)`. Without the flag it classifies as `book`/`base` and lands inside the recommended default scope, leaving a completionist permanently at 431/432. A survey of every parenthetical title suffix across all 1,207 books found no other cut-content family — the rest are disambiguators, place names, DLC markers and volume numbers.
+    **Sourced from UESP, not inferred.** `Skyrim:Unobtainable Items` maintains a curated `Unobtainable Books & Notes` section as `{{Book Normal|Page Title}}` rows — 23 books, all 23 present in our catalog. A third pass reads that page and marks them. Parsing must be **scoped to that section**: the same page also lists unobtainable weapons, armour, scrolls and spell tomes, none of which are `{{Game Book}}` pages. One local supplement is added — `Skyrim:Shalidor's Insights (unused pages)`, which UESP does not list — giving **24** flagged books.
 
-    `true` therefore means "nothing has marked this otherwise", not "verified obtainable". This is faithful-import (FR-6b) intact: nothing is dropped, one row is flagged.
+    Prose matching was rejected for this: searching for phrases like "cannot be found" yields ~19 pages including false positives such as `Amaund Motierre's Sealed Letter`, a quest item players do receive. A title-suffix heuristic was also tried and caught only 1 of the 24.
 
-- **FR-7 — Category classification.** `classifyCategory(page: ParsedPage)` → one of `skill_book`, `black_book`, `note`, `journal`, `book`, evaluated **in that order** — the order is load-bearing:
+    **Eight of the 24 fall inside the default scope**, so this is not a rounding error: `The Secrets of Ragnvald` and `Tolfdir's Book` (real books cut from the game), `Shalidor's Insights (unused pages)`, and five Bethesda typography test assets whose titles are strings of accented vowels (`À â é è ê ë ù û ü î ï ô ç`, `123 Abc Def Ghijklmnop Qrstu VWXYZ 123456789`). Without the flag those render in the catalogue as books no player can collect.
+
+    `true` still means "nothing has marked this otherwise", not "verified obtainable" — but the curation is now UESP's and refreshes with each dump, rather than being a list I maintain.
+
+- **FR-7 — Category classification.** `classifyCategory(page: ParsedPage)` → one of `skill_book`, `black_book`, `treasure_map`, `note`, `journal`, `book`, evaluated **in that order** — the order is load-bearing:
     1. `skill_book` — has `skill=` **or** a non-null `artifactType` (91). Note `artifactType` is **not** a `{{Game Book}}` parameter (FR-4) — reading it from `params` would silently leave Oghma as `book`. The artifact branch exists for the Oghma Infinium alone: it is the one book whose whole purpose is raising skills (+5 across a chosen path of six), so `skill=` cannot hold it, and UESP counts it as a skill book. Keyed on `artifacttype` / `[[Category:Skyrim-Items-Artifacts]]`, both of which appear on exactly one page — a data signal, not a title match. Must come first: `icon` is artwork and is reused, so the 25 magic-school skill books carry `SR-icon-book-SpellTome*.png` and would otherwise misclassify.
     2. `black_book` — icon `Black Book` (7, all Dragonborn).
-    3. `note` — **`note=1` OR a Note-family icon** (`Note`/`TornNote`/`BloodstainedNote`), **unless** the icon is Journal-family _and_ the title contains "Journal" (see tier 4). Union, because measured, each signal misses what the other catches: 42 Treasure Maps carry the flag with **no icon at all**, and 64 obvious notes (`Mysterious Note (Delphine)`, `Amaund Motierre's Sealed Letter`, `Museum Pamphlet`) carry the icon with no flag. The disagreement is wiki data-entry inconsistency, not a semantic distinction. `note` is boolean — its only value across 488 pages is `1`. Yield 550.
-    4. `journal` — icon `Journal*`. Ordered **after** `note`, with a title tiebreak. 8 pages carry journal artwork _and_ `note=1`: three Thalmor Dossiers (Ulfric, Delphine, Esbern), `Heddic's Volunruud Notes`, `Daynas Valen's Notes`, `Red Eagle's Rite`, `Sculptor Visthar's Journal` and `Urzog's Journal`. Note-before-journal is right for the first six; the tiebreak — Journal icon **and** "Journal" in the title wins over `note=1` — recovers the last two, which are journals by name. Measured: exactly 2 pages move, and all 8 land correctly. Yield 199.
-    5. `book` — everything else (360). An unrecognized icon lands here and is logged.
+    3. `treasure_map` — **title-derived**, unlike every other tier: treasure maps carry no icon, no `type` and `value=0`, so no template field distinguishes them. The title does — `\btreasure map\b` matches all 12 with zero false positives across 1,207 books. Needed because only 11 set `note=1`; `Velehk Sain's Treasure Map` sets neither flag nor icon and would otherwise fall through to `book`. They are collectible items that happen to add a map marker, and a separate category lets a player hunt all ten without enabling 539 notes. Yield 12.
+    4. `note` — **`note=1` OR a Note-family icon** (`Note`/`TornNote`/`BloodstainedNote`), **unless** the icon is Journal-family _and_ the title contains "Journal" (see tier 4). Union, because measured, each signal misses what the other catches: 42 Treasure Maps carry the flag with **no icon at all**, and 64 obvious notes (`Mysterious Note (Delphine)`, `Amaund Motierre's Sealed Letter`, `Museum Pamphlet`) carry the icon with no flag. The disagreement is wiki data-entry inconsistency, not a semantic distinction. `note` is boolean — its only value across 488 pages is `1`. Yield 539.
+    5. `journal` — icon `Journal*`. Ordered **after** `note`, with a title tiebreak. 8 pages carry journal artwork _and_ `note=1`: three Thalmor Dossiers (Ulfric, Delphine, Esbern), `Heddic's Volunruud Notes`, `Daynas Valen's Notes`, `Red Eagle's Rite`, `Sculptor Visthar's Journal` and `Urzog's Journal`. Note-before-journal is right for the first six; the tiebreak — Journal icon **and** "Journal" in the title wins over `note=1` — recovers the last two, which are journals by name. Measured: exactly 2 pages move, and all 8 land correctly. Yield 199.
+    6. `book` — everything else (359). An unrecognized icon lands here and is logged.
 
 - **FR-8 — Quest relation.** `is_quest_related` is a **boolean flag, not a category** — true when `quest` (312) or `questrel` (222) is present. A skill book can also be quest-related; a single-value taxonomy could not express that.
 - **FR-9 — Source classification.** `classifySource()` → `dawnguard` | `dragonborn` | `hearthfire` from `smod` (DG, DB, HF); `creation_club` from a `[[Category:Skyrim-Creation Club-…]]` link; otherwise `base`. Measured yield with the `mod` fallback applied: base 684, creation_club 326, dragonborn 136, dawnguard 51, hearthfire 10. **`smod` alone is insufficient** — only 2 CC pages set `smod=CC` while 327 carry the category. **`mod` is the fallback when `smod` is absent** — measured, 4 pages carry `mod=[[Skyrim:Dawnguard|Dawnguard]]`, `mod=Hearthfire` or a Creation Club content name with no `smod` and no CC category link (e.g. `Skyrim:Discovering Ruunvald`, `Skyrim:Ransom Note`); classifying on `smod` alone files them as `base`. Resolution order: `smod` → CC category link → `mod` name → `base`.
@@ -253,7 +258,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 
     Implement and test all FR-20 functions. **Exit:** tests green, including a value-level diff of hand-transcribed expected params for each case above.
 
-- **M1 — Streaming + dry run.** Wire the bzip2/sax streamer to M0's functions. **Exit:** a dry run over the full dump reports ~1,207 books with the expected distribution (91 skill, 360 book, 199 journal, 550 note, 7 black book) across the five sources (684 base, 326 creation_club, 136 dragonborn, 51 dawnguard, 10 hearthfire); location tiers in range (~81 carrier, ~68 nearby, remainder place); ~157 books with zero locations; the 3 non-numeric `value` pages present with their strings intact; the unmapped-skill list empty or entirely known; and no unexpected crashes.
+- **M1 — Streaming + dry run.** Wire the bzip2/sax streamer to M0's functions. **Exit:** a dry run over the full dump reports ~1,207 books with the expected distribution (91 skill, 359 book, 199 journal, 539 note, 12 treasure map, 7 black book) across the five sources (684 base, 326 creation_club, 136 dragonborn, 51 dawnguard, 10 hearthfire); location tiers in range (~81 carrier, ~68 nearby, remainder place); ~157 books with zero locations; the 3 non-numeric `value` pages present with their strings intact; the unmapped-skill list empty or entirely known; and no unexpected crashes.
 - **M2 — Migration + writes.** Apply the §12.1 migration **first**, then upserts, the `replace_book_locations` RPC, the target guard, and the report. **Exit:** re-running the same dump produces zero duplicates and a stable location count.
 - **M3 — Full run + attribution.** Run against the real dump; add the README attribution section. **Exit:** §9 met.
 
@@ -283,7 +288,6 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 
 ## 11. Open Questions
 
-- **OQ-1:** Should the catalog default to `skill_book` + `book` only, with `note`/`journal`/`black_book` opt-in via UI checkboxes? This is a `prd-browse-and-track.md` filter-default decision; the import stores everything with a category and source either way.
 - **OQ-2:** `is_unique` has no `{{Game Book}}` parameter. Leave permanently null, drop the column, or derive it another way? Left nullable for now (R10).
 - **OQ-3:** Model book **series** relationally (`up`/`next`/`prev`, ~165 pages each) or store the raw title strings? Currently stored as text; no feature reads them yet.
 - **OQ-4:** UESP's own "820 readable items" breakdown (307 lore books, 192 letters/notes, 97 journals, 93 spell tomes, 91 skill books, 28 recipes, 7 Black Books, 5 quest books) does not reconcile with what `{{Game Book}}` yields: skill books agree (90 + Oghma Infinium = 91) and Black Books agree exactly (7), but notes measure 295 against 192, `book` 444 against 307, and journals 110 against 97. Spell tomes and recipes are **not** `{{Game Book}}` pages at all — they are consumable item pages under a different template, so tracking them would need a second source and is currently out of scope (NG7). Worth reconciling before the progress-bar denominator is finalized in `prd-browse-and-track.md`.
@@ -351,7 +355,7 @@ alter table book alter column is_unique drop not null;
 alter table book alter column is_unique drop default;
 
 alter table book add constraint book_category_valid
-  check (category in ('skill_book', 'book', 'journal', 'note', 'black_book'));
+  check (category in ('skill_book', 'book', 'journal', 'note', 'black_book', 'treasure_map'));
 
 alter table book add constraint book_source_valid
   check (source in ('base', 'dawnguard', 'dragonborn', 'hearthfire', 'creation_club'));
@@ -623,20 +627,11 @@ yarn import:uesp data/uespwiki-2026-08-30-current.xml.bz2 --dry-run
 
 ## 13. Handoff to `prd-browse-and-track.md`
 
-That PRD **has been patched** against this import: its OQ-2 and OQ-8 are closed, MI2 and the old R1 deleted, FR-3 gained a required `source` filter with the real enum values, FR-5's total is tied to the default scope, and §12.1's reference DDL matches the schema this task builds. What follows is only what remains.
+That PRD **has been patched** against this import: its skill and category normalization questions are closed into FR-3, MI2 and the old R1 deleted, FR-3 gained a required `source` filter with the real enum values, FR-5's total is tied to the default scope, and §12.1's reference DDL matches the schema this task builds. What follows is only what remains.
 
 ### Still open there
 
-1. **OQ-1 — the default catalog scope. Blocker for browse M1**, because the progress denominator falls out of it. Measured options:
-
-    | Default scope                                    | Count   |
-    | ------------------------------------------------ | ------- |
-    | `skill_book` + `book`, all sources               | 451     |
-    | `skill_book` + `book`, base + DLC only           | 425     |
-    | `skill_book` + `book` + `black_book`, base + DLC | **431** |
-    | Everything                                       | 1,207   |
-
-    Recommended: **431** — `skill_book` + `book` + `black_book` at base + DLC, and `is_obtainable` (FR-6c), which excludes one cut-content page. The 7 Black Books are flagship Dragonborn collectibles and excluding them from a completion tracker would be an odd default; notes (550), journals (199) and Creation Club (326) stay opt-in.
+1. ~~The default catalog scope.~~ **Closed** — `prd-browse-and-track.md` FR-3 fixes it as two allowlists: category `skill_book`/`book`/`black_book`, source everything but `creation_club`, plus `is_obtainable`. **423 books.** Journals, notes, treasure maps and Creation Club are opt-in.
 
 2. **The null-skill skill book.** Oghma Infinium is `skill_book` with `skill = null`, so it appears under no skill chip. Browse must decide whether it shows only under `category=skill_book`, gets an "artifact" affordance, or is otherwise surfaced — otherwise M2's skill filter silently loses the game's most notable book.
 

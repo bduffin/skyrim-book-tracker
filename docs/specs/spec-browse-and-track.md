@@ -61,9 +61,9 @@ A logged-in user can:
 
 - [ ] Paginated book list rendered as a Server Component.
 - [ ] Each row shows: title, category, skill (if any), and the current user's `read`/`collected` flags (independent; both default unset).
-- [ ] Filter controls for category, **source**, skill, read status, and collected status (each filterable independently) — state persisted in URL query params. Category values are `skill_book`/`book`/`journal`/`note`/`black_book`; source values are `base`/`dawnguard`/`dragonborn`/`hearthfire`/`creation_club`.
+- [ ] Filter controls for category, **source**, skill, read status, and collected status (each filterable independently) — state persisted in URL query params. Category values are `skill_book`/`book`/`journal`/`note`/`black_book`/`treasure_map`; source values are `base`/`dawnguard`/`dragonborn`/`hearthfire`/`creation_club`.
 - [ ] Status controls — toggle a book's `read` and `collected` flags independently (each with optimistic update, confirmed via Server Action).
-- [ ] Progress summary bar (e.g., "142 collected · 318 read / 431") visible on the list page. The denominator is the catalog's default scope, computed dynamically — never a hardcoded figure. The full imported catalog is 1,207 books; the default scope over it is `prd-browse-and-track.md` OQ-1, which recommends 431.
+- [ ] Progress summary bar (e.g., "142 collected · 318 read / 423") visible on the list page. The denominator is the catalog's default scope, computed dynamically — never a hardcoded figure. The full imported catalog is 1,207 books; the default scope over it is fixed by `prd-browse-and-track.md` FR-3 — two allowlists giving 423 books.
 - [ ] Unauthenticated users can browse books but cannot track status.
 
 **Nice-to-have (out of scope for this spec):**
