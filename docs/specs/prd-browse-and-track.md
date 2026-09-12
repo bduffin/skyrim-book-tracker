@@ -155,7 +155,7 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 
 ## 8. Milestones / Phased Rollout
 
-- **M0 — Foundations (prereq verification).** Confirm assumed dependencies: auth works; `book`/`book_location` seeded by the import task with normalized `skill`/`category`/`source`; RLS policies on `user_book` in place. Exit: a smoke query returns books and the session helper returns a user id.
+- **M0 — Foundations (prereq verification).** Confirm assumed dependencies: auth works; **`prd-import-uesp-books.md` M3 has run**, so `book`/`book_location` are populated with normalized `skill`/`category`/`source` (~1,207 books, 423 in FR-3's default scope); RLS policies on `user_book` in place. This milestone gates the whole feature on that import — until it has run the `book` table is empty and every screen below renders nothing. Exit: a smoke query returns books and the session helper returns a user id.
 - **M1 — Read-only browse (public).** Server Component list with title/category/source/skill, scoped to FR-3's default allowlists, pagination (50/page), default sort, UESP attribution. No auth needed. Exit: FR-1, FR-6, FR-7; NFR-1 met for anonymous.
 - **M2 — Filters.** URL-backed category, source, skill and read/collected filters, soft-nav, page reset. Exit: FR-3, shareable URLs.
 - **M3 — Tracking.** Read/collected toggles via Server Action + `useOptimistic`, RLS-enforced writes, rollback-on-failure, progress bar. Exit: FR-4, FR-5, NFR-2/3/6.
