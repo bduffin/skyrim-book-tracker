@@ -1,0 +1,1369 @@
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.10/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.10/ http://www.mediawiki.org/xml/export-0.10.xsd" version="0.10" xml:lang="en">
+  <siteinfo>
+    <sitename>UESPWiki</sitename>
+    <dbname>uesp_net_wiki5</dbname>
+    <base>https://en.uesp.net/wiki/Main_Page</base>
+    <generator>MediaWiki 1.31.16</generator>
+    <case>first-letter</case>
+    <namespaces>
+      <namespace key="-2" case="first-letter">Media</namespace>
+      <namespace key="-1" case="first-letter">Special</namespace>
+      <namespace key="0" case="first-letter" />
+      <namespace key="1" case="first-letter">Talk</namespace>
+      <namespace key="2" case="first-letter">User</namespace>
+      <namespace key="3" case="first-letter">User talk</namespace>
+      <namespace key="4" case="first-letter">UESPWiki</namespace>
+      <namespace key="5" case="first-letter">UESPWiki talk</namespace>
+      <namespace key="6" case="first-letter">File</namespace>
+      <namespace key="7" case="first-letter">File talk</namespace>
+      <namespace key="8" case="first-letter">MediaWiki</namespace>
+      <namespace key="9" case="first-letter">MediaWiki talk</namespace>
+      <namespace key="10" case="first-letter">Template</namespace>
+      <namespace key="11" case="first-letter">Template talk</namespace>
+      <namespace key="12" case="first-letter">Help</namespace>
+      <namespace key="13" case="first-letter">Help talk</namespace>
+      <namespace key="14" case="first-letter">Category</namespace>
+      <namespace key="15" case="first-letter">Category talk</namespace>
+      <namespace key="100" case="first-letter">Tamold</namespace>
+      <namespace key="101" case="first-letter">Tamold talk</namespace>
+      <namespace key="102" case="first-letter">Arena</namespace>
+      <namespace key="103" case="first-letter">Arena talk</namespace>
+      <namespace key="104" case="first-letter">Daggerfall</namespace>
+      <namespace key="105" case="first-letter">Daggerfall talk</namespace>
+      <namespace key="106" case="first-letter">Battlespire</namespace>
+      <namespace key="107" case="first-letter">Battlespire talk</namespace>
+      <namespace key="108" case="first-letter">Redguard</namespace>
+      <namespace key="109" case="first-letter">Redguard talk</namespace>
+      <namespace key="110" case="first-letter">Morrowind</namespace>
+      <namespace key="111" case="first-letter">Morrowind talk</namespace>
+      <namespace key="112" case="first-letter">Tribunal</namespace>
+      <namespace key="113" case="first-letter">Tribunal talk</namespace>
+      <namespace key="114" case="first-letter">Bloodmoon</namespace>
+      <namespace key="115" case="first-letter">Bloodmoon talk</namespace>
+      <namespace key="116" case="first-letter">Oblivion</namespace>
+      <namespace key="117" case="first-letter">Oblivion talk</namespace>
+      <namespace key="118" case="first-letter">General</namespace>
+      <namespace key="119" case="first-letter">General talk</namespace>
+      <namespace key="120" case="first-letter">Review</namespace>
+      <namespace key="121" case="first-letter">Review talk</namespace>
+      <namespace key="122" case="first-letter">Morrowind Mod</namespace>
+      <namespace key="123" case="first-letter">Morrowind Mod talk</namespace>
+      <namespace key="124" case="first-letter">Oblivion Mod</namespace>
+      <namespace key="125" case="first-letter">Oblivion Mod talk</namespace>
+      <namespace key="126" case="first-letter">Shivering</namespace>
+      <namespace key="127" case="first-letter">Shivering talk</namespace>
+      <namespace key="128" case="first-letter">Shadowkey</namespace>
+      <namespace key="129" case="first-letter">Shadowkey talk</namespace>
+      <namespace key="130" case="first-letter">Lore</namespace>
+      <namespace key="131" case="first-letter">Lore talk</namespace>
+      <namespace key="132" case="first-letter">Dawnstar</namespace>
+      <namespace key="133" case="first-letter">Dawnstar talk</namespace>
+      <namespace key="134" case="first-letter">Skyrim</namespace>
+      <namespace key="135" case="first-letter">Skyrim talk</namespace>
+      <namespace key="136" case="first-letter">OBMobile</namespace>
+      <namespace key="137" case="first-letter">OBMobile talk</namespace>
+      <namespace key="138" case="first-letter">Stormhold</namespace>
+      <namespace key="139" case="first-letter">Stormhold talk</namespace>
+      <namespace key="140" case="first-letter">Books</namespace>
+      <namespace key="141" case="first-letter">Books talk</namespace>
+      <namespace key="142" case="first-letter">Skyrim Mod</namespace>
+      <namespace key="143" case="first-letter">Skyrim Mod talk</namespace>
+      <namespace key="144" case="first-letter">Online</namespace>
+      <namespace key="145" case="first-letter">Online talk</namespace>
+      <namespace key="146" case="first-letter">Dragonborn</namespace>
+      <namespace key="147" case="first-letter">Dragonborn talk</namespace>
+      <namespace key="148" case="first-letter">ESO Mod</namespace>
+      <namespace key="149" case="first-letter">ESO Mod talk</namespace>
+      <namespace key="150" case="first-letter">Legends</namespace>
+      <namespace key="151" case="first-letter">Legends talk</namespace>
+      <namespace key="152" case="first-letter">Blades</namespace>
+      <namespace key="153" case="first-letter">Blades talk</namespace>
+      <namespace key="154" case="first-letter">Arena Mod</namespace>
+      <namespace key="155" case="first-letter">Arena Mod talk</namespace>
+      <namespace key="156" case="first-letter">Daggerfall Mod</namespace>
+      <namespace key="157" case="first-letter">Daggerfall Mod talk</namespace>
+      <namespace key="158" case="first-letter">Call to Arms</namespace>
+      <namespace key="159" case="first-letter">Call to Arms talk</namespace>
+      <namespace key="160" case="first-letter">Mod</namespace>
+      <namespace key="161" case="first-letter">Mod talk</namespace>
+      <namespace key="162" case="first-letter">Merchandise</namespace>
+      <namespace key="163" case="first-letter">Merchandise talk</namespace>
+      <namespace key="164" case="first-letter">Pinball</namespace>
+      <namespace key="165" case="first-letter">Pinball talk</namespace>
+      <namespace key="166" case="first-letter">SkyrimVSE</namespace>
+      <namespace key="167" case="first-letter">SkyrimVSE talk</namespace>
+      <namespace key="168" case="first-letter">Tamriel Data</namespace>
+      <namespace key="169" case="first-letter">Tamriel Data talk</namespace>
+      <namespace key="170" case="first-letter">Tamriel Rebuilt</namespace>
+      <namespace key="171" case="first-letter">Tamriel Rebuilt talk</namespace>
+      <namespace key="172" case="first-letter">Project Tamriel</namespace>
+      <namespace key="173" case="first-letter">Project Tamriel talk</namespace>
+      <namespace key="174" case="first-letter">Better Cities</namespace>
+      <namespace key="175" case="first-letter">Better Cities talk</namespace>
+      <namespace key="176" case="first-letter">Morrowind Rebirth</namespace>
+      <namespace key="177" case="first-letter">Morrowind Rebirth talk</namespace>
+      <namespace key="178" case="first-letter">Beyond Skyrim</namespace>
+      <namespace key="179" case="first-letter">Beyond Skyrim talk</namespace>
+      <namespace key="180" case="first-letter">DFU Mod</namespace>
+      <namespace key="181" case="first-letter">DFU Mod talk</namespace>
+      <namespace key="182" case="first-letter">SkyrimTAG</namespace>
+      <namespace key="183" case="first-letter">SkyrimTAG talk</namespace>
+      <namespace key="184" case="first-letter">Castles</namespace>
+      <namespace key="185" case="first-letter">Castles talk</namespace>
+      <namespace key="186" case="first-letter">Betrayal</namespace>
+      <namespace key="187" case="first-letter">Betrayal talk</namespace>
+      <namespace key="200" case="first-letter">Dapel</namespace>
+      <namespace key="201" case="first-letter">Dapel talk</namespace>
+      <namespace key="460" case="case-sensitive">Campaign</namespace>
+      <namespace key="461" case="case-sensitive">Campaign talk</namespace>
+      <namespace key="710" case="first-letter">TimedText</namespace>
+      <namespace key="711" case="first-letter">TimedText talk</namespace>
+      <namespace key="828" case="first-letter">Module</namespace>
+      <namespace key="829" case="first-letter">Module talk</namespace>
+      <namespace key="2300" case="first-letter">Gadget</namespace>
+      <namespace key="2301" case="first-letter">Gadget talk</namespace>
+      <namespace key="2302" case="case-sensitive">Gadget definition</namespace>
+      <namespace key="2303" case="case-sensitive">Gadget definition talk</namespace>
+    </namespaces>
+  </siteinfo>
+  <!--
+    FIXTURE - not a real dump.
+
+    Source: UESPWiki (https://en.uesp.net), dump uespwiki-2026-08-30-current.xml.bz2.
+    Content is licensed CC BY-SA 2.5 (https://en.uesp.net/wiki/UESPWiki:Copyright_and_Ownership).
+    These <page> elements are verbatim excerpts, retained for testing the import
+    parser. See docs/specs/prd-import-uesp-books.md M0 for what each one covers.
+
+    The final page is hand-damaged and is NOT from UESP.
+  -->
+  <page>
+    <title>Skyrim:Thief (book)</title>
+    <ns>134</ns>
+    <id>98878</id>
+    <revision>
+      <id>1775818</id>
+      <parentid>1773678</parentid>
+      <timestamp>2018-04-18T04:19:42Z</timestamp>
+      <contributor>
+        <username>HotnBOThered</username>
+        <id>23782</id>
+      </contributor>
+      <comment>Job #518: Update book footer parameters</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="824">{{Game Book
+|lorename=Thief
+|lpfancy=no
+|icon=SR-icon-book-BasicBook5a.png
+|id=0001AFBF
+|up=[[Skyrim:The Adventures of Eslaf Erol|The Adventures of Eslaf Erol]]
+|prev=[[Skyrim:Beggar (book)|Beggar]]
+|next=[[Skyrim:Warrior (book)|Warrior]]
+|value=60
+|weight=1
+|skill=Pickpocket
+|loc=* [[Skyrim:Argonian Assemblage|Argonian Assemblage]] ([[Skyrim:Windhelm|Windhelm]]), on a dresser
+* [[Skyrim:Bleak Falls Barrow (place)#Bleak Falls Temple|Bleak Falls Temple]] ([[Skyrim:Falkreath Hold|Falkreath Hold]]), just beyond the first glyph puzzle
+* 630 ft WSW of [[Skyrim:Ivarstead|Ivarstead]] {{Map Link|x=64762|y=-71235|zoom=17}}
+* [[Skyrim:Silverdrift Lair|Silverdrift Lair]] ([[Skyrim:The Pale|The Pale]])
+* [[Skyrim:Swindler's Den|Swindler's Den]] ([[Skyrim:Whiterun Hold|Whiterun Hold]]), by a bedroll in the easternmost room
+}}</text>
+      <sha1>pmxja4veht8s7dji9lr1dx7xw4fy894</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:The Nirnroot Missive</title>
+    <ns>134</ns>
+    <id>106848</id>
+    <revision>
+      <id>2917081</id>
+      <parentid>2680852</parentid>
+      <timestamp>2024-02-03T16:42:10Z</timestamp>
+      <contributor>
+        <ip>24.10.188.36</ip>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="402">{{Game Book
+|sumtitle=The Nirnroot Missive&lt;br&gt;Revised Edition
+|author=[[Skyrim:Sinderion|Sinderion]]
+|icon=SR-icon-book-BasicBook7.png
+|id=0010BEDF
+|value=250
+|weight=1
+|questrel=A Return To Your Roots
+|loc=
+|lorenote=This title of this book was originally misspelled as '''''The Nirnoot Missive'''''. This was fixed in [[Skyrim:Special Edition Patch#Version 1.6.629|Special Edition Patch 1.6.629]].
+}}</text>
+      <sha1>ne4j7ohd7km87o7jaehpqr519ykjwmj</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Hamelyn's Journal</title>
+    <ns>134</ns>
+    <id>106849</id>
+    <revision>
+      <id>3122184</id>
+      <parentid>2921680</parentid>
+      <timestamp>2024-08-25T03:42:41Z</timestamp>
+      <contributor>
+        <username>Dillonn241</username>
+        <id>73462</id>
+      </contributor>
+      <minor/>
+      <comment>sic desc</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="2089">{{Game Book
+|lorename=none
+|author=[[Skyrim:Hamelyn|Hamelyn]]
+|icon=SR-icon-book-Journal1.png
+|id=0010B2CD
+|value=75
+|weight=1
+|questrel=Dampened Spirits
+|loc=* Held by [[Skyrim:Hamelyn|Hamelyn]]
+}}
+&lt;font face='$HandwrittenFont'&gt;
+Ten years of ridicule. Ten years of imprisonment. Ten years of exile.
+
+The children threw rocks and the women spat upon me as the menfolk dragged me into [[Skyrim:Whiterun|Whiterun]]'s prison. They branded me a danger to their pitiful existence... used words like &quot;madman&quot; and &quot;insane.&quot; Could a madman escape the prisons undetected? Could a lunatic establish a laboratory right under their noses? Could a psychopath create a mighty army from the common [[Skyrim:Skeever|skeever]]?
+
+My days as an apprentice alchemist in [[Skyrim:Winterhold|Winterhold]] were no better. Those egotistical braggarts couldn't compete with my abilities. Where they fell short, I'd constantly excel. Did they appreciate my genius? Did they relish my contributions? No. My instructors beat me and said I was irresponsible, and the {{sic|Arch Mage|Arch-Mage|description=missing hyphen}} cast me into the streets like a common beggar.
+
+As my enemy grows complacent and weak, as they forget [[Skyrim:Hamelyn|Hamelyn]] and his utter brilliance, I build my army. I use every bit of knowledge at my disposal to forge their demise. Thanks to [[Skyrim:Sabjorn|Sabjorn]]'s unwitting assistance, my legion grows stronger every day. The irony that the same ingredients used to make his vile drink could be used to feed my offspring isn't lost upon me.
+
+Oh, they will pay. Their ignorance of impending annihilation amuses me. I will bury Whiterun and watch Winterhold burn. And when they experience the fury I've unleashed upon them, when my progeny are gnawing the flesh from their bones, they will come begging and groveling at my feet. But there will be no mercy, no quarter and no leniency. And I will laugh and I will dance and I will rejoice over their mangled, broken corpses. The time for recompense has arrived.
+
+Ten years of pain. Ten years of misery. Ten years of death.
+{{Book End}}</text>
+      <sha1>b8v7ho9dsw1ifhbfrrynmilyeva2biu</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Dark Brotherhood Assassin's Note</title>
+    <ns>134</ns>
+    <id>106853</id>
+    <revision>
+      <id>1774363</id>
+      <parentid>1768814</parentid>
+      <timestamp>2018-04-16T00:11:56Z</timestamp>
+      <contributor>
+        <username>Dillonn241</username>
+        <id>73462</id>
+      </contributor>
+      <minor/>
+      <comment>no period in description, clean up unused font tags</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="546">{{Game Book
+|lorename=none
+|author=[[Skyrim:Astrid|Astrid]]
+|description=An order for your life placed by the Dark Brotherhood
+|icon=SR-icon-book-Note1.png
+|id=0010596A
+|value=0
+|weight=0
+|loc=*Carried by [[Skyrim:Assassin|Assassins]]
+|note=1
+}}
+As instructed, you are to eliminate &lt;Alias=Player&gt; by any means necessary. [[Skyrim:A Kiss, Sweet Mother|The Black Sacrament]] has been performed - somebody wants this poor fool dead.
+
+We've already received payment for the contract. Failure is not an option.
+
+- [[Skyrim:Astrid|Astrid]]
+{{Book End}}</text>
+      <sha1>5r5qwnijdrcn2n1wsp7de44ontvuhlp</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Thalmor Dossier: Ulfric Stormcloak</title>
+    <ns>134</ns>
+    <id>106908</id>
+    <revision>
+      <id>2826640</id>
+      <parentid>2387401</parentid>
+      <timestamp>2023-08-17T14:22:04Z</timestamp>
+      <contributor>
+        <username>Jimeee</username>
+        <id>33374</id>
+      </contributor>
+      <comment>Replaced content with &quot;{{Game Book |icon=SR-icon-book-Journal2.png |id=000F6846 |value=5 |weight=1 |quest=Diplomatic Immunity |faction=Thalmor |loc=*Skyrim:Thalmor Embassy, Elenwen's Solar|Tha...&quot;</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="226">{{Game Book
+|icon=SR-icon-book-Journal2.png
+|id=000F6846
+|value=5
+|weight=1
+|quest=Diplomatic Immunity
+|faction=Thalmor
+|loc=*[[Skyrim:Thalmor Embassy, Elenwen's Solar|Thalmor Embassy, Elenwen's Solar]]
+|note=1
+}}
+{{Book End}}</text>
+      <sha1>fepllqnw142o57ucb9qovxs0is8ocj3</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Treasure Map X</title>
+    <ns>134</ns>
+    <id>106937</id>
+    <revision>
+      <id>2451339</id>
+      <parentid>1769082</parentid>
+      <timestamp>2021-08-04T23:33:08Z</timestamp>
+      <contributor>
+        <username>Jeancey</username>
+        <id>52774</id>
+      </contributor>
+      <minor/>
+      <comment>punc</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="930">{{Game Book
+|lorename=none
+|sortkey=Treasure Map 10
+|description=A treasure map pointing to a hidden underwater cache in [[Skyrim:Lake Ilinalta|Lake Ilinalta]] {{Map Link|Treasure Map X}}
+|id=000F33E0
+|prev=[[Skyrim:Treasure Map IX|Treasure Map IX]]
+|value=0
+|weight=0
+|loc=*Inside [[Skyrim:Stony Creek Cave|Stony Creek Cave]]
+|hasmap=1
+|note=1
+|nodiv=1
+}}
+[[File:SR-book-Treasure Map X.png|center]]
+----
+==Explicit Instructions==
+*Travel to [[Skyrim:The Lady Stone|The Lady Stone]].
+*From The Lady Stone face the peninsula to the east of [[Skyrim:Ilinalta's Deep|Ilinalta's Deep]].
+*Line up with the closest tree on that peninsula and proceed into the lake.
+*Look for a grey boulder just before the lake suddenly shallows; the chest is on the northeast side of that boulder.
+**[[Skyrim:Waterbreathing (effect)|Waterbreathing]] is very useful for this search.
+**The boulder is closer to the peninsula than the island.
+{{Book End}}</text>
+      <sha1>oba3ifj8nhgfwn8o4efwqyfrvkxjv0k</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Olaf and the Dragon</title>
+    <ns>134</ns>
+    <id>106951</id>
+    <revision>
+      <id>3408091</id>
+      <parentid>1773520</parentid>
+      <timestamp>2025-08-28T00:31:41Z</timestamp>
+      <contributor>
+        <username>Fischwurst</username>
+        <id>131342</id>
+      </contributor>
+      <comment>Additional location of the book in question</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="1966">{{Game Book
+|icon=SR-icon-book-BasicBook3.png
+|id=000EB090
+|value=2
+|weight=1
+|type=List 1
+|loc=*[[Skyrim:Bards_College|Bards College]], one on a shelf in the upstairs lecture hall, another on a shelf in the room next to the main entrance
+* [[Skyrim:Blue_Palace|Blue Palace]], on a bookshelf in [[Skyrim:Falk_Firebeard|Falk Firebeard]]'s bedroom
+* [[Skyrim:Bolli's House|Bolli's House]], on the mantlepiece on the second floor
+* [[Skyrim:Braidwood_Inn|Braidwood Inn]], on a small table in the corner of a bedroom with two beds
+* [[Skyrim:College of Winterhold (place)|College of Winterhold]], [[Skyrim:The Arcanaeum|Arcanaeum]], on a thin table
+* [[Skyrim:Dawnstar_Barracks|Dawnstar Barracks]], on a shelf downstairs, beneath the stairs
+* [[Skyrim:Dragonsreach|Dragonsreach]], on a shelf directly downstairs from the kitchen area
+* [[Skyrim:Hod_and_Gerdur's_House|Hod and Gerdur's House]], on a dresser in the southwest corner
+* [[Skyrim:Jorrvaskr|Jorrvaskr Living Quarters]], on a shelf next to [[Skyrim:Skjor|Skjor]]'s bed
+* [[Skyrim:Karthwasten_Miner's_Barracks|Karthwasten Miner's Barracks]], on the right side of the base of the fireplace
+* [[Skyrim:Klimmek's_House|Klimmek's House]], on the bottom of a set of shelves between the dining table and wardrobe
+* [[Skyrim:Merryfair_Farm|Merryfair Farm]], atop a dresser in the bedroom downstairs
+* [[Skyrim:Old_Hroldan_Inn|Old Hroldan Inn]], atop a small table in one of the bedrooms
+* [[Skyrim:Riften_Fishery|Riften Fishery]], sitting atop a crate in the room with the business ledger
+* [[Skyrim:The_Winking_Skeever|The Winking Skeever]], atop an end table next to [[Skyrim:Corpulus_Vinius|Corpulus Vinius]]' bed
+* Northeast of the [[Skyrim:Twilight_Sepulcher|Twilight Sepulcher]] near a [[Skyrim:Shrines#Shrine_of_Akatosh|Shrine of Akatosh]] {{Map Link|x=-66608|y=-77872|zoom=17}}
+*[[Skyrim:Proudspire Manor|Proudspire Manor]], [[Skyrim:Solitude|Solitude]]; on the upper shelf to the right of the porch entrance}}</text>
+      <sha1>jc5zbrj16jaujjwrlc4emkk893djqgr</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Alduin is Real</title>
+    <ns>134</ns>
+    <id>107041</id>
+    <revision>
+      <id>3487682</id>
+      <parentid>3207728</parentid>
+      <timestamp>2026-01-20T18:37:23Z</timestamp>
+      <contributor>
+        <username>Jeancey</username>
+        <id>52774</id>
+      </contributor>
+      <minor/>
+      <comment>m</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="446">{{Game Book
+|sumtitle=Alduin is Real, and He Ent Akatosh
+|icon=SR-icon-book-BasicBook2a.png
+|id=000EA5B0
+|value=8
+|weight=1
+|type=List 2
+|loc=* [[Skyrim:Dragonsreach|Dragonsreach]], in Farengar's study
+* [[Skyrim:College of Winterhold (place)|College of Winterhold]], [[SR:The Arcanaeum|Arcanaeum]], on the floor
+* [[Skyrim:College of Winterhold (place)|College of Winterhold]], [[Skyrim:Arch-Mage's_Quarters|Arch-Mage's Quarters]], on a shelf
+}}</text>
+      <sha1>2iowyusa4u5y8rnno43m9ww5p4lz3xw</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:The Legend of Red Eagle</title>
+    <ns>134</ns>
+    <id>107179</id>
+    <revision>
+      <id>3460066</id>
+      <parentid>3459829</parentid>
+      <timestamp>2025-11-22T05:54:58Z</timestamp>
+      <contributor>
+        <username>Savirien-Chorak</username>
+        <id>121891</id>
+      </contributor>
+      <comment>Removed the bug because things like this are typically not included on book pages. It seems to me that this bug is not proven to be unique to this book.</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="5153">{{Game Book
+|icon=SR-icon-book-BasicBook3.png
+|id=000C1771
+|value=5
+|weight=1
+|type=List 2
+|quest=Find Red Eagle's sword
+|faction=Forsworn
+|loc=* [[Skyrim:Abandoned Prison|Abandoned Prison]], ([[Skyrim:Eastmarch|Eastmarch]]); on a bookshelf in the small room near the pile of rubble upstairs from the cell area
+* [[Skyrim:Anga's Mill Common House|Anga's Mill Common House]], ([[Skyrim:The Pale|The Pale]]); on a shelf
+* [[Skyrim:Angeline's Aromatics|Angeline's Aromatics]], ([[Skyrim:Solitude|Solitude]]); on a shelf in the room behind the counter
+* [[Skyrim:Bards College|Bards College]], ([[Skyrim:Solitude|Solitude]]); on a bookshelf in the library
+* [[Skyrim:Candlehearth Hall|Candlehearth Hall]], ([[Skyrim:Windhelm|Windhelm]]); in the room with a business ledger
+* [[Skyrim:Castle Dour|Castle Dour]], ([[Skyrim:Solitude|Solitude]]); on a table immediately to your right upon entering
+* [[Skyrim:College of Winterhold (place)|College of Winterhold]], [[SR:The Arcanaeum|Arcanaeum]], ([[Skyrim:Winterhold (region)|Winterhold]]); one copy on a table, the other one on the ground
+* [[Skyrim:Cracked Tusk Keep|Cracked Tusk Keep]], ([[Skyrim:Falkreath Hold|Falkreath Hold]]); upstairs on a shelf as you enter
+* [[Skyrim:Dawnstar Sanctuary|Dawnstar Sanctuary]], ([[Skyrim:The Pale|The Pale]]); on a shelf near the first gate leading downstairs
+* [[Skyrim:Deepwood Redoubt|Deepwood Redoubt]], ([[Skyrim:The Reach|The Reach]]);
+** interior, on a table near the only arcane enchanter in the dungeon, along with [[Skyrim:Forsworn Missive|Forsworn Missive]]
+** interior, on a bookshelf near the only bed in the dungeon
+** in the exterior zone [[Skyrim:Deepwood Redoubt#Deepwood Vale|Deepwood Vale]], on a table in the Forsworn hut containing a boss chest and a double bed
+* [[Skyrim:Dragonsreach|Dragonsreach]], ([[Skyrim:Whiterun|Whiterun]]);
+** in [[Skyrim:Farengar Secret-Fire|Farengar]]'s study on a bookshelf
+** [[Skyrim:Dragonsreach Jarl's Quarters|Dragonsreach Jarl's Quarters]]
+* [[Skyrim:Dushnikh Yal|Dushnikh Yal]], ([[Skyrim:The Reach|The Reach]]); on a shelf in the hut with an alchemy lab and a tanning rack
+* [[Skyrim:Faldar's Tooth|Faldar's Tooth]] exterior, ([[Skyrim:The Rift|The Rift]]); on a cupboard on top of the highest tower
+* [[Skyrim:Fellglow Keep Dungeons|Fellglow Keep Dungeons]], ([[Skyrim:Whiterun Hold|Whiterun Hold]]); on a table in the practice room
+* [[Skyrim:Fort Dunstad Commander's Quarters|Fort Dunstad Commander's Quarters]], ([[Skyrim:The Pale|The Pale]]); on a bookshelf in the bedroom to your right upon entering
+* [[Skyrim:Fort Snowhawk|Fort Snowhawk]], ([[Skyrim:Hjaalmarch|Hjaalmarch]])
+* [[Skyrim:Frostflow Lighthouse|Frostflow Lighthouse]], ([[Skyrim:Winterhold (region)|Winterhold]]); on a shelf in the bloody room to the right of the fireplace
+* [[Skyrim:Hag's End|Hag's End]], ([[Skyrim:The Reach|The Reach]]); on a table in the room with hay mounds and hagraven feathers within
+* [[Skyrim:House of Clan Cruel-Sea|House of Clan Cruel-Sea]], ([[Skyrim:Windhelm|Windhelm]]); on a shelf in the bedroom upstairs above the dining area with a cooking spit
+* [[Skyrim:Jarl's Longhouse (Falkreath)|Jarl's Longhouse]], ([[Skyrim:Falkreath Hold|Falkreath Hold]]); on a wallshelf in the room upstairs to the left as you enter
+* [[Skyrim:Jorrvaskr Living Quarters|Jorrvaskr Living Quarters]], ([[Skyrim:Whiterun|Whiterun]]); on a shelf in [[Skyrim:Skjor|Skjor]]'s room
+* [[Skyrim:The Katariah|The Katariah]] ([[Skyrim:Haafingar|Haafingar]])
+* [[Skyrim:Mistveil Keep Jarl's Chambers|Mistveil Keep Jarl's Chambers]], ([[Skyrim:Riften|Riften]]); on a sideboard in the first room to the right as you enter and go upstairs
+* [[Skyrim:Palace of the Kings Upstairs|Palace of the Kings Upstairs]], ([[Skyrim:Windhelm|Windhelm]]); on a shelf in the uppermost master bedroom
+* [[Skyrim:Pinewatch Bandit's Sanctuary|Pinewatch Bandit's Sanctuary]], ([[Skyrim:Falkreath Hold|Falkreath Hold]]);
+* [[Skyrim:Rebel's Cairn|Rebel's Cairn]], ([[Skyrim:The Reach|The Reach]]); held by a dead adventurer in the first room
+* [[Skyrim:Red Eagle Redoubt|Red Eagle Redoubt]] exterior, ([[Skyrim:The Reach|The Reach]]); in a Forsworn hut {{Map Link|x=-119772|y=25095|zoom=17}}, and inside of a tower {{Map Link|x=-118676|y=27502|zoom=17}}
+* [[Skyrim:Riften Jail|Riften Jail]], on a shelf on the stairway to the bottom cells area
+* [[Skyrim:Serpent's Bluff Redoubt|Serpent's Bluff Redoubt]] exterior, ([[Skyrim:Whiterun Hold|Whiterun Hold]]); on a shelf in the Forsworn hut next to a forge
+* [[Skyrim:Serpent's Bluff Ruins|Serpent's Bluff Ruins]], ([[Skyrim:Whiterun Hold|Whiterun Hold]]); in a locked room at the end of the dungeon
+* [[Skyrim:Silver-Blood Inn|Silver-Blood Inn]], ([[Skyrim:Markarth|Markarth]]); near [[Skyrim:Hroki|Hroki]]'s bed
+* [[Skyrim:Understone Keep|Understone Keep]], ([[Skyrim:Markarth|Markarth]]); on a dresser in the steward's room
+* [[Skyrim:Viola Giordano's House|Viola Giordano's House]], ([[Skyrim:Windhelm|Windhelm]]); on a bookshelf upstairs
+* [[Skyrim:Volkihar Keep|Volkihar Keep]]{{DG}}, ([[Skyrim:Haafingar|Haafingar]]); on a bookshelf in the laboratory/library to the left of the dining hall
+{{Showhide/End}}
+}}</text>
+      <sha1>0sztkoueoycbtb3p2nnalftwpit7brq</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Fragment: On Artaeum</title>
+    <ns>134</ns>
+    <id>107275</id>
+    <revision>
+      <id>2112560</id>
+      <parentid>1773448</parentid>
+      <timestamp>2020-02-22T03:20:07Z</timestamp>
+      <contributor>
+        <username>HoodBot</username>
+        <id>77731</id>
+      </contributor>
+      <minor/>
+      <comment>Update links after page move</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="842">{{Game Book
+|icon=SR-icon-book-BasicBook7a.png
+|icon2=SR-icon-book-BasicBook3a.png
+|id=0001AD06
+|id2=00072841
+|value=20 / 5
+|weight=1
+|type=List 4
+|quest=[[Skyrim:Hitting the Books|Hitting the Books]]&lt;br&gt;[[Skyrim:Fetch me that Book!|Fetch me that Book!]]
+|loc=*[[Skyrim:Apocrypha (Waking Dreams)|Apocrypha (Waking Dreams)]], Chapter IV{{DB}}
+* [[Skyrim:Fellglow Keep Ritual Chamber|Fellglow Keep Ritual Chamber]]
+|comment=There are two different versions of this book in [[Skyrim:Skyrim|Skyrim]], both with the same title. The common version is {{ID|0001AD06}} and has a brown cover. The quest item version is {{ID|00072841}} and has a blue cover.
+
+The text of the two books is nearly identical. Other than formatting, the only difference between the books is that one instance of &quot;Sumurset&quot; is changed to &quot;Summurset&quot; in the quest version.
+}}</text>
+      <sha1>etaq6hp040r1aztnkn3fsrsfb8y7bls</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Mysterious Note (Delphine)</title>
+    <ns>134</ns>
+    <id>107301</id>
+    <revision>
+      <id>1785076</id>
+      <parentid>1768961</parentid>
+      <timestamp>2018-05-10T07:41:52Z</timestamp>
+      <contributor>
+        <username>Dillonn241</username>
+        <id>73462</id>
+      </contributor>
+      <comment>copy text exactly, remove period from description, link Delphine</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="631">{{Game Book
+|lorename=none
+|author=[[Skyrim:Delphine|Delphine]]
+|description=A note left to the Dovahkiin where the Horn of Jurgen Windcaller should be
+|icon=SR-icon-book-Note1.png
+|id=0003031F
+|value=0
+|weight=0
+|quest=[[Skyrim:The Horn of Jurgen Windcaller|The Horn of Jurgen Windcaller]]&lt;br&gt;[[Skyrim:A Blade in the Dark|A Blade in the Dark]]
+|loc=*[[Skyrim:Ustengrav|Ustengrav]]
+}}
+[[Skyrim:Dovahkiin|Dragonborn]] --
+
+I need to speak to you. Urgently.
+
+Rent the attic room at the [[Skyrim:Sleeping Giant Inn|Sleeping Giant Inn]] in [[Skyrim:Riverwood|Riverwood]], and I'll meet you.
+
+-- A [[Skyrim:Delphine|friend]]
+{{Book End}}</text>
+      <sha1>opj9z73pkah2r91jac6r79u18z8l42r</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Oghma Infinium</title>
+    <ns>134</ns>
+    <id>107344</id>
+    <revision>
+      <id>3485767</id>
+      <parentid>2525220</parentid>
+      <timestamp>2026-01-15T23:14:18Z</timestamp>
+      <contributor>
+        <username>Jeancey</username>
+        <id>52774</id>
+      </contributor>
+      <minor/>
+      <comment>tbh we should probably split out the book onto a separate page</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="2470">{{Artifact Summary
+|image=SR-item-Oghma Infinium.jpg
+|weight=1
+|value=2500
+|type=[[Skyrim:Books|Book]]
+|artifacttype=Daedric Artifact
+|editorid=DA04OghmaInfinium
+|objectid=0001A332
+}}
+The [[Skyrim:Oghma Infinium|Oghma Infinium]] is a Daedric artifact acquired for completing the quest, [[Skyrim:Discerning the Transmundane|Discerning the Transmundane]]. Reading the book will give you the option to boost either your [[Skyrim:Combat|combat]], [[Skyrim:Magic Overview|magic]], or [[Skyrim:Stealth|stealth]] [[Skyrim:Skills|skills]] by five levels.
+
+&lt;includeonly&gt;For more information, see the [[Skyrim:Oghma Infinium|Oghma Infinium]] article.&lt;/includeonly&gt;&lt;noinclude&gt;__NOTOC__{{NewLeft}}
+----
+{{Game Book
+|lorename=none
+|author=[[Lore:Xarxes (god)|Xarxes]]
+|description=An ancient text containing the knowledge of Hermaeus Mora
+|icon=SR-icon-book-OghmaInfinium.png
+|id=0001A332
+|value=2500
+|weight=1
+|questrel=Discerning the Transmundane
+|loc=*[[Skyrim:Septimus Signus's Outpost|Septimus Signus's Outpost]]
+|coded=1
+|nobox=1
+|nodiv=1
+}}{{#addtotrail:Artifacts|separator=' / '}}[[Category:Skyrim-Items-Artifacts]]
+[[File:SR-book-Oghma Infinium 1.png|center]]
+[[File:SR-book-Oghma Infinium 2.png|center]]
+
+== Related Quests ==
+*{{Quest Link|Discerning the Transmundane}}
+
+==Notes==
+*You cannot use the Oghma Infinium to raise skills above 100.
+*The Oghma Infinium is removed from your inventory 1 second after choosing a skill and going back to the inventory. You can drop the book before it is removed and pick it up afterwards. However, this will not allow you to boost your skills again.
+*The text on the pages appears to be a variation of the [[Lore:Magic Script Alphabet|Magic Script Alphabet]]. This is most noticible on the three letters inside the sun symbols of the first page: the top right sun is inscribed with a &quot;M&quot; ([[File:MAGICSCRIPT_M.png|20px]]), the left sun is inscribed with a &quot;S&quot; ([[File:MAGICSCRIPT_S.png|15px]]), and the bottom sun is inscribed with a &quot;G&quot; ([[File:MAGICSCRIPT_G.png|25px]]).
+
+==Bugs==
+{{Bug|When reading the Oghma Infinium from a bookshelf, the number of books that can be stored in that shelf increases by one each time the book is read.|OSP|1.9.26.0.8}}
+{{Bug|You may not always get all five points in each skill.}}
+** Reload an older game and alter your skill values slightly, even just gaining a few more XP in the skill, then try again.
+
+==See Also==
+For more information, see the [[Lore:Oghma Infinium|lore article]].&lt;/noinclude&gt;</text>
+      <sha1>c4xg5m5w85g5tb8ybjsxda016ko7gmb</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Vernaccus and Bourlor</title>
+    <ns>134</ns>
+    <id>107356</id>
+    <revision>
+      <id>1773693</id>
+      <parentid>1755439</parentid>
+      <timestamp>2018-04-15T22:06:29Z</timestamp>
+      <contributor>
+        <username>HotnBOThered</username>
+        <id>23782</id>
+      </contributor>
+      <minor/>
+      <comment>Job #516: Optimize book templates</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="829">{{Game Book
+|icon=SR-icon-book-BasicBook5.png
+|icon2=SR-icon-book-BasicBook2a.png
+|id=0001B007
+|id2=0001B27A
+|value=65 (Skill Book)&lt;br&gt;6 (Normal)
+|weight=1
+|skill=Archery
+|type=List 2
+|loc=* [[Skyrim:Clearspring Cave|Clearspring Cave]] ([[Skyrim:The Rift|The Rift]])
+* [[Skyrim:Froki's Shack|Froki's Shack]] ([[Skyrim:The Rift|The Rift]])
+* [[Skyrim:Graywinter Watch|Graywinter Watch]] ([[Skyrim:Whiterun Hold|Whiterun Hold]]), on a barrel
+* [[Skyrim:Knifepoint Ridge|Knifepoint Ridge]], near the forge {{Map Link|x=-69835|y=-67494|zoom=17}}
+* [[Skyrim:The Treasury House|The Treasury House]] ([[Skyrim:Markarth|Markarth]]), on a circular ledge with a pot on the west side of the main room
+
+''(Only locations for the skill book are provided)''
+|comment={{ID|0001B007}} is the skill book; {{ID|0001B27A}} is the normal version.
+}}</text>
+      <sha1>lplz67tlv695a0rdsm2zonf8461tlld</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Breathing Water</title>
+    <ns>134</ns>
+    <id>107385</id>
+    <revision>
+      <id>2112358</id>
+      <parentid>2102520</parentid>
+      <timestamp>2020-02-22T03:12:36Z</timestamp>
+      <contributor>
+        <username>HoodBot</username>
+        <id>77731</id>
+      </contributor>
+      <minor/>
+      <comment>Update links after page move</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="1001">{{Game Book
+|icon=SR-icon-book-SpellTomeAlteration.png
+|id=0001B236
+|value=60
+|weight=1
+|skill=Alteration
+|loc=* [[Skyrim:Ilinalta's Deep|Ilinalta's Deep]] ([[Skyrim:Falkreath Hold|Falkreath Hold]]), underwater room, next to a submerged chest
+* [[Skyrim:Kraldar's House|Kraldar's House]] ([[Skyrim:Winterhold|Winterhold]]), in a basket on the bookshelf next to the fireplace
+* [[Skyrim:Snapleg Cave|Snapleg Cave]] ([[Skyrim:Eastmarch|Eastmarch]]), in one of the tents, sitting on a barrel
+* 600 ft SSE of [[Skyrim:Steamcrag Camp|Steamcrag Camp]] ([[Skyrim:Eastmarch|Eastmarch]]), at the unmarked [[Skyrim:Shrine of Akatosh|Shrine of Akatosh]] {{Map Link|x=147283|y=-22157|zoom=17}}
+* 460 ft NNE of [[Skyrim:Ysgramor's Tomb|Ysgramor's Tomb]] ([[Skyrim:Winterhold (region)|Winterhold]]), on a barrel near [[sr:Ilas-Tei|Ilas-Tei's]] corpse {{Map Link|x=99749|y=129109|zoom=17}}
+* [[Skyrim:Apocrypha|Apocrypha]]{{DB}}, [[Skyrim:Apocrypha (The Hidden Twilight)#Chapter V|The Hidden Twilight]], Chapter V
+}}</text>
+      <sha1>imqtentd3bnkvifdqqy4dsii53wtgzh</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:The Song of Pelinal</title>
+    <ns>134</ns>
+    <id>111939</id>
+    <revision>
+      <id>1763434</id>
+      <parentid>1762981</parentid>
+      <timestamp>2018-04-12T18:01:37Z</timestamp>
+      <contributor>
+        <username>HotnBOThered</username>
+        <id>23782</id>
+      </contributor>
+      <minor/>
+      <comment>Job #508: Update for changes in template</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="498">{{Game Book Compilation
+|Volume 1: On His Name|The Song of Pelinal, v1|
+|Volume 2: On His Coming|The Song of Pelinal, v2|
+|Volume 3: On His Enemy|The Song of Pelinal, v3|
+|Volume 4: On His Deeds|The Song of Pelinal, v4|
+|Volume 5: On His Love of Morihaus|The Song of Pelinal, v5|
+|Volume 6: On His Madness|The Song of Pelinal, v6|
+|Volume 7: On His Battle with Umaril and His Dismemberment|The Song of Pelinal, v7|
+|Volume 8: On His Revelation at the Death of the Al-Esh|The Song of Pelinal, v8|
+}}</text>
+      <sha1>54j0pl5ncahysakicfelmw5es3761kp</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:The Aetherium Wars</title>
+    <ns>134</ns>
+    <id>128681</id>
+    <revision>
+      <id>2397359</id>
+      <parentid>2129736</parentid>
+      <timestamp>2021-04-27T22:36:22Z</timestamp>
+      <contributor>
+        <username>Jeancey</username>
+        <id>52774</id>
+      </contributor>
+      <minor/>
+      <comment>completely unneeded</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="3388">{{Mod Header|Dawnguard}}
+{{Game Book
+|icon=SR-icon-book-The Aetherium Wars.png
+|mod=[[Skyrim:Dawnguard|Dawnguard]]
+|smod=DG
+|id=xx004D5B
+|value=15
+|weight=1
+|quest=Lost to the Ages
+|loc=* [[Skyrim:The Arcanaeum|Arcanaeum]], in the southeastern part of the room, resting on a table
+* [[Skyrim:Bards College|Bards College]], after the right turn from the entrance, on a small bookcase
+* [[Skyrim:Calcelmo's Tower|Calcelmo's Tower]], on a dwarven shelf in the uppermost room with rubbings
+* [[Skyrim:Darklight Tower|Darklight Tower]], before the [[Skyrim:Hagraven|hagraven]], in the room with the lever, on a cupboard's shelf
+* [[Skyrim:Dayspring Canyon|Dayspring Canyon]], on top of a barrel in a tent of the camp outside [[Skyrim:Fort Dawnguard|Fort Dawnguard]] (only if the camp exists)
+* [[Skyrim:Dead Drop Mine|Dead Drop Mine]], on a shelf under a wooden platform
+* Random: [[Skyrim:LItemBookClutter|clutter]]
+{{Showhide/Start|More Locations}}
+* [[Skyrim:Dragonsreach|Dragonsreach]], in [[Skyrim:Farengar Secret-Fire|Farengar]]'s study, resting on the lowest shelf of the left bookcase
+* [[Skyrim:Dwemer Museum|Dwemer Museum]], on a table in the southwestern corner, near a [[Skyrim:Dwemer Ballista|Dwemer ballista]]
+* [[Skyrim:Fellglow Keep|Fellglow Keep]], on one of the bookshelves surrounding the library
+* [[Skyrim:Fort Dawnguard|Fort Dawnguard]], on the ground floor
+** On a shelf in the farthest room to your left as you enter (where an alchemy lab and arcane enchanter will be later added)
+** On the bottommost shelf of a case in the farthest room in front of the main entrance
+* [[Skyrim:Fort Neugrad|Fort Neugrad]], on a bookshelf in the circular room accessed by heading south through the wooden door in front of the main entrance
+* [[Skyrim:Fort Snowhawk|Fort Snowhawk]], on a bookshelf in the room west of the back entrance
+* [[Skyrim:Hall of the Vigilant|Hall of the Vigilant]], on the floor of the ruined hall {{Map Link|x=20228.5195|y=66324.3281|zoom=17}}
+* [[Skyrim:Hob's Fall Cave|Hob's Fall Cave]], on a bookshelf in the ritual room
+* [[Skyrim:Ilinalta's Deep|Ilinalta's Deep]], on the bottom-most shelf in a corner of the room with the only arcane enchanter
+* [[Skyrim:Palace of the Kings Upstairs|Palace of the Kings Upstairs]], on a shelf in [[Skyrim:Wuunferth the Unliving|Wuunferth]]'s laboratory
+* [[Skyrim:Raldbthar|Raldbthar]], on a stone table in the room accessed by turning left (where the path divides in two) from the entrance
+* [[Skyrim:Rannveig's Fast|Rannveig's Fast]], in the room with [[Skyrim:Sild the Warlock|Sild the Warlock]], on the middle shelf of a bookcase
+* [[Skyrim:Redwater Den|Redwater Den]], in the cave area past the corridor with booths, on a wooden crate near the forge
+* [[Skyrim:Ruunvald Temple|Ruunvald Temple]], at the end of the dungeon, on a table in the room with the boss chest, next to an alchemy lab
+* [[Skyrim:Volkihar Keep|Volkihar Keep]]
+** On a table in the blacksmith's workroom (labeled as &quot;2&quot; on [[Skyrim:Volkihar Keep#Volkihar Keep|this map]])
+** On a small round table on the balcony extending from the upper level of the library to the dining hall
+* [[Skyrim:Volkihar Undercroft|Volkihar Undercroft]], on a table in the room with the lever that lowers the first bridge, next to a coffin
+{{Showhide/End}}
+}}[[Category:Skyrim-Dawnguard-Items]] [[Category:Skyrim-Dawnguard]] [[Category:Skyrim-Dawnguard-Items-Books]]</text>
+      <sha1>82c0yxsrlsy7vh9alv9ond3rlfremvf</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Discovering Ruunvald</title>
+    <ns>134</ns>
+    <id>130226</id>
+    <revision>
+      <id>1768823</id>
+      <parentid>1539649</parentid>
+      <timestamp>2018-04-14T10:19:32Z</timestamp>
+      <contributor>
+        <username>HotnBOThered</username>
+        <id>23782</id>
+      </contributor>
+      <minor/>
+      <comment>Job #514: Convert to Game Book Compilation</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="360">{{Game Book Compilation
+|lorename=none
+|author=[[Skyrim:Moric Sidrey|Moric Sidrey]]
+|description=A Vigilant of Stendarr records an excavation of Ruunvald
+|mod=[[Skyrim:Dawnguard|Dawnguard]]
+|Volume I|Discovering Ruunvald, Vol. I|
+|Volume II|Discovering Ruunvald, Vol. II|
+|Volume III|Discovering Ruunvald, Vol. III|
+|Volume IV|Discovering Ruunvald, Vol. IV|
+}}</text>
+      <sha1>2bzd1a4878u9uxbzl1aoho3wu5rt8o9</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Breezehome Furnishings</title>
+    <ns>134</ns>
+    <id>135645</id>
+    <revision>
+      <id>2986860</id>
+      <parentid>2116082</parentid>
+      <timestamp>2024-03-25T03:35:19Z</timestamp>
+      <contributor>
+        <ip>71.61.143.134</ip>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="1125">{{Mod Header|Hearthfire}} [[Category:Skyrim-Hearthfire]] [[Category:Skyrim-Hearthfire-Items]]
+{{Game Book
+|lorename=none
+|icon=SR-icon-book-Note3.png
+|mod=[[Skyrim:Hearthfire|Hearthfire]]
+|smod=HF
+|id=xx003f78
+|value=0
+|weight=0
+|loc=* Delivered to you by a [[Skyrim:courier|courier]] once the [[Skyrim:Hearthfire|Hearthfire]] add-on has been installed, and you have bought [[Skyrim:Breezehome|Breezehome]] in [[Skyrim:Whiterun|Whiterun]]
+|note=1
+}}
+&lt;Alias=Player&gt;,&lt;br&gt;&lt;br&gt;
+
+After a careful review of the building plans for Breezehome, your house in Whiterun, I can offer you an additional option for furnishing your home: if you wish, you can now purchase a children's bedroom set. I have arranged to update your [[Skyrim:Whiterun Home Decorating Guide|Home Decorating Guide]] accordingly.&lt;br&gt;&lt;br&gt;
+
+As always, please speak with me if you would like to purchase this or any other furnishings for your house.
+
+
+Sincerely,&lt;br&gt;
+[[sr:JobStewardFaction|&lt;Alias=Steward&gt;]]&lt;br&gt;
+Steward of Whiterun
+{{Book End}}
+
+==Notes==
+*You won't get this letter in the ''Skyrim Special Edition'', as it already includes ''Hearthfire'' by default.</text>
+      <sha1>gkcdm7xxdbahpygfh4gg3hagaoerjgh</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Cultists' Orders</title>
+    <ns>134</ns>
+    <id>140605</id>
+    <revision>
+      <id>3566334</id>
+      <parentid>2115517</parentid>
+      <timestamp>2026-05-28T09:23:10Z</timestamp>
+      <contributor>
+        <username>TCGiSOLux</username>
+        <id>132842</id>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="927">{{Mod Header|Dragonborn}}{{Game Book
+|mod=[[Skyrim:Dragonborn|Dragonborn]]
+|smod=DB
+|lorename=none
+|description=Orders for cultists sent to assassinate the &quot;False Dragonborn&quot;
+|icon=SR-icon-book-Note1.png
+|id=xx0331C2
+|value=0
+|weight=0
+|questrel=Dragonborn (quest)
+|loc=*Carried by [[Skyrim:Cultist|cultists]]
+|comment=The cultists will spawn and attack you after installing [[Skyrim:Dragonborn|Dragonborn]] DLC and completing [[Skyrim:The_Way_of_the_Voice|The Way of the Voice]] quest.
+|note=1
+}}
+&lt;font face='$HandwrittenFont'&gt;
+Board the vessel [[Skyrim:Northern Maiden|Northern Maiden]] docked at [[Skyrim:Raven Rock|Raven Rock]]. Take it to [[Skyrim:Windhelm|Windhelm]], then begin your search. Kill the False Dragonborn known as &lt;Alias=Player&gt; before &lt;Alias.Pronoun=Player&gt; reaches {{Lore Link|Solstheim}}.
+&lt;br&gt;&lt;br&gt;
+Return with word of your success, and [[Skyrim:Miraak (person)|Miraak]] shall be most pleased.
+{{Book End}}</text>
+      <sha1>n83u3cuekvqvn8eyet5xb67iz34i455</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Black Book: Waking Dreams (book)</title>
+    <ns>134</ns>
+    <id>140617</id>
+    <revision>
+      <id>3256669</id>
+      <parentid>2908773</parentid>
+      <timestamp>2025-02-26T13:49:15Z</timestamp>
+      <contributor>
+        <username>ErfXploded</username>
+        <id>97441</id>
+      </contributor>
+      <minor/>
+      <comment>to lorespace</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="619">{{Mod Header|Dragonborn}}[[Category:Skyrim-Dragonborn-Items-Books]]{{Game Book
+|mod=[[Skyrim:Dragonborn|Dragonborn]]
+|smod=DB
+|lorename=Black Book: Waking Dreams
+|sumtitle=Waking Dreams of A Starless Sky
+|description=A part of a series of Black Books
+|icon=SR-icon-book-Black Book.png
+|id=xx016e22
+|up=[[Skyrim:Black Book (book)|Black Book]]
+|next=[[Skyrim:Black Book: Epistolary Acumen (book)|Epistolary Acumen]]
+|value=2000
+|weight=1
+|quest=[[Skyrim:The Temple of Miraak|The Temple of Miraak]], [[Skyrim:At the Summit of Apocrypha|At the Summit of Apocrypha]]
+|loc=*The [[Skyrim:Temple of Miraak|Temple of Miraak]]
+}}</text>
+      <sha1>o98tnlf6t2s02l9q5gxaq830n16zo54</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Black Book (book)</title>
+    <ns>134</ns>
+    <id>140635</id>
+    <revision>
+      <id>2132293</id>
+      <parentid>2116609</parentid>
+      <timestamp>2020-04-08T04:17:35Z</timestamp>
+      <contributor>
+        <username>Kiz</username>
+        <id>30671</id>
+      </contributor>
+      <minor/>
+      <comment>(via JWB)</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="562">{{Mod Header|Dragonborn}}[[Category:Skyrim-Dragonborn-Items-Books]]{{Game Book Compilation
+|mod=[[Skyrim:Dragonborn|Dragonborn]]
+|smod=DB
+|lorename=Black Book
+|Waking Dreams|Black Book: Waking Dreams (book)|
+|Epistolary Acumen|Black Book: Epistolary Acumen (book)|
+|Untold Legends|Black Book: Untold Legends (book)|
+|The Winds of Change|Black Book: The Winds of Change (book)|
+|The Sallow Regent|Black Book: The Sallow Regent (book)|
+|Filament and Filigree|Black Book: Filament and Filigree (book)|
+|The Hidden Twilight|Black Book: The Hidden Twilight (book)|
+}}</text>
+      <sha1>8g21qo4wpg5f5zkmt34yenv5a1xj6be</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Deathbrand (book)</title>
+    <ns>134</ns>
+    <id>140765</id>
+    <revision>
+      <id>2132309</id>
+      <parentid>2128257</parentid>
+      <timestamp>2020-04-08T04:18:55Z</timestamp>
+      <contributor>
+        <username>Kiz</username>
+        <id>30671</id>
+      </contributor>
+      <minor/>
+      <comment>(via JWB)</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="1533">{{Mod Header|Dragonborn}}[[Category:Skyrim-Dragonborn-Items-Books]]{{Game Book
+|mod=[[Skyrim:Dragonborn|Dragonborn]]
+|smod=DB
+|lorename=Deathbrand
+|icon=SR-icon-book-BasicBook6a.png
+|id=xx03661a
+|value=20
+|weight=1
+|type=List 4
+|questrel=Deathbrand (quest)
+|map=* [[Skyrim:Haknir's Shoal|Haknir's Shoal]]
+|loc=*[[Skyrim:Bloodskal Barrow|Bloodskal Barrow]], one on a dresser near a double bed, and another on a set of shelves near an unusable cooking spit
+* [[Skyrim:Deor Woodcutter's House|Deor Woodcutter's House]], on a set of shelves next to some barrels in the corner
+* [[Skyrim:Fort Frostmoth|Fort Frostmoth]], on a cupboard shelf near the boss chest
+* [[Skyrim:Greathall|Greathall]], on a desk in the northeast corner
+* [[Skyrim:Gyldenhul Barrow|Gyldenhul Barrow]], on the body of a dead [[Skyrim:Adventurer#Adventurer16|Adventurer]] in the first room
+* Haknir's Shoal, on a [[Skyrim:Pirate|pirate]] boss
+* [[Skyrim:Morvayn Manor|Morvayn Manor Chambers]], on a set of shelves along the wall
+* [[Skyrim:The Retching Netch|The Retching Netch]], on a bookshelf in a room on the lower floor
+* [[Skyrim:Tel Mithryn (tower)|Tel Mithryn]], one on a set of shelves near a table displaying a large map, and another on a separate table nearby
+* [[Skyrim:Tel Mithryn Steward's House|Tel Mithryn Steward's House]], on a small shelf next to the bed
+* [[Skyrim:Temple|Temple]], atop a small round table in [[Skyrim:Galdrus Hlervu|Galdrus Hlervu]]'s room
+|comment=Reading it starts a miscellaneous objective to find Death-Brand's treasure.
+}}</text>
+      <sha1>8us6ql9xcyr9gbfxih025evck7u8n4n</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Mysterious Note (Staff of Sheogorath)</title>
+    <ns>134</ns>
+    <id>245434</id>
+    <revision>
+      <id>2521579</id>
+      <parentid>2112733</parentid>
+      <timestamp>2021-12-09T23:01:44Z</timestamp>
+      <contributor>
+        <username>HoodBot</username>
+        <id>77731</id>
+      </contributor>
+      <minor/>
+      <comment>Convert Mod Header to CC Header</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="1538">{{CC Header|Staff of Sheogorath}}[[Category:Skyrim-Staff of Sheogorath]][[Category:Skyrim-Creation Club-Books]]{{Game Book
+|lorename=none
+|author=[[Skyrim:Sheogorath|Sheogorath]]
+|description=A letter challenging the reader to an unorthodox combat trial
+|icon=SR-icon-book-TornNote.png
+|mod=[[Skyrim:Staff of Sheogorath|Staff of Sheogorath]]
+|id=FExxx80D
+|value=0
+|weight=0
+|quest=Put A Fork In It
+|loc=*Pinned to a keg inside [[Skyrim:The Retching Netch|The Retching Netch]]
+}}
+Dear person who happened upon this letter, it is your lucky day!  Nearby you will find the [[Skyrim:Fork of Horripilation|Fork of Horripilation]].  Oh, how I do love cutlery!  &quot;But what is it?&quot; you must be asking.  Well, horripilation is the standing of hairs on end due to cold, fear, or excitement -- and excitement is indeed upon us, my friend!
+
+Take this fork, and use it to kill two special [[Skyrim:Bull Netch|Bull Netches]] in single combat.  Each will yield an artifact: The [[Skyrim:Ciirta's Eye|Eye of Ciirta]], and the [[Skyrim:Branch of the Tree of Shades|Branch of the Tree of Shades]].  Warriors of another age might find these familiar.  Combine these together with some [[Skyrim:Heart Stone|Heart Stones]] at a [[Skyrim:Staff Enchanter|Staff Enchanter]] for a special surprise!
+
+If you're successful, you'll be rewarded quite handsomely, with the [[Skyrim:Staff of Sheogorath (item)|Staff of Sheogorath]] (handsome, indeed!)  If not, well... I do love to watch a good fight!
+
+Yours Truly,&lt;br&gt;
+Lord [[Skyrim:Sheogorath|Sheogorath]]
+{{Book End}}</text>
+      <sha1>gq50uaaufr16o5z359qpxjjm9qrfov8</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Urzog's Journal</title>
+    <ns>134</ns>
+    <id>366122</id>
+    <revision>
+      <id>3487809</id>
+      <parentid>2523558</parentid>
+      <timestamp>2026-01-20T20:21:10Z</timestamp>
+      <contributor>
+        <username>Jeancey</username>
+        <id>52774</id>
+      </contributor>
+      <minor/>
+      <comment>m</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="1406">{{CC Header|Headman's Cleaver}}[[Category:Skyrim-Headman's Cleaver]][[Category:Skyrim-Creation Club-Books]]{{Game Book
+|lorename=none
+|description=A brother plans to commit fratricide
+|icon=SR-icon-book-Journal2.png
+|mod=[[Skyrim:Headman's Cleaver|Headman's Cleaver]]
+|author=Urzog
+|id=FExxx811
+|value=10
+|weight=1
+|loc=*Carried by [[Skyrim:Darkwater Snake|Darkwater Snake]]
+|quest=Blood in the Water
+|note=1
+}}
+I've always beaten my little brother in everything. Cards, I had the better hands. Brawls, likewise. When we raced up the ramparts of the old castle, I would always be the first to reach the peak.
+
+{{Lore Link|Urzoga gra-Batul|Mother}} said the difference between myself and my brother was that he was a perfectionist, and I was a conquerer. She said I wanted to beat him at everything, and it drove me to become a great warrior.
+
+But my brother didn't care for competition. As a perfectionist, he simply wanted to sharpen his skills, and would work with others if he thought it would better himself.
+
+Mother said that's why he would make the better {{Lore Link|Bloodfall|ruler}}. My brother would forever try to improve our standing, whereas I was content being better than the next man.
+
+Well, little did she know the next man was him.
+
+I'm going to enjoy killing you little brother. Grandfather's venom may have failed to reach mother's veins, but it will still reach her heart.
+{{Book End}}</text>
+      <sha1>44lm76d69po8rjn39c0uw9cknyq677x</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:High Elves</title>
+    <ns>134</ns>
+    <id>97772</id>
+    <redirect title="Skyrim:High Elf" />
+    <revision>
+      <id>3111679</id>
+      <parentid>2469058</parentid>
+      <timestamp>2024-08-11T02:28:34Z</timestamp>
+      <contributor>
+        <username>Dillonn241</username>
+        <id>73462</id>
+      </contributor>
+      <minor/>
+      <comment>removed [[Category:Redirects from Alternate Names]]; added [[Category:Redirects from Plural]] using [[Help:Gadget-HotCat|HotCat]]</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="91">#REDIRECT [[Skyrim:High Elf]] 
+[[Category:Redirects from Plural]]
+[[Category:Skyrim-Races]]</text>
+      <sha1>8ed8rppcyu78pjnwgj88a0fr4tjgk69</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Oblivion:Adamus Phillida Slain!</title>
+    <ns>116</ns>
+    <id>8729</id>
+    <revision>
+      <id>2828206</id>
+      <parentid>1766237</parentid>
+      <timestamp>2023-08-24T09:22:03Z</timestamp>
+      <contributor>
+        <username>Jimeee</username>
+        <id>33374</id>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="399">{{Game Book
+|sumtitle=SPECIAL EDITION!&lt;br&gt;ADAMUS PHILLIDA SLAIN&lt;br&gt;BY DARK BROTHERHOOD!
+|icon=OB-icon-book-Broadsheet.png
+|id=0006D6ED
+|value=0
+|weight=0.1
+|questrel=Permanent Retirement
+|loc=* From any of the four horse couriers
+* From any Imperial male (except Imperial Legion members)
+* One copy is on the first floor of the [[Oblivion:Black Horse Courier|Black Horse Courier]] offices
+|news=1
+}}</text>
+      <sha1>814lmcs71aywempfavydlfasnqda0lt</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Ransom Note</title>
+    <ns>134</ns>
+    <id>137763</id>
+    <revision>
+      <id>1769008</id>
+      <parentid>1279479</parentid>
+      <timestamp>2018-04-14T10:33:01Z</timestamp>
+      <contributor>
+        <username>HotnBOThered</username>
+        <id>23782</id>
+      </contributor>
+      <minor/>
+      <comment>Job #514: Convert to Game Book</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="755">{{Mod Header|Hearthfire}} [[Category:Skyrim-Hearthfire]] [[Category:Skyrim-Hearthfire-Items]]
+{{Game Book
+|lorename=none
+|author=[[Skyrim:Rochelle_the_Red|Rochelle the Red]]
+|icon=SR-icon-book-Note4.png
+|mod=[[Skyrim:Hearthfire|Hearthfire]]
+|id=xx0008AE
+|value=0
+|weight=0
+|loc=
+|note=1
+}}
+&lt;font face='$HandwrittenFont'&gt;
+While you were away, we came to visit your lovely new house. &lt;Alias=Spouse&gt; made us feel right at home. In fact, we liked &lt;Alias.PronounObj=Spouse&gt; so much we took &lt;Alias.PronounObj=Spouse&gt; back to &lt;Alias=BanditDungeon&gt; with us.
+
+
+If you want &lt;Alias=Spouse&gt; back, come see me. Bring &lt;Global=BYOHHBA2Ransom&gt; gold and I'll discuss letting &lt;Alias.PronounObj=Spouse&gt; go.
+
+
+[[Skyrim:Rochelle_the_Red|Rochelle the Red]]
+&lt;/font&gt;
+{{Book End}}</text>
+      <sha1>p25qtljxoxvcyaogd3fis4z6pryq1dz</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Letter from the Empire</title>
+    <ns>134</ns>
+    <id>305074</id>
+    <revision>
+      <id>2522121</id>
+      <parentid>2085299</parentid>
+      <timestamp>2021-12-09T23:07:22Z</timestamp>
+      <contributor>
+        <username>HoodBot</username>
+        <id>77731</id>
+      </contributor>
+      <minor/>
+      <comment>Convert Mod Header to CC Header</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="1183">{{CC Header|Civil War Champions}} 
+[[Category:Skyrim-Civil War Champions]]
+[[Category:Skyrim-Creation Club-Books]]{{Game Book
+|lorename=none
+|author=[[SR:Legate Adventus Caesennius|Legate Adventus Caesennius]]
+|description=
+|icon=SR-icon-book-Note1.png
+|mod=[[Skyrim:Civil War Champions|Civil War Champions]]
+|id=
+|value=0
+|weight=0
+|quest=
+|loc=
+}}
+&lt;Alias=Player&gt;
+
+A troop of [[SR:Stormcloaks|Stormcloak]] rebels have challenged us to a battle on the fields of [[SR:Whiterun Hold|Whiterun]]. They want us to send a garrison of our greatest champions to fight theirs. I've talked to [[SR:General Tullius|General Tullius]] and we can't rule out the possibility this is some kind of trap.
+
+After all, the traitors have shown they have little concern for loyalty, it's doubtful they would give honor the same courtesy.
+
+As one of our staunchest warriors, we'd like you to handle this mission. Our smiths have forged you a custom armor set that should offer some protection. We'll also send a garrison to support you, but we can't spare more than a half dozen men. Should things come to blows, you'll need to take the lead.
+
+- [[SR:Legate Adventus Caesennius|Legate Adventus Caesennius]]</text>
+      <sha1>seoplu9dq1kg7g6bx11pe1oeo2dlg96</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Saint Jiub's Opus</title>
+    <ns>134</ns>
+    <id>129222</id>
+    <revision>
+      <id>2115982</id>
+      <parentid>1778381</parentid>
+      <timestamp>2020-02-24T08:36:42Z</timestamp>
+      <contributor>
+        <username>Alfwyn</username>
+        <id>29453</id>
+      </contributor>
+      <minor/>
+      <comment>smod</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="393">{{Mod Header|Dawnguard}}
+{{Game Book
+|sumtitle=The Rise and Fall of Saint Jiub the Eradicator Hero of Morrowind and Savior of the Dunmer
+|icon=SR-icon-book-BasicBook2a.png
+|mod=[[Skyrim:Dawnguard|Dawnguard]]
+|smod=DG
+|id=xx003F79
+|value=1250
+|weight=1
+|questrel=Impatience of a Saint
+}}[[Category:Skyrim-Dawnguard]] [[Category:Skyrim-Dawnguard-Items]] [[Category:Skyrim-Dawnguard-Items-Books]]</text>
+      <sha1>5mjlm0vxggl1z85q882e9jkko03l00f</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Lore:Thief</title>
+    <ns>130</ns>
+    <id>6648</id>
+    <revision>
+      <id>3266601</id>
+      <parentid>3187083</parentid>
+      <timestamp>2025-03-19T12:17:38Z</timestamp>
+      <contributor>
+        <username>ErfXploded</username>
+        <id>97441</id>
+      </contributor>
+      <minor/>
+      <comment>|writer=Ted Peterson</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="7876">&lt;noinclude&gt;{{About|the book|the constellation|The Thief}}&lt;/noinclude&gt;{{Lore Book
+|OBName=Thief (book)
+|SRName=Thief (book)
+|author=[[Lore:Books by Author#Reven|Reven]]
+|writer=Ted Peterson
+|description=The second chapter of the adventures of Eslaf Erol
+|textnote=''It should be noted that though these books may appear to be a historical account, they are completely fictional, as indicated by the names of the major characters, each of which when spelled backwards gives a pretty clear indication to the fact: Eslaf Erol: False Lore, Lahpyrcopa: Apocryphal, Ytluaf: Faulty, Ynohp: Phony, Laernu: Unreal, Suoibud: Dubious, Laicifitra: Artificial, Drusba: Absurd, Ylekilnu: Unlikely.  Even the author's name is &quot;Never&quot; spelled backwards.''
+|up=[[Lore:The Adventures of Eslaf Erol|The Adventures of Eslaf Erol]]
+|prev=[[Lore:Beggar|Beggar]]
+|next=[[Lore:Warrior|Warrior]]
+}}
+[body text truncated for the fixture -- never stored, see NG2]</text>
+      <sha1>fixtureloretheif0000000000000</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Unobtainable Items</title>
+    <ns>134</ns>
+    <id>109344</id>
+    <revision>
+      <id>109345</id>
+      <timestamp>2026-08-30T00:00:00Z</timestamp>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="2045">'''Fixture excerpt''' of Skyrim:Unobtainable Items -- two sections only.
+
+==Unobtainable Books &amp; Notes==
+
+{{#define:showloc|yes}}{{#define:showicon|yes}}{{#define:showid|yes}}{| class="wikitable sortable collapsible"
+! class=unsortable| !! Title ([[Skyrim:Form ID|ID]]) !! Author !!class=unsortable|Description !!class=unsortable|Location
+{{Book Normal|Anonymous Letter (Imperial)|Anonymous Letter}}
+{{Book Normal|Anonymous Letter (Stormcloaks)|Anonymous Letter}}
+{{Book Normal|Faralda's Notes}}
+{{Book Normal|Gallus's Journal}}
+{{Book Normal|Habd's Death Letter}}
+{{Book Normal|Imperial Order}}
+{{Book Normal|Incriminating Letter (Jarl)|Incriminating Letter}}
+{{Book Normal|Letter from Harkon}}
+{{Book Normal|Letter from Jon}}
+{{Book Normal|Letter to Vals Veran}}
+{{Book Normal|Mzinchaleft Guard's Note}}
+{{Book Normal|Note (DB)}}
+{{Book Normal|Scribbled Note}}
+{{Book Normal|Sergius's Note}}
+{{Book Normal|The Secrets of Ragnvald}}
+{{Book Normal|Tolfdir's Book}}
+{{Book Normal|Unsent Afflicted Letter}}
+{{Book Normal|Windstad Manor Charter}}
+{{Book Normal|123 Abc Def Ghijklmnop Qrstu VWXYZ 123456789}}
+{{Book Normal|À â é è ê ë ù û ü î ï ô ç}}
+{{Book Normal|À é è è ì ó ò ù É È Ì Ó Ò Á Ù}}
+{{Book Normal|Á é í ó ú ñ ü ç ¿ ¡ ª º Á É Í Ó Ú Ñ Ü Ç}}
+{{Book Normal|Ä ö ü ß Ä Ö Ü}}
+|}
+
+===Spell Tomes===
+{| class="wikitable sortable"
+!class=unsortable|
+!Name ([[Skyrim:Form ID|ID]])
+!width=22|{{Weight Icon}}
+!width=22|{{Value Icon}}
+!Spell Learned
+!Notes
+|-
+|[[File:SR-icon-book-BasicBook6.png|48px]]
+|{{Anchor|Spell Tome: Spectral Arrow}}&lt;br/&gt;{{ID|000b3165|par=1}}
+|1.0
+|250
+|[[Skyrim:Spectral Arrow|Spectral Arrow]]
+|
+*Was apparently intended to be the reward for completing the quest [[Skyrim:Infiltration|Infiltration]], but was replaced by Detect Life
+|}
+
+===Soul Gems===
+{| class="wikitable sortable"
+!class=unsortable|
+!Name ([[Skyrim:Form ID|ID]])
+!width=22|{{Weight Icon}}
+!width=22|{{Value Icon}}
+!Capacity
+|-
+|[[File:SR-icon-misc-LesserSoulGem.png|48px]]
+|{{Anchor|Treated Soul Gem}}&lt;br/&gt;{{ID|00094e40|par=1}}
+|0.2
+|25
+|500 (Lesser)
+|}
+</text>
+      <sha1>fixtureunobtainableitems00000</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Skyrim:Fixture Malformed Page</title>
+    <ns>134</ns>
+    <id>999999901</id>
+    <revision>
+      <id>999999902</id>
+      <timestamp>2026-08-30T00:00:00Z</timestamp>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text xml:space="preserve" bytes="120">{{Game Book
+|lorename=none
+|id=000ABCDE
+|loc=*[[Skyrim:Unclosed Link|Somewhere
+|value=10
+|weight=1
+</text>
+      <sha1>fixturemalformedpage00000000000</sha1>
+    </revision>
+  </page>
+</mediawiki>

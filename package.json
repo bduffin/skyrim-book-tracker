@@ -18,7 +18,8 @@
         "lint": "eslint .",
         "lint:fix": "eslint --fix .",
         "format": "prettier --write .",
-        "format:check": "prettier --check ."
+        "format:check": "prettier --check .",
+        "test": "tsx --test \"scripts/**/*.test.mts\""
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4.3.3",
@@ -29,6 +30,7 @@
         "postcss": "^8.5.26",
         "prettier": "^3.9.6",
         "tailwindcss": "^4.3.3",
+        "tsx": "^4.23.13",
         "typescript": "6.0.3"
     }
 }
