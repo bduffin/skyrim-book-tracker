@@ -37,6 +37,16 @@ Project-specific context for AI agents working in this repo. For product and arc
 - Two different callback URLs, easy to conflate: the GitHub OAuth App's callback URL (configured on GitHub's side) points at **Supabase's** auth server (`https://<project-ref>.supabase.co/auth/v1/callback`), not at this app. Separately, Supabase's own "Redirect URLs" allow-list (dashboard → Authentication → URL Configuration) must include this app's own callback URL (`http://localhost:3000/**` for dev, the Vercel domain(s) for prod) — that's what `redirectTo` in `signInWithOAuth` is checked against.
 - `GitHubLoginButton` (`src/features/auth/components/github-login-button.tsx`) calls `signInWithOAuth` directly from a Client Component rather than via a Server Action. This was a considered choice, not an oversight: "writes go through Server Actions" is scoped to writes on app-owned tables (like `user_book`), not to auth handshakes that touch no app data. The client version also gets the correct origin for free via `window.location.origin` across localhost/preview/prod, which a Server Action would need extra plumbing to replicate. Don't "fix" this into a Server Action without discussing it first.
 
+## Spec documents (`docs/specs/`)
+
+Each feature has a spec (problem, scope, decisions) and a PRD (requirements, milestones, technical design). Both carry numbered items — MI (missing info), FR/NFR (requirements), AC (acceptance criteria), R (risks), OQ (open questions) — and those numbers get cited from commit messages, review notes and each other, so they are an interface, not decoration.
+
+- **Delete resolved OQs, risks and contradictions rather than marking them resolved.** The docs describe the current state; a reader shouldn't scan past settled questions to find live ones.
+- **Never renumber the survivors.** Gaps (`OQ-2, 3, 4` with 1 missing) are untidy and unambiguous. Renumbering silently repoints every existing citation at a different item — it has already broken an `NG` cross-reference and a review brief in this repo.
+- **Before deleting, make sure the reasoning has a permanent home** — usually the FR it resolves into. If there is nowhere for it to go, that is the signal it belongs in the spec's Decisions table instead. Git keeps the deleted text, but nobody reads `git log -p` to find out why a decision was made, so deleted reasoning is lost reasoning in practice.
+- **When deleting, repoint inbound references to whatever now answers it** (`OQ-8` → `FR-7`). Across documents as well as within one. The link is the valuable part; rewriting it as prose ("the question browse defers to this task") loses the ability to jump to the answer.
+- **Cite stable named anchors:** FR/NFR/AC numbers, Decision numbers, section numbers, or SQL object names (`book_location_unique`, `book_single_null_skill_idx`). OQ numbers are safe to cite _because_ the rule above keeps them current.
+
 ## Data model specifics
 
 - `user_book` tracks `is_read` and `is_collected` as two independent booleans — collecting a book and reading it are separate in-game actions, so neither implies the other (this replaced an earlier three-state `unread|read|collected` enum design). Absence of a `user_book` row means untouched (both `false`) and is never persisted as its own state — a `user_book_touched` check constraint (`is_read or is_collected`) enforces this at the DB level.
