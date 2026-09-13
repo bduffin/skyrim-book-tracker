@@ -2,7 +2,7 @@
  * Pure parsing / classification / mapping functions for the UESP book import.
  *
  * Every function here is I/O-free and unit-tested against
- * `scripts/__fixtures__/sample-dump.xml` (FR-20). The streaming, database and
+ * `scripts/lib/fixtures/sample-dump.xml` (FR-20). The streaming, database and
  * CLI glue lives in `import-uesp.mts`.
  *
  * See docs/specs/prd-import-uesp-books.md for the requirements these implement.

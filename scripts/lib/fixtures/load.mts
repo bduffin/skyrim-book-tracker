@@ -1,7 +1,7 @@
 /**
  * Fixture loader for the M0 tests.
  *
- * Reads `__fixtures__/sample-dump.xml` and exposes each `<page>` by title. This
+ * Reads `sample-dump.xml` and exposes each `<page>` by title. This
  * is deliberately a small regex reader rather than the real `sax` streamer:
  * M0 tests the pure functions, and pulling in the streaming dependency here
  * would couple them to M1's I/O path.
@@ -19,7 +19,7 @@ export type FixturePage = {
 };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-export const FIXTURE_PATH = join(HERE, '__fixtures__', 'sample-dump.xml');
+export const FIXTURE_PATH = join(HERE, 'sample-dump.xml');
 
 const XML_ENTITIES: Record<string, string> = {
     '&lt;': '<',

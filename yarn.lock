@@ -1275,6 +1275,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/node@npm:*":
+  version: 26.5.1
+  resolution: "@types/node@npm:26.5.1"
+  dependencies:
+    undici-types: "npm:~8.9.0"
+  checksum: 10c0/40aa7aa4c099c8a08bf39b5bcb15eaf2cc073666c2191b1d9ac8243ce6b68b23ace904a044c521f6d310b70e94514b531be5f4fc184f141a7ce7f0679ebc7bb3
+  languageName: node
+  linkType: hard
+
 "@types/node@npm:^26.2.0":
   version: 26.2.0
   resolution: "@types/node@npm:26.2.0"
@@ -1290,6 +1299,15 @@ __metadata:
   dependencies:
     csstype: "npm:^3.2.2"
   checksum: 10c0/d04216172b4b4362b310017c210dfbe019fb4f4e7dffd0313e70b3acb3051d5c3e76e7e84e3cf4c6a3c824993ffadfe3949e589a6398a09d4200e7670e2962de
+  languageName: node
+  linkType: hard
+
+"@types/sax@npm:^1.2.7":
+  version: 1.2.7
+  resolution: "@types/sax@npm:1.2.7"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/d077a761a0753b079bf8279b3993948030ca86ed9125437b9b29c1de40db9b2deb7fddc369f014b58861d450e8b8cc75f163aa29dc8cea81952efbfd859168cf
   languageName: node
   linkType: hard
 
@@ -4281,6 +4299,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"sax@npm:^1.6.1":
+  version: 1.6.1
+  resolution: "sax@npm:1.6.1"
+  checksum: 10c0/c91a71043d60da50fdf1e2cee936fc7ad4c9376afb8d1022aef5655f279433640859ec06b3b49abfcbe578fc7da2828cc1661e45aaedf835f5393496193437fa
+  languageName: node
+  linkType: hard
+
 "scheduler@npm:^0.27.0":
   version: 0.27.0
   resolution: "scheduler@npm:0.27.0"
@@ -4506,6 +4531,7 @@ __metadata:
     "@tailwindcss/postcss": "npm:^4.3.3"
     "@types/node": "npm:^26.2.0"
     "@types/react": "npm:^19.2.18"
+    "@types/sax": "npm:^1.2.7"
     eslint: "npm:^9"
     eslint-config-next: "npm:^16.3.0"
     next: "npm:^16.3.0"
@@ -4513,6 +4539,7 @@ __metadata:
     prettier: "npm:^3.9.6"
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
+    sax: "npm:^1.6.1"
     tailwindcss: "npm:^4.3.3"
     tsx: "npm:^4.23.13"
     typescript: "npm:6.0.3"
@@ -4872,6 +4899,13 @@ __metadata:
   version: 8.3.0
   resolution: "undici-types@npm:8.3.0"
   checksum: 10c0/c8aa7e2fbebfce519654dafadc0ece59be888d2ccaf180fb4495da875e7b536d2456345c384069c7e6f3e9c9ab7435f074957da306f142343eee86ff8048855a
+  languageName: node
+  linkType: hard
+
+"undici-types@npm:~8.9.0":
+  version: 8.9.0
+  resolution: "undici-types@npm:8.9.0"
+  checksum: 10c0/51c712c20c087368f62c6fc0f2bc49fa76bfe5dec28ff01584bb677ff29b0622569783c02d43e151143808c48c0503f804093bd2c491b10f2a830138034cb451
   languageName: node
   linkType: hard
 

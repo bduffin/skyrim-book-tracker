@@ -19,16 +19,19 @@
         "lint:fix": "eslint --fix .",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "test": "tsx --test \"scripts/**/*.test.mts\""
+        "test": "tsx --test \"scripts/**/*.test.mts\"",
+        "import:uesp": "node --env-file-if-exists=.env.local --import tsx scripts/import-uesp.mts"
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4.3.3",
         "@types/node": "^26.2.0",
         "@types/react": "^19.2.18",
+        "@types/sax": "^1.2.7",
         "eslint": "^9",
         "eslint-config-next": "^16.3.0",
         "postcss": "^8.5.26",
         "prettier": "^3.9.6",
+        "sax": "^1.6.1",
         "tailwindcss": "^4.3.3",
         "tsx": "^4.23.13",
         "typescript": "6.0.3"

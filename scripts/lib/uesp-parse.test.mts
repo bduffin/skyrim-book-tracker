@@ -1,6 +1,6 @@
 /**
  * M0 tests: every FR-20 pure function, against real pages in
- * `__fixtures__/sample-dump.xml`.
+ * `fixtures/sample-dump.xml`.
  *
  * Expectations are hand-transcribed from the fixture's wikitext, not captured
  * from this implementation's output -- the point of the gate is to catch the
@@ -10,7 +10,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { fixture, loadFixturePages } from './fixture.mjs';
+import { fixture, loadFixturePages } from './fixtures/load.mjs';
 import {
     attachBookIds,
     classifyCategory,
