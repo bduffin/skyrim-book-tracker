@@ -808,7 +808,7 @@ export function mapToLocationRows(page: ParsedPage): MappedLocation[] {
     for (const loc of parsed) {
         // Dedupe identical (name, notes) pairs -- no DB constraint guards this,
         // and the same place with DIFFERENT notes is valid (15 books rely on it).
-        const key = `${loc.name} ${loc.notes ?? ''} ${loc.locationType}`;
+        const key = `${loc.name}\u0000${loc.notes ?? ''}\u0000${loc.locationType}`;
         if (seen.has(key)) continue;
         seen.add(key);
         rows.push({
