@@ -332,7 +332,8 @@ alter table book_location enable row level security;
 create policy book_public_read          on book          for select using (true);
 create policy book_location_public_read on book_location for select using (true);
 -- No insert/update/delete policies → writes are denied to anon & authenticated.
--- The import task uses the service-role key, which bypasses RLS.
+-- The import task authenticates with the secret key, which resolves to the
+-- service_role Postgres role and bypasses RLS.
 ```
 
 Notes:

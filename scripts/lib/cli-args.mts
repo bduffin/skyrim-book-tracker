@@ -11,10 +11,13 @@ export type ImportOptions = {
     dryRun: boolean;
     allowRemote: boolean;
     dumpDate: string | null;
+    /** Target database; falls back to NEXT_PUBLIC_SUPABASE_URL (FR-14, FR-16). */
+    url: string | null;
 };
 
 export const USAGE =
-    'Usage: yarn import:uesp <dump-path> [--dry-run] [--allow-remote] [--dump-date=YYYY-MM-DD]';
+    'Usage: yarn import:uesp <dump-path> [--dry-run] [--url=<supabase-url>]\n' +
+    '                        [--allow-remote] [--dump-date=YYYY-MM-DD]';
 
 /** Reads the date UESP encodes in `uespwiki-YYYY-MM-DD-current.xml.bz2` (FR-18). */
 export function dumpDateFromFilename(path: string): string | null {
@@ -27,12 +30,14 @@ export function parseArgs(argv: string[]): ImportOptions {
     let dryRun = false;
     let allowRemote = false;
     let dumpDate: string | null = null;
+    let url: string | null = null;
 
     for (const arg of argv) {
         if (arg === '--dry-run') dryRun = true;
         else if (arg === '--allow-remote') allowRemote = true;
         else if (arg.startsWith('--dump-date='))
             dumpDate = arg.slice('--dump-date='.length);
+        else if (arg.startsWith('--url=')) url = arg.slice('--url='.length);
         else if (arg.startsWith('-')) throw new Error(`Unknown option: ${arg}`);
         else positional.push(arg);
     }
@@ -49,5 +54,8 @@ export function parseArgs(argv: string[]): ImportOptions {
         dryRun,
         allowRemote,
         dumpDate: dumpDate ?? dumpDateFromFilename(positional[0]),
+        // Resolved here rather than in db.mts so that every source of the
+        // target is visible in one place (FR-16).
+        url: url ?? process.env['NEXT_PUBLIC_SUPABASE_URL'] ?? null,
     };
 }

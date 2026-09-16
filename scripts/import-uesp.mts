@@ -1,20 +1,32 @@
 /**
- * UESP book import (Import M1: streaming + dry run).
+ * UESP book import (Import M2: streaming, dry run, and writes).
  *
  * Reads a downloaded UESP XML dump, filters to Skyrim in-game book pages,
- * classifies and maps them, and reports what it found. Database writes are
- * Import M2 -- today this is dry-run only.
+ * classifies and maps them, reports what it found, and -- unless --dry-run --
+ * upserts them into `book` and replaces their `book_location` rows.
  *
  *   yarn import:uesp data/uespwiki-2026-08-30-current.xml.bz2 --dry-run
+ *   yarn import:uesp data/uespwiki-2026-08-30-current.xml.bz2 --url=http://127.0.0.1:54321
  *
  * See docs/specs/prd-import-uesp-books.md. The pure parsing lives in
  * uesp-parse.mts; this file is the I/O glue around it.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 import { parseArgs, type ImportOptions } from './lib/cli-args.mjs';
+import {
+    chunk,
+    createImportClient,
+    dedupeByKey,
+    groupLocations,
+    resolveTarget,
+    type Target,
+} from './lib/db.mjs';
 import { forEachPage, type DumpPage } from './lib/stream-dump.mjs';
 import {
     assertDependencyResolved,
+    attachBookIds,
     extractCategoryLinks,
     loreTitleFor,
     mapToBookRow,
@@ -139,6 +151,7 @@ function report(
     locations: MappedLocation[],
     meta: {
         options: ImportOptions;
+        target: Target | null;
         skipped: Collected['skipped'];
         unobtainable: number;
         loreResolved: number;
@@ -149,7 +162,11 @@ function report(
     const push = (s = '') => lines.push(s);
 
     push();
-    push('═══ UESP book import — dry run ═══');
+    push(
+        meta.target
+            ? `═══ UESP book import → ${meta.target.host} ═══`
+            : '═══ UESP book import — dry run ═══',
+    );
     push();
     push(`  dump        ${meta.options.dumpPath}`);
     push(`  dump date   ${meta.options.dumpDate ?? '(unknown)'}`);
@@ -196,17 +213,20 @@ function report(
     const unmappedSkill = pages.filter(
         (p) => p.params['skill'] && normalizeSkill(p.params['skill']) === null,
     );
+    // Joined with '·' rather than ', ': book titles contain commas
+    // ("Ancient Tales of the Dwemer, Part VI: ..."), so a comma-separated list
+    // reads as more entries than the count beside it claims.
     push('  data-quality checks');
     push(
-        `    non-numeric value     ${nonNumericValue.length}  ${nonNumericValue.map((r) => r.title).join(', ')}`,
+        `    non-numeric value     ${nonNumericValue.length}  ${nonNumericValue.map((r) => r.title).join(' · ')}`,
     );
     push(
-        `    skill_book, no skill  ${skillBooksNoSkill.length}  ${skillBooksNoSkill.map((r) => r.title).join(', ')}`,
+        `    skill_book, no skill  ${skillBooksNoSkill.length}  ${skillBooksNoSkill.map((r) => r.title).join(' · ')}`,
     );
     push(
         `    unmapped skill values ${unmappedSkill.length}  ${unmappedSkill
             .map((p) => `${p.uespTitle}=${p.params['skill']}`)
-            .join(', ')}`,
+            .join(' · ')}`,
     );
     push(
         `    not obtainable        ${rows.filter((r) => !r.is_obtainable).length}`,
@@ -216,7 +236,138 @@ function report(
     process.stdout.write(lines.join('\n') + '\n');
 }
 
+type WriteOutcome = {
+    booksSent: number;
+    booksNew: number;
+    booksUpdated: number;
+    collapsed: number;
+    locationRows: number;
+    bookChunks: number;
+};
+
+/**
+ * Every `uesp_page_id` already in the table, so the report can separate new
+ * rows from updated ones (FR-17) -- PostgREST's upsert cannot tell us which
+ * was which.
+ *
+ * Paged explicitly. A single `select()` is capped server-side (1,000 rows by
+ * default), which is fewer than the 1,207 books we import: taking the first
+ * response as the whole table would silently report ~200 existing books as
+ * "new" on every run.
+ */
+async function existingPageIds(client: SupabaseClient): Promise<Set<number>> {
+    const PAGE = 1000;
+    const seen = new Set<number>();
+    for (let from = 0; ; from += PAGE) {
+        const { data, error } = await client
+            .from('book')
+            .select('uesp_page_id')
+            .range(from, from + PAGE - 1);
+        if (error) {
+            throw new Error(`reading existing books failed: ${error.message}`);
+        }
+        for (const row of data ?? []) seen.add(row.uesp_page_id as number);
+        if (!data || data.length < PAGE) return seen;
+    }
+}
+
+/** Upserts books, then replaces their locations chunk by chunk (FR-12, FR-13). */
+async function write(
+    target: Target,
+    rows: BookRow[],
+    locations: MappedLocation[],
+): Promise<WriteOutcome> {
+    const client = createImportClient(target);
+    const { rows: unique, collapsed } = dedupeByKey(rows, 'uesp_page_id');
+    const before = await existingPageIds(client);
+
+    const idsByPageId = new Map<number, string>();
+    const bookChunks = chunk(unique);
+    for (const [i, batch] of bookChunks.entries()) {
+        const { data, error } = await client
+            .from('book')
+            .upsert(batch, { onConflict: 'uesp_page_id' })
+            .select('id, uesp_page_id');
+        if (error) {
+            throw new Error(
+                `book upsert failed on chunk ${i + 1}/${bookChunks.length}: ` +
+                    `${error.message}${error.hint ? `\n  hint: ${error.hint}` : ''}`,
+            );
+        }
+        for (const row of data ?? []) {
+            idsByPageId.set(row.uesp_page_id as number, row.id as string);
+        }
+        process.stderr.write(
+            `  upserted ${idsByPageId.size}/${unique.length} books\n`,
+        );
+    }
+
+    // Locations are replaced, not upserted, and the delete is scoped to the
+    // book_ids in each payload -- so this must be chunked the same way (FR-13).
+    const grouped = groupLocations(
+        unique.map((r) => r.uesp_page_id),
+        locations,
+    );
+    let locationRows = 0;
+    let booksScoped = 0;
+    const locChunks = chunk(grouped);
+    for (const [i, batch] of locChunks.entries()) {
+        const { data, error } = await client.rpc('replace_book_locations', {
+            p_books: attachBookIds(batch, idsByPageId),
+        });
+        if (error) {
+            throw new Error(
+                `replace_book_locations failed on chunk ${i + 1}/` +
+                    `${locChunks.length}: ${error.message}`,
+            );
+        }
+        locationRows += (data as number) ?? 0;
+        booksScoped += batch.length;
+        process.stderr.write(
+            `  replaced locations for ${booksScoped}/${grouped.length} books\n`,
+        );
+    }
+
+    const booksNew = unique.filter((r) => !before.has(r.uesp_page_id)).length;
+    return {
+        booksSent: unique.length,
+        booksNew,
+        booksUpdated: unique.length - booksNew,
+        collapsed,
+        locationRows,
+        bookChunks: bookChunks.length,
+    };
+}
+
+function reportWrite(target: Target, out: WriteOutcome): void {
+    process.stdout.write(
+        [
+            '  writes',
+            `    target            ${target.host}${target.isLocal ? '' : '  (REMOTE)'}`,
+            `    books upserted    ${out.booksSent.toLocaleString()} in ${out.bookChunks} chunk(s)`,
+            `    new               ${out.booksNew.toLocaleString()}`,
+            `    updated           ${out.booksUpdated.toLocaleString()}`,
+            `    duplicate keys    ${out.collapsed}`,
+            `    location rows     ${out.locationRows.toLocaleString()}`,
+            '',
+            '',
+        ].join('\n'),
+    );
+}
+
 export async function run(options: ImportOptions): Promise<void> {
+    // FR-14: settle the target BEFORE the ~30s of streaming, so a mistargeted
+    // run or a missing credential fails in a second rather than at the end. In
+    // --dry-run no target is resolved at all, so no credential is read (FR-15).
+    const target = options.dryRun
+        ? null
+        : resolveTarget(options.url ?? '', options.allowRemote);
+    if (target) {
+        process.stderr.write(
+            `target ${target.host} (${target.isLocal ? 'local' : 'REMOTE'})\n`,
+        );
+    }
+
     const collected = await collect(options.dumpPath);
 
     // Both dependencies fail silently otherwise -- a renamed page, section or
@@ -240,19 +391,18 @@ export async function run(options: ImportOptions): Promise<void> {
     const rows = pages.map(mapToBookRow);
     const locations = pages.flatMap(mapToLocationRows);
 
+    // FR-14: the counts are printed before the first write, so a surprising
+    // number is visible while it is still just a number on screen.
     report(pages, rows, locations, {
         options,
+        target,
         skipped: collected.skipped,
         unobtainable: collected.unobtainable.size,
         loreResolved,
         loreReferenced,
     });
 
-    if (!options.dryRun) {
-        throw new Error(
-            'Database writes are Import M2 and are not implemented yet. Re-run with --dry-run.',
-        );
-    }
+    if (target) reportWrite(target, await write(target, rows, locations));
 }
 
 // This file is the entry point and nothing imports it, so it can simply run.

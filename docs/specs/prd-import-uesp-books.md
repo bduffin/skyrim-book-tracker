@@ -58,7 +58,7 @@ The app has no book data to browse or track — `book` and `book_location` are e
 
 - **Greenfield tooling.** No `scripts/` directory, no XML/wikitext dependencies, no test runner in `package.json`.
 - **The schema is placeholder-quality and structurally wrong for this data.** `book` has `game_id text unique` as its natural key — which the dump disproves (§0) — and no column for the identifier that does work. `category`/`skill` are untyped `text`.
-- **`.env.local`** has `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` only — no service-role key. `.env*.local` is gitignored.
+- **`.env.local`** has `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` only — no secret key. `.env*.local` is gitignored.
 - **`.gitignore`** now ignores `/data/`, where the dump lives.
 - **Stack fit.** Node 24 (`.nvmrc`), TypeScript 6, Yarn 4.17.1 — supports `tsx` and Node's native `--env-file-if-exists`.
 
@@ -88,7 +88,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
         └─ parseLocations(params.loc)        ──► [{ name, notes, locationType }]
         │
         ▼
-  --dry-run ? report : write via supabase-js (service-role key)
+  --dry-run ? report : write via supabase-js (secret key)
         │        book:          onConflict 'uesp_page_id'
         │        book_location: replace-per-book via transactional RPC
         ▼
@@ -169,9 +169,9 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 
 - **FR-12 — `book` upsert.** Batched (chunks of ~500) on conflict `uesp_page_id`, deduped by conflict key before each chunk — Postgres raises `ON CONFLICT DO UPDATE command cannot affect row a second time` if a key repeats within one statement.
 - **FR-13 — `book_location` replacement.** Locations are replaced, not upserted, so a location removed upstream disappears. One `replace_book_locations(p_books jsonb)` RPC call **per book chunk**, not per book: PostgREST cannot span statements transactionally so the delete-and-insert must live in the database, and one call per book would mean **1,207 round trips** (every parsed book is sent, including the 157 with no locations) for **2,327 location rows** across 1,050 books — pure round-trip waste. Batching alongside the FR-12 book chunks makes it ~3 calls for the whole catalog. Each call is one transaction. Only books in the payload are touched, so books that failed to parse keep their existing locations; a parsed book with **zero** locations is still included with an empty array, which is what clears stale rows for a book whose `loc` field was removed upstream. The function returns its inserted row count for the run report. It is `security invoker` with a pinned empty `search_path`, and `EXECUTE` is **revoked from `public` and granted only to `service_role`** — otherwise it would be callable by `anon`, whose writes are blocked only by the absence of an INSERT/DELETE policy on `book_location` rather than by an explicit grant.
-- **FR-14 — Target-database guard.** The script refuses to write to a non-localhost Supabase URL unless `--allow-remote` is passed, and prints the target host and row counts before the first write. The service-role key bypasses RLS: an accidental run against production writes 1,207 rows into live data with no undo.
-- **FR-15 — `--dry-run`.** Parses, classifies and maps as normal, writes nothing, constructs no Supabase client and reads no credentials — so it runs before the service-role key exists. Emits the FR-17 report.
-- **FR-16 — Credentials.** Reads `SUPABASE_SERVICE_ROLE_KEY` and `NEXT_PUBLIC_SUPABASE_URL` via `--env-file-if-exists=.env.local`; never logged, never committed. **`--env-file-if-exists`, not `--env-file`**: the latter hard-errors when the file is absent, and `.env.local` is gitignored, so a fresh clone could not run even `--dry-run` — which FR-15 requires to work before any credential exists. The client is constructed inside the run function, not at module scope, so importing the module for tests needs no env.
+- **FR-14 — Target-database guard.** The target is `--url=<supabase-url>`, falling back to `NEXT_PUBLIC_SUPABASE_URL`. The script refuses to write to a non-localhost one unless `--allow-remote` is passed, and prints the target host and row counts before the first write. The secret key bypasses RLS: an accidental run against production writes 1,207 rows into live data with no undo. The guard resolves the target **before** the dump is opened, so a mistargeted run fails in under a second rather than after the ~33s pass. "Localhost" is matched on the parsed `URL.hostname` — never a substring of the raw URL, which would accept `https://localhost.evil.com` — and covers `localhost`, `*.localhost`, all of `127.0.0.0/8`, and `[::1]` (note `URL.hostname` **keeps** the brackets on an IPv6 literal).
+- **FR-15 — `--dry-run`.** Parses, classifies and maps as normal, writes nothing, constructs no Supabase client and reads no credentials — so it runs before the secret key exists. Emits the FR-17 report.
+- **FR-16 — Credentials.** Reads `SUPABASE_SECRET_KEY`, and the target URL from `--url` or `NEXT_PUBLIC_SUPABASE_URL`, via `--env-file-if-exists=.env.local`; never logged, never committed. **`SUPABASE_SECRET_KEY`, not `SUPABASE_SERVICE_ROLE_KEY`**: this project uses Supabase's newer key format throughout (CLAUDE.md — the publishable key, not the legacy anon key), and `supabase start` prints the pair as `Publishable` / `Secret` (`sb_publishable_…` / `sb_secret_…`). The key is new; the Postgres role it maps to is still `service_role`, which is what §12.1's `grant` names. **`--env-file-if-exists`, not `--env-file`**: the latter hard-errors when the file is absent, and `.env.local` is gitignored, so a fresh clone could not run even `--dry-run` — which FR-15 requires to work before any credential exists. The client is constructed inside the run function, not at module scope, so importing the module for tests needs no env.
 - **FR-17 — Run report.** Broken down **by category and source**, not just totals: pages found, new, updated, skipped (with reason), errored, duplicate keys collapsed, unmapped skills, unrecognized icons. It must also report the numbers that catch an FR-11 regression, which a category-only breakdown cannot: **location rows by tier** (`place` / `carrier` / `nearby` — expect 81 carriers, 67 nearby), **books with zero locations** (expect ~157), and **pages whose `value` is non-numeric** (expect 3), and **`skill_book` rows with a null `skill`** (expect exactly 1 — the Oghma Infinium; any other is a parse failure the constraint no longer catches). A tier-2 regression that silently turns carriers back into places leaves every category count unchanged. It also reports the two **cross-page dependency counts**, so drift is visible without being fatal: unobtainable books parsed (expect ~23, FR-6c) and lorenames resolved against ns 130 (expect ~116 of 116, FR-4a). Plus the dump date and a CC BY-SA 2.5 note.
 - **FR-18 — Provenance.** The dump date is parsed from the filename (`uespwiki-YYYY-MM-DD-current.xml.bz2`), with `--dump-date=YYYY-MM-DD` as an override for a renamed file. Recorded in the run report and in a README attribution section (owned by M3).
 - **FR-19 — Cleanup.** `cleanTitle(pageTitle)` strips the `Skyrim:` prefix and a trailing ` (book)` disambiguator — **only that exact suffix**, since stripping arbitrary parenthetical qualifiers would collapse many `Note`/`Journal`/`Letter` pages into identical titles. `display_title` prefers `sumtitle` where present. The full page title is stored separately as `uesp_title` for linking, debugging and attribution. `cleanWikitext(value)` decodes entities (`&nbsp;`, `&amp;`) and strips residual markup from every stored string.
@@ -194,7 +194,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 - Dump-file input only; the human download from `dumps.uesp.net` is the sanctioned input to this task, not a violation of it (robots.txt binds automated crawlers).
 - Metadata only — no full book text (NG2). The text is in namespace 130, which this task never reads.
 - CC BY-SA 2.5 attribution required in UI/README (`prd-browse-and-track.md` FR-7); this task records the dump date and licence, it doesn't render the UI attribution.
-- Writes use the service-role key, bypassing RLS — never the app's Server Action path.
+- Writes use the secret key, which maps to the `service_role` Postgres role and bypasses RLS — never the app's Server Action path.
 - Identity is `uesp_page_id`; `game_id` is an attribute (§0, FR-5).
 - The dump is bzip2; `bzip2` must be on `PATH`.
 - No special Postgres version requirement. The `nulls not distinct` dependency (15+) disappeared when the `book_location` unique constraint was dropped (§12.1). Still worth confirming the local Supabase CLI's Postgres major matches the hosted project before M2, since the CLI's version comes from its own config.
@@ -245,7 +245,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
     | Nested template in the body                | parser brace-awareness (16% of pages)                                                                                                                                                    | any `{{Map Link}}` page              |
     | `lorename=none`                            | sentinel → null                                                                                                                                                                          | any of the 734                       |
     | Creation Club `fexxx` id                   | identity collision case                                                                                                                                                                  | any CC book                          |
-    | No `\|id=`                                 | must import, not skip                                                                                                                                                                    | one of the 47                        |
+    | `\|id=` empty or absent                    | must import, not skip — 9 books: 8 supply `\|id=` empty, 1 omits the key                                                                                                                 | `Letter from the Empire`             |
     | `black_book`                               | Whole category (7) had no fixture                                                                                                                                                        | `Black Book: Waking Dreams (book)`   |
     | `Black Book` in title, empty icon          | Must land as `book`, NOT `black_book`                                                                                                                                                    | `Skyrim:Black Book (book)`           |
     | Oghma Infinium                             | `artifacttype` lives in a **separate `{{Artifact Summary}}` block**, not in `{{Game Book}}` — a Game-Book-only parse leaves it as `book`. Must classify `skill_book` with a null `skill` | `Oghma Infinium`                     |
@@ -265,7 +265,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
     Implement and test all FR-20 functions. **Exit:** tests green, including a value-level diff of hand-transcribed expected params for each case above.
 
 - **M1 — Streaming + dry run.** ✅ **Done.** Wire the bzip2/sax streamer to M0's functions. Single pass, 33s over the 470,673-page dump. Every exit figure below was hit exactly. **Exit:** a dry run over the full dump reports ~1,207 books with the expected distribution (91 skill, 359 book, 199 journal, 539 note, 12 treasure map, 7 black book) across the five sources (684 base, 326 creation_club, 136 dragonborn, 51 dawnguard, 10 hearthfire); location tiers in range (81 carrier, 67 nearby, 2,179 place); ~157 books with zero locations; the 3 non-numeric `value` pages present with their strings intact; the unmapped-skill list empty or entirely known; both cross-page dependencies non-empty (23 unobtainable, 116 of 116 lorenames resolved); and no unexpected crashes.
-- **M2 — Migration + writes.** Apply the §12.1 migration **first**, then upserts, the `replace_book_locations` RPC, the target guard, and the report. **Exit:** re-running the same dump produces zero duplicates and a stable location count.
+- **M2 — Migration + writes.** ✅ **Done.** Applied the §12.1 migration, then the upserts, the `replace_book_locations` RPC, the target guard and the report — developed against the local stack (`supabase start`), so the RLS-bypassing secret key never pointed at live data. **Exit:** met. Two consecutive runs of the same dump against a local Postgres 17.6 produced 1,207 books / 2,327 location rows both times, the second reporting `new 0, updated 1,207`, and the `(uesp_page_id, location_name, notes, location_type)` multiset was **byte-identical** across them (AC-4). The remote project is untouched; pushing the migration there is M3.
 - **M3 — Full run + attribution.** Run against the real dump; add the README attribution section. **Exit:** §9 met.
 
 ## 9. Acceptance Criteria
@@ -279,7 +279,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 - AC-5. The script makes no requests to UESP during execution. (NFR-2)
 - AC-6. The dump date and CC BY-SA 2.5 licence appear in the run report and the README. (FR-18)
 - AC-7. `yarn test` passes with no network, no database, and no 177MB file. (FR-20)
-- AC-8. `--dry-run` runs to completion with no `SUPABASE_SERVICE_ROLE_KEY` set. (FR-15)
+- AC-8. `--dry-run` runs to completion with no `SUPABASE_SECRET_KEY` set. (FR-15)
 - AC-9. A malformed page is logged and the run completes. (NFR-3)
 - AC-10. Pointing the script at a remote Supabase URL without `--allow-remote` refuses to write, and every run prints the target host before the first write. (FR-14)
 - AC-11. The 3 dual-value pages import with their `value` string intact, not truncated or nulled. (FR-6)
@@ -304,7 +304,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 
 ### 12.1 Migration
 
-`supabase/migrations/<timestamp>_book_import_schema.sql`.
+`supabase/migrations/20260914000000_book_import_schema.sql` — the block below is that file **verbatim**, so the two stay diffable; change both together or not at all.
 
 ```sql
 -- Migration: book_import_schema
@@ -324,7 +324,7 @@ alter table book add constraint book_uesp_page_id_unique unique (uesp_page_id);
 alter table book alter column uesp_page_id set not null;
 
 -- game_id demotes from key to attribute: still useful, no longer trusted to be
--- unique, and absent on 47 pages.
+-- unique, and null on 9 pages (1 omits the |id= key, 8 supply it empty).
 alter table book drop constraint if exists book_game_id_key;
 alter table book add column game_id_extra text[]; -- |id2..|id5, 6 pages
 
@@ -470,7 +470,18 @@ revoke execute on function replace_book_locations(jsonb) from anon, authenticate
 grant  execute on function replace_book_locations(jsonb) to service_role;
 ```
 
-### 12.2 Script Structure (`scripts/import-uesp.mts`)
+### 12.2 Script Structure
+
+`scripts/` holds only runnable entry points; everything that exports rather than runs lives in `scripts/lib/`, mirroring `src/lib/` (FR-20) — so no module needs to detect whether it was run or imported.
+
+| File                          | Holds                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `scripts/import-uesp.mts`     | the entry point: collect → resolve → report → write                             |
+| `scripts/lib/uesp-parse.mts`  | the pure wikitext functions below                                               |
+| `scripts/lib/stream-dump.mts` | compression sniffing and the sax page loop                                      |
+| `scripts/lib/db.mts`          | `resolveTarget`, `dedupeByKey`, `chunk`, `groupLocations`, `createImportClient` |
+| `scripts/lib/cli-args.mts`    | `parseArgs`, so tests never import the entry point                              |
+| `scripts/lib/fixtures/`       | the sample dump (31 UESP pages + 1 hand-damaged) and its loader                 |
 
 ```ts
 type RawParams = Record<string, string>;
@@ -551,17 +562,14 @@ type BookRow = {
     is_unique: boolean | null;
 };
 
+type LocationTier = 'place' | 'carrier' | 'nearby';
 type MappedLocation = {
     uespPageId: number;
     location_name: string;
-    location_type: string | null;
+    location_type: LocationTier; // always set -- parseLocations assigns a tier
     notes: string | null;
 };
-type LocationRow = {
-    location_name: string;
-    location_type: string | null;
-    notes: string | null;
-};
+type LocationRow = Omit<MappedLocation, 'uespPageId'>;
 
 function mapToBookRow(page: ParsedPage): BookRow;
 function mapToLocationRows(page: ParsedPage): MappedLocation[];
@@ -578,7 +586,7 @@ function attachBookIds(
 ): LocationBatchEntry[];
 ```
 
-I/O glue (exercised via `--dry-run`, not unit-tested directly):
+The decisions inside the I/O glue are pure and unit-tested in `scripts/lib/db.mts` — the target guard (FR-14), conflict-key dedupe (FR-12), chunking, and the per-book location grouping that keeps zero-location books in the payload (FR-13). Only the round trips themselves are left to `--dry-run` and a real run:
 
 - Detect compression by magic bytes; spawn `bzip2 -dc` or `zlib.createGunzip()`; pipe into `sax.createStream()`.
 - Per `<page>`: filter (FR-3) → parse → classify → map.
@@ -616,14 +624,19 @@ Script and test files are `.mts`, not `.ts`: `package.json` has no `"type"` fiel
 ### 12.4 Running it
 
 ```bash
+# Report only -- no credentials, no database (FR-15).
 yarn import:uesp data/uespwiki-2026-08-30-current.xml.bz2 --dry-run
+
+# Write to the local stack. `supabase start` applies the migrations and prints
+# the Secret key; `supabase db reset` returns to an empty schema.
+yarn import:uesp data/uespwiki-2026-08-30-current.xml.bz2 --url=http://127.0.0.1:54321
 ```
 
 which expands to `node --env-file-if-exists=.env.local --import tsx scripts/import-uesp.mts …`.
 
-`.env.local` gains `SUPABASE_SERVICE_ROLE_KEY=` (never committed). The dump date is read from the filename; `--dump-date=YYYY-MM-DD` overrides. Writing to a non-localhost URL requires `--allow-remote` (FR-14).
+`.env.local` gains `SUPABASE_SECRET_KEY=` (never committed). Without `--url` the target falls back to `NEXT_PUBLIC_SUPABASE_URL`, which points at the hosted project — so a bare `yarn import:uesp <dump>` is refused by FR-14 rather than writing to it. The dump date is read from the filename; `--dump-date=YYYY-MM-DD` overrides.
 
-A dry run over the real dump takes ~33s and reads 470,673 pages in a single streaming pass.
+A run over the real dump takes ~33s and reads 470,673 pages in a single streaming pass; the writes add ~3 upsert round trips and ~3 RPC calls on top.
 
 ### 12.5 Existing checks
 

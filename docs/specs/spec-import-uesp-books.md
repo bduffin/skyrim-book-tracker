@@ -31,7 +31,7 @@ A repeatable, local, dump-file-based import script that:
 2. Filters to Skyrim in-game book pages: namespace 134 **and** a `{{Game Book}}` invocation.
 3. Parses each page's template into structured fields.
 4. Classifies each book into a fixed category and a fixed content source, and normalizes `skill`.
-5. Writes to `book`/`book_location` using the Supabase service-role key, guarded against hitting the wrong database.
+5. Writes to `book`/`book_location` using the Supabase secret key, guarded against hitting the wrong database.
 6. Is safely re-runnable — the same dump or a newer one updates rows in place, never duplicating them, and converges location sets to what the dump says.
 
 ---
@@ -51,7 +51,7 @@ A repeatable, local, dump-file-based import script that:
 - No live requests to UESP's web servers or API **from the script** — dump-file input only. The human download is the sanctioned input to this task; `robots.txt` binds automated crawlers.
 - Metadata only — no full book text stored. This is a **scope** decision, not a licensing prohibition: CC BY-SA 2.5 permits redistribution with attribution and share-alike, and architecture.md §2.2 contemplates it. The text lives in ns 130, which this task never reads.
 - CC BY-SA 2.5 attribution required in the UI and README (`prd-browse-and-track.md` FR-7) — this task records the source dump's date and licence for that attribution and for provenance.
-- Import writes use the Supabase **service-role key** (bypasses RLS) — never the app's normal Server Action path, since this is an offline/admin operation. Because that key bypasses RLS, the script must refuse to write to a non-localhost database without an explicit opt-in flag.
+- Import writes use the Supabase **secret key** (`SUPABASE_SECRET_KEY`, which maps to the `service_role` Postgres role and bypasses RLS) — never the app's normal Server Action path, since this is an offline/admin operation. Because it bypasses RLS, the script must refuse to write to a non-localhost database without an explicit opt-in flag.
 - The script is a one-off local dev tool, not part of the deployed Next.js app's runtime.
 - The dump file (177MB) is never committed; `/data/` is gitignored.
 - `bzip2` must be on `PATH`. No special Postgres version is required — the `nulls not distinct` dependency went away with the `book_location` unique constraint.
@@ -70,7 +70,7 @@ A repeatable, local, dump-file-based import script that:
 - [ ] Normalizes `skill` to a fixed set of valid Skyrim skill names (`prd-browse-and-track.md` FR-3).
 - [ ] Classifies `category` into a fixed taxonomy and `source` into base / DLC / Creation Club (`prd-browse-and-track.md` FR-3).
 - [ ] Replaces each successfully parsed book's location set atomically, so locations removed upstream disappear.
-- [ ] Reads the service-role key from environment, never commits it, and refuses to write to a remote database without an explicit flag.
+- [ ] Reads the secret key from environment, never commits it, and refuses to write to a remote database without an explicit flag.
 - [ ] Logs a run summary broken down by category and source: found, new, updated, skipped, errored.
 
 **Nice-to-have (out of scope for this spec):**
