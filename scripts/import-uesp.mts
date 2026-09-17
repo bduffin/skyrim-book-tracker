@@ -20,7 +20,9 @@ import {
     createImportClient,
     dedupeByKey,
     groupLocations,
+    resolveSecretKey,
     resolveTarget,
+    verifyCredentials,
     type Target,
 } from './lib/db.mjs';
 import { forEachPage, type DumpPage } from './lib/stream-dump.mjs';
@@ -55,6 +57,37 @@ type Collected = {
 };
 
 /**
+ * A one-line, self-overwriting progress counter for the streaming pass.
+ *
+ * stderr, so a redirected report stays clean; TTY-only, because `\r` in a log
+ * file or CI transcript is just noise. Throttled by time rather than by page
+ * count so the rate does not depend on how fast the dump reads.
+ */
+function progressReporter(): {
+    tick: (pagesSeen: number) => void;
+    clear: () => void;
+} {
+    const { stderr } = process;
+    if (!stderr.isTTY) return { tick: () => {}, clear: () => {} };
+
+    let lastDrawn = 0;
+    let width = 0;
+    return {
+        tick(pagesSeen) {
+            const now = Date.now();
+            if (now - lastDrawn < 200) return;
+            lastDrawn = now;
+            const line = `  reading dump… ${pagesSeen.toLocaleString()} pages`;
+            width = Math.max(width, line.length);
+            stderr.write(`\r${line.padEnd(width)}`);
+        },
+        clear() {
+            if (width) stderr.write(`\r${' '.repeat(width)}\r`);
+        },
+    };
+}
+
+/**
  * One streaming pass collects all three inputs.
  *
  * The spec once described the lore index and the unobtainable list as separate
@@ -68,6 +101,7 @@ async function collect(dumpPath: string): Promise<Collected> {
     let unobtainable = new Set<string>();
     const skipped = { noTemplate: 0, wrongNamespace: 0 };
 
+    const progress = progressReporter();
     const { pagesSeen, compression } = await forEachPage(
         dumpPath,
         (page: DumpPage) => {
@@ -100,8 +134,10 @@ async function collect(dumpPath: string): Promise<Collected> {
                 unobtainable: undefined,
             });
         },
+        progress.tick,
     );
 
+    progress.clear();
     process.stderr.write(
         `read ${pagesSeen.toLocaleString()} pages (${compression})\n`,
     );
@@ -273,11 +309,10 @@ async function existingPageIds(client: SupabaseClient): Promise<Set<number>> {
 
 /** Upserts books, then replaces their locations chunk by chunk (FR-12, FR-13). */
 async function write(
-    target: Target,
+    client: SupabaseClient,
     rows: BookRow[],
     locations: MappedLocation[],
 ): Promise<WriteOutcome> {
-    const client = createImportClient(target);
     const { rows: unique, collapsed } = dedupeByKey(rows, 'uesp_page_id');
     const before = await existingPageIds(client);
 
@@ -362,10 +397,17 @@ export async function run(options: ImportOptions): Promise<void> {
     const target = options.dryRun
         ? null
         : resolveTarget(options.url ?? '', options.allowRemote);
+    let client: SupabaseClient | null = null;
     if (target) {
         process.stderr.write(
             `target ${target.host} (${target.isLocal ? 'local' : 'REMOTE'})\n`,
         );
+        // Before the ~34s stream, not after: a prompt that appears once the
+        // dump has already been read is a prompt nobody is sitting there for.
+        client = createImportClient(target, await resolveSecretKey(options));
+        // Likewise the credential check -- a rejected key should cost a second,
+        // not a full pass over the dump (FR-16).
+        await verifyCredentials(client, target);
     }
 
     const collected = await collect(options.dumpPath);
@@ -402,7 +444,9 @@ export async function run(options: ImportOptions): Promise<void> {
         loreReferenced,
     });
 
-    if (target) reportWrite(target, await write(target, rows, locations));
+    if (target && client) {
+        reportWrite(target, await write(client, rows, locations));
+    }
 }
 
 // This file is the entry point and nothing imports it, so it can simply run.

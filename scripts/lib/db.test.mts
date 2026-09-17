@@ -3,7 +3,14 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { chunk, dedupeByKey, groupLocations, resolveTarget } from './db.mjs';
+import {
+    chunk,
+    dedupeByKey,
+    describeConnectionError,
+    groupLocations,
+    resolveSecretKey,
+    resolveTarget,
+} from './db.mjs';
 import type { MappedLocation } from './uesp-parse.mjs';
 
 const REMOTE = 'https://rjfjulktcxnqpnodzngp.supabase.co';
@@ -142,5 +149,106 @@ describe('groupLocations (FR-13)', () => {
             'location_type',
             'notes',
         ]);
+    });
+});
+
+describe('resolveSecretKey (FR-16)', () => {
+    const never = () => Promise.reject(new Error('should not have prompted'));
+
+    test('prefers the environment, so local and CI runs need no interaction', async () => {
+        const key = await resolveSecretKey(
+            { promptKey: false },
+            { SUPABASE_SECRET_KEY: 'sb_secret_from_env' },
+            never,
+        );
+        assert.equal(key, 'sb_secret_from_env');
+    });
+
+    test('prompts when the environment has no key', async () => {
+        const key = await resolveSecretKey({ promptKey: false }, {}, () =>
+            Promise.resolve('sb_secret_typed'),
+        );
+        assert.equal(key, 'sb_secret_typed');
+    });
+
+    // .env.local holds one key while --url can point at either database, so
+    // overriding a present-but-wrong key has to be possible.
+    test('--prompt-key overrides a key that is already in the environment', async () => {
+        const key = await resolveSecretKey(
+            { promptKey: true },
+            { SUPABASE_SECRET_KEY: 'sb_secret_local' },
+            () => Promise.resolve('sb_secret_remote'),
+        );
+        assert.equal(key, 'sb_secret_remote');
+    });
+
+    test('trims, and rejects an empty answer', async () => {
+        assert.equal(
+            await resolveSecretKey({ promptKey: false }, {}, () =>
+                Promise.resolve('  sb_secret_padded \n'),
+            ),
+            'sb_secret_padded',
+        );
+        await assert.rejects(
+            resolveSecretKey({ promptKey: false }, {}, () =>
+                Promise.resolve('   '),
+            ),
+            /No secret key given/,
+        );
+    });
+
+    // Pasting the publishable key would not bypass RLS, and would otherwise
+    // surface much later as a confusing row-level-security denial.
+    test('catches a pasted publishable key', async () => {
+        await assert.rejects(
+            resolveSecretKey({ promptKey: false }, {}, () =>
+                Promise.resolve('sb_publishable_abc123'),
+            ),
+            /publishable key, not the secret key/,
+        );
+    });
+});
+
+describe('describeConnectionError (FR-1)', () => {
+    const target = resolveTarget('http://127.0.0.1:54321', false);
+
+    // The real message PostgREST returns for a mistyped key. It says nothing
+    // about the key being the thing to fix, which is the whole problem.
+    test('a rejected key names the key, not the JWT internals', () => {
+        const out = describeConnectionError(
+            { message: 'Expected 3 parts in JWT; got 1' },
+            target,
+        );
+        assert.match(out, /secret key was rejected/);
+        assert.match(out, /sb_secret_/);
+        assert.doesNotMatch(out, /parts in JWT/);
+    });
+
+    test('a privilege failure points at the key TYPE', () => {
+        const out = describeConnectionError(
+            { message: 'permission denied for function', code: '42501' },
+            target,
+        );
+        assert.match(out, /lacks the privileges/);
+        assert.match(out, /service_role/);
+    });
+
+    test('a missing function points at the migration, not the key', () => {
+        const out = describeConnectionError(
+            { message: 'Could not find the function', code: 'PGRST202' },
+            target,
+        );
+        assert.match(out, /migration has not been applied/);
+        assert.doesNotMatch(out, /secret key was rejected/);
+    });
+
+    test('anything else is passed through with its code, not swallowed', () => {
+        const out = describeConnectionError(
+            { message: 'connect ECONNREFUSED', code: 'XX000' },
+            target,
+        );
+        assert.match(out, /Could not reach 127\.0\.0\.1:54321/);
+        assert.match(out, /ECONNREFUSED/);
+        assert.match(out, /XX000/);
     });
 });

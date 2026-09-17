@@ -27,6 +27,9 @@ export type DumpPage = {
 
 export type Compression = 'bzip2' | 'gzip' | 'none';
 
+/** How often to report progress; ~235 callbacks over the real dump. */
+const PROGRESS_EVERY = 2000;
+
 const MAGIC = {
     bzip2: Buffer.from('BZh'),
     gzip: Buffer.from([0x1f, 0x8b]),
@@ -105,6 +108,12 @@ async function decompressedStream(path: string): Promise<Readable> {
 export async function forEachPage(
     path: string,
     onPage: (page: DumpPage) => void,
+    /**
+     * Called every `PROGRESS_EVERY` pages. The pass over the real dump takes
+     * ~34s and emits nothing until it finishes, which reads as a hang -- most
+     * sharply right after the credential prompt, where the user is watching.
+     */
+    onProgress?: (pagesSeen: number) => void,
 ): Promise<{ compression: Compression; pagesSeen: number }> {
     const compression = await detectCompression(path);
     const source = await decompressedStream(path);
@@ -161,6 +170,9 @@ export async function forEachPage(
                 current.pageId !== undefined
             ) {
                 pagesSeen += 1;
+                if (onProgress && pagesSeen % PROGRESS_EVERY === 0) {
+                    onProgress(pagesSeen);
+                }
                 onPage({
                     title: current.title,
                     ns: current.ns,
