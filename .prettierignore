@@ -5,3 +5,7 @@ yarn.lock
 .claude/skills
 skills-lock.json
 LICENSE
+
+# Tool-generated, gitignored, and not ours to format.
+.claude/settings.local.json
+supabase/.temp
