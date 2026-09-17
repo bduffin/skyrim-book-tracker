@@ -13,7 +13,9 @@ import {
 } from './db.mjs';
 import type { MappedLocation } from './uesp-parse.mjs';
 
-const REMOTE = 'https://rjfjulktcxnqpnodzngp.supabase.co';
+// A made-up project ref: this exercises hostname parsing, not any real
+// project, and a real one would tie the test to a particular deployment.
+const REMOTE = 'https://abcdefghijklmnopqrst.supabase.co';
 
 describe('resolveTarget (FR-14)', () => {
     test('accepts every flavour of loopback without --allow-remote', () => {
@@ -35,7 +37,7 @@ describe('resolveTarget (FR-14)', () => {
         );
         const target = resolveTarget(REMOTE, true);
         assert.equal(target.isLocal, false);
-        assert.equal(target.host, 'rjfjulktcxnqpnodzngp.supabase.co');
+        assert.equal(target.host, 'abcdefghijklmnopqrst.supabase.co');
     });
 
     // The guard is the only thing standing between a typo and a live rewrite,
