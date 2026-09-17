@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 
-The Skyrim Book Tracker is a web application that helps players track which in‑game books they’ve discovered, along with rich metadata such as locations and skill effects. The app fills a gap between simple spreadsheets, lore readers without tracking, and in‑game mods that lack a modern web UX.
+The Skyrim Book Tracker is a web application that helps players track their in‑game library: which books they have **read** and which they have **collected**, recorded independently because neither implies the other in game (§6), along with rich metadata such as locations and skill effects. The app fills a gap between simple spreadsheets, lore readers without tracking, and in‑game mods that lack a modern web UX.
 
 Primary goals:
 
