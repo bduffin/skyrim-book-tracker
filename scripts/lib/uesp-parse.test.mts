@@ -28,6 +28,8 @@ import {
     loreTitleFor,
     isObtainable,
     parseUnobtainableBooks,
+    cleanKeepingLinks,
+    unwrapLinks,
     assertDependencyResolved,
     UNOBTAINABLE_PAGE_TITLE,
     type LoreIndex,
@@ -290,16 +292,19 @@ describe('normalizeSkill (FR-10)', () => {
 });
 
 describe('parseLocations (FR-11)', () => {
-    test('tier 1 - leading link, with notes after the comma', () => {
+    // notes carry the WHOLE bullet with links intact, so the sentence survives
+    // wherever the place sat in it; `unwrapLinks` is the renderer (FR-11).
+    test('tier 1 - leading link, notes keep the whole bullet', () => {
         const locs = parseLocations(
             pageFor('Skyrim:Deathbrand (book)').params['loc'],
         );
         assert.equal(locs.length, 11);
         assert.equal(locs[0].name, 'Bloodskal Barrow');
         assert.equal(locs[0].locationType, 'place');
+        assert.match(locs[0].notes ?? '', /^\[\[Skyrim:Bloodskal Barrow\|/);
         assert.match(
-            locs[0].notes ?? '',
-            /^one on a dresser near a double bed/,
+            unwrapLinks(locs[0].notes ?? ''),
+            /^Bloodskal Barrow, one on a dresser near a double bed/,
         );
     });
 
@@ -307,9 +312,15 @@ describe('parseLocations (FR-11)', () => {
         const locs = parseLocations(
             pageFor("Skyrim:Dark Brotherhood Assassin's Note").params['loc'],
         );
-        assert.deepEqual(locs, [
-            { name: 'Assassins', notes: null, locationType: 'carrier' },
-        ]);
+        assert.equal(locs.length, 1);
+        assert.equal(locs[0].name, 'Assassins');
+        assert.equal(locs[0].locationType, 'carrier');
+        // "Carried by X" is information the name alone does not carry, so it is
+        // kept -- unlike a bullet that is nothing but the place link.
+        assert.match(
+            unwrapLinks(locs[0].notes ?? ''),
+            /^Carried by Assassins$/,
+        );
     });
 
     test('tier 3 - distance from a landmark, with the Map Link stripped', () => {
@@ -321,6 +332,38 @@ describe('parseLocations (FR-11)', () => {
         assert.equal(nearby.name, 'Ivarstead');
         assert.match(nearby.notes ?? '', /630 ft WSW of/);
         assert.doesNotMatch(nearby.notes ?? '', /Map Link|zoom=/);
+    });
+
+    // The bug this contract exists to prevent: excising a mid-sentence link
+    // closed the gap and left wreckage -- "Basement of , behind a locked door",
+    // "The , on a bookshelf", "On ' skeleton in ...". 86 rows were visibly
+    // damaged before notes carried the whole bullet.
+    test('a mid-sentence place survives in the note', () => {
+        const locs = parseLocations(
+            [
+                '*Basement of [[Skyrim:Black-Briar Manor|Black-Briar Manor]], behind a [[Skyrim:Lockpicking|master-locked]] door',
+                "*The [[SR:Blue Palace|Blue Palace]], on a bookshelf in Sybille Stentor's room",
+                '*630 ft WSW of [[Skyrim:Ivarstead|Ivarstead]] {{Map Link|x=1|y=2}}',
+            ].join('\n'),
+        );
+        assert.deepEqual(
+            locs.map((l) => unwrapLinks(l.notes ?? '')),
+            [
+                'Basement of Black-Briar Manor, behind a master-locked door',
+                "The Blue Palace, on a bookshelf in Sybille Stentor's room",
+                '630 ft WSW of Ivarstead',
+            ],
+        );
+        // No orphaned punctuation from a removed link.
+        for (const l of locs) {
+            assert.doesNotMatch(l.notes ?? '', /\s,|\s:|of\s*,/);
+        }
+    });
+
+    test('a bullet that is only the place carries no note', () => {
+        const [only] = parseLocations('*[[Skyrim:Dragonsreach|Dragonsreach]]');
+        assert.equal(only.name, 'Dragonsreach');
+        assert.equal(only.notes, null, 'repeating the name adds nothing');
     });
 
     test('tier 4 - link not at the start of the bullet', () => {
@@ -759,5 +802,63 @@ describe('mapToLocationRows + attachBookIds (FR-11, FR-13)', () => {
             new Map<number, string>(),
         );
         assert.deepEqual(entries, []);
+    });
+});
+
+describe('cleanKeepingLinks (FR-11)', () => {
+    test('cleans everything except the links', () => {
+        assert.equal(
+            cleanKeepingLinks(
+                "In a chest &nbsp;in ''[[Skyrim:Dragonsreach|Dragonsreach]]''" +
+                    ' <!-- hidden --><br>upstairs {{Map Link|x=1}}',
+            ),
+            'In a chest in [[Skyrim:Dragonsreach|Dragonsreach]] upstairs',
+        );
+    });
+
+    test('preserves the spacing either side of a link', () => {
+        // Splitting on links and cleaning each segment would lose these spaces,
+        // because cleanWikitext trims; masking keeps them.
+        assert.equal(cleanKeepingLinks('a [[X|x]] b'), 'a [[X|x]] b');
+    });
+
+    // A DLC marker or Map Link sitting between the place and its comma used to
+    // leave the space behind: `Fort Dawnguard , to the right`.
+    test('closes the gap left by a stripped inline template', () => {
+        assert.equal(
+            cleanKeepingLinks(
+                '[[Skyrim:Fort_Dawnguard|Fort Dawnguard]] {{DG}}, to the right',
+            ),
+            '[[Skyrim:Fort_Dawnguard|Fort Dawnguard]], to the right',
+        );
+        assert.equal(
+            cleanWikitext(
+                '([[Skyrim:The Rift|The Rift]]) {{Map Link|x=1}}, outside',
+            ),
+            '(The Rift), outside',
+        );
+    });
+
+    // A spaced ellipsis is real text, not template residue. `Lore:Where Were
+    // You ... Dragon Broke` is looked up by its exact page title, so collapsing
+    // that space costs a lorename resolution (FR-4a) -- silently, because the
+    // dependency guard only fails at zero.
+    test('leaves a spaced ellipsis alone', () => {
+        assert.equal(
+            cleanWikitext('Where Were You ... Dragon Broke'),
+            'Where Were You ... Dragon Broke',
+        );
+        assert.equal(cleanWikitext('a , b'), 'a, b');
+        assert.equal(cleanWikitext('end .'), 'end.');
+    });
+
+    test('unwrapLinks renders it back to plain text', () => {
+        const kept = cleanKeepingLinks(
+            'Southeast of the [[Skyrim:Abandoned Shack|Abandoned Shack]], on a body',
+        );
+        assert.equal(
+            unwrapLinks(kept),
+            'Southeast of the Abandoned Shack, on a body',
+        );
     });
 });

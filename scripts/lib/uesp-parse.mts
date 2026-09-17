@@ -271,6 +271,35 @@ export function unwrapLinks(text: string): string {
     });
 }
 
+/**
+ * Sentinel used to hide links from `cleanWikitext`. Alphanumeric, so none of
+ * the cleaning steps (entity decoding, quote stripping, tag removal) touch it.
+ */
+const LINK_SENTINEL = 'zqlinkzq';
+
+/**
+ * `cleanWikitext`, but leaving `[[Target|Label]]` markup intact (FR-11).
+ *
+ * Location notes keep their links so the UI can render them as outbound UESP
+ * links; everything else -- comments, refs, templates, HTML, quote markup,
+ * entities -- is still resolved here at import time, so the only thing a reader
+ * has to handle is `unwrapLinks`. Masking rather than segment-splitting because
+ * `cleanWikitext` trims and collapses whitespace, which would destroy the
+ * spacing either side of a link.
+ */
+export function cleanKeepingLinks(text: string): string {
+    if (!text) return '';
+    const links: string[] = [];
+    const masked = text.replace(/\[\[[^\]]+\]\]/g, (m) => {
+        links.push(m);
+        return `${LINK_SENTINEL}${links.length - 1}z`;
+    });
+    return cleanWikitext(masked).replace(
+        new RegExp(`${LINK_SENTINEL}(\\d+)z`, 'g'),
+        (_full, i: string) => links[Number(i)] ?? '',
+    );
+}
+
 /** Removes `{{...}}` templates, brace-aware, so `{{Map Link|x=1|y=2}}` goes whole. */
 export function stripTemplates(text: string): string {
     let out = '';
@@ -316,7 +345,14 @@ export function cleanWikitext(value: string): string {
     out = out.replace(/<[^>]+>/g, '');
     out = out.replace(/'{2,}/g, ''); // ''italic'' / '''bold'''
     out = out.replace(/&[a-z]+;/gi, (e) => ENTITIES[e.toLowerCase()] ?? e);
-    return out.replace(/\s+/g, ' ').trim();
+    out = out.replace(/\s+/g, ' ');
+    // Removing an inline template leaves its spacing behind: `[[Fort
+    // Dawnguard]] {{DG}}, to the right` became `Fort Dawnguard , to the right`.
+    // Close the gap before the punctuation that followed it -- but NOT before a
+    // spaced ellipsis, which is real text: the lore page `Where Were You ...
+    // Dragon Broke` is looked up by its exact title, and collapsing that space
+    // silently cost one of the 116 lorename resolutions (FR-4a).
+    return out.replace(/\s+([,;:!?]|\.(?!\.))/g, '$1').trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -503,11 +539,27 @@ function labelOf(linkInner: string): string {
     ).trim();
 }
 
-function tidyNotes(text: string): string | null {
-    const cleaned = cleanWikitext(text)
+/**
+ * The note for a bullet: the WHOLE bullet, cleaned, with links intact (FR-11).
+ *
+ * Taking the whole bullet rather than the text either side of the extracted
+ * link is what fixes the mid-sentence case. Excising the link closed the gap
+ * and left wreckage -- `Basement of , behind a master-locked door`, `The , on a
+ * bookshelf`, `On ' skeleton in ...` -- because the place name was load-bearing
+ * in the sentence. 322 of 2,327 rows had text on both sides of their link and
+ * 86 were visibly damaged.
+ *
+ * Returns null when the bullet says nothing beyond the place itself, so "no
+ * further detail" stays distinguishable from "detail that repeats the name".
+ */
+function notesForBullet(fullText: string, name: string): string | null {
+    const kept = cleanKeepingLinks(fullText)
         .replace(/^[,;.\s]+/, '')
         .trim();
-    return cleaned || null;
+    if (!kept) return null;
+    return unwrapLinks(kept).replace(/\s+/g, ' ').trim() === name.trim()
+        ? null
+        : kept;
 }
 
 /**
@@ -537,7 +589,7 @@ export function parseLocations(
             for (const child of children) {
                 out.push({
                     name: parent.name,
-                    notes: tidyNotes(child),
+                    notes: notesForBullet(child, parent.name),
                     locationType: parent.locationType,
                 });
             }
@@ -584,9 +636,12 @@ export function parseLocationBullet(bullet: string): ParsedLocation | null {
         const name = link
             ? labelOf(link[1])
             : cleanWikitext(rest.split(',')[0]);
-        const notes = link ? tidyNotes(rest.slice(link[0].length)) : null;
         if (!name) return null;
-        return { name, notes, locationType: 'carrier' };
+        return {
+            name,
+            notes: notesForBullet(text, name),
+            locationType: 'carrier',
+        };
     }
 
     // Tier 3 -- a bearing from a landmark.
@@ -596,11 +651,12 @@ export function parseLocationBullet(bullet: string): ParsedLocation | null {
         const link = LEADING_LINK.exec(rest.trim());
         if (link) {
             const name = labelOf(link[1]);
-            const bearing = cleanWikitext(distance[0]).trim();
-            const trailing = tidyNotes(rest.trim().slice(link[0].length));
-            const notes = [bearing, trailing].filter(Boolean).join(' ').trim();
             if (name)
-                return { name, notes: notes || null, locationType: 'nearby' };
+                return {
+                    name,
+                    notes: notesForBullet(text, name),
+                    locationType: 'nearby',
+                };
         }
     }
 
@@ -608,28 +664,31 @@ export function parseLocationBullet(bullet: string): ParsedLocation | null {
     const leading = LEADING_LINK.exec(text);
     if (leading) {
         const name = labelOf(leading[1]);
-        const notes = tidyNotes(text.slice(leading[0].length));
-        if (name) return { name, notes, locationType: 'place' };
+        if (name)
+            return {
+                name,
+                notes: notesForBullet(text, name),
+                locationType: 'place',
+            };
     }
 
     // Tier 4 -- a link appears later in the bullet; take the first one.
     const anyLink = /\[\[([^\]]*?)\]\]/.exec(text);
     if (anyLink) {
         const name = labelOf(anyLink[1]);
-        const notes = tidyNotes(
-            text.slice(0, anyLink.index) +
-                ' ' +
-                text.slice(anyLink.index + anyLink[0].length),
-        );
-        if (name) return { name, notes, locationType: 'place' };
+        if (name)
+            return {
+                name,
+                notes: notesForBullet(text, name),
+                locationType: 'place',
+            };
     }
 
     // Tier 5 -- plain text.
     const comma = text.indexOf(',');
     const name = cleanWikitext(comma === -1 ? text : text.slice(0, comma));
-    const notes = comma === -1 ? null : tidyNotes(text.slice(comma + 1));
     if (!name) return null;
-    return { name, notes, locationType: 'place' };
+    return { name, notes: notesForBullet(text, name), locationType: 'place' };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

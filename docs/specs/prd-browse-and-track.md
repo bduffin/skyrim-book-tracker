@@ -120,6 +120,7 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 - **NFR-5 — Data scope.** Store structured metadata only; no full book text.
 - **NFR-6 — Resilience.** A failed or slow toggle never corrupts displayed progress; UI converges to server truth on next render.
 - **NFR-7 — Accessibility.** Filter controls and toggles are keyboard-operable and screen-reader labeled (shadcn/ui primitives); disabled state communicates "sign in to track."
+- **NFR-8 — Output encoding for UESP-sourced free text.** `description`, `errata`, `gameplay_note`, and any other free-text `book` column sourced from UESP wikitext, are external content, not app-authored — they must never be rendered via `dangerouslySetInnerHTML` or any other raw-HTML injection path, in this feature or any other that ever displays them (including the deferred NG1 detail page). Render through normal JSX interpolation (`{book.description}`), which auto-escapes. `prd-import-uesp-books.md`'s `cleanWikitext` (§12.2) already strips markup at import time, but that's a best-effort pass over wikitext, not a hardened sanitizer — this NFR is the independent second layer that actually prevents any residual markup from executing.
 
 ## 6. Constraints and Assumptions
 
@@ -174,6 +175,7 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 - AC-8. NFR-1: authenticated list first render < 1s; NFR-2: toggle server confirmation < 500ms p50 — both measured in the target environment.
 - AC-9. UESP CC BY-SA attribution is visible in the UI and present in the README. (FR-7)
 - AC-10. Invalid/tampered query params fall back to defaults without error. (R4)
+- AC-11. Static/audit check: no `dangerouslySetInnerHTML` (or equivalent raw-HTML injection) is used to render `description`, `errata`, `gameplay_note`, or any other UESP-sourced free-text field, anywhere in the app. (NFR-8)
 
 ## 10. Success Metrics
 
