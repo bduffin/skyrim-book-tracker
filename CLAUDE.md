@@ -31,6 +31,14 @@ Project-specific context for AI agents working in this repo. For product and arc
 - `proxy.ts`'s `setAll` callback forwards the second `headers` argument to the response — required so CDN/ISR caching can't serve one user's session cookie to a different user. Don't drop this if touching that file.
 - Next.js 16 renamed `middleware.ts` → `proxy.ts` and the exported function `middleware` → `proxy`. This repo already uses the new convention; don't reintroduce `middleware.ts`.
 
+## Database migrations
+
+- **Never edit an applied migration.** Once a file has run anywhere — the local stack or the linked project — it is a record of what happened, not a draft. Change the schema with a new migration (`supabase migration new <name>`, never a hand-invented filename). The one exception so far was a comment-only correction to a migration that had reached the local stack but not the remote, and even that was worth pausing over.
+- **Every function in `public` declares `security invoker` and `set search_path = ''`,** with all table references schema-qualified (`public.book_location`). `security invoker` is already the default — state it anyway, so a reader doesn't have to know that. The pin is what Supabase Advisors lint `0011_function_search_path_mutable` checks for; run `supabase db advisors --local --type security` after touching any function. `now()` and the rest of `pg_catalog` still resolve under an empty path, so the pin costs nothing for simple bodies.
+- **Reach for `security definer` only when the caller genuinely cannot do the work itself,** and never to make a permission error go away — it doesn't fix the cause, it deletes the check that reported it. RLS is this project's entire authorization model, and the owner (`postgres`) carries `BYPASSRLS`, so a definer function is a hole straight through it. If one is ever needed: keep it out of exposed schemas, pin `search_path`, revoke `EXECUTE` down to the intended role, and put an explicit `auth.uid()` check in the body.
+- **Revoking `EXECUTE` from `public` is not enough.** Postgres grants it to `PUBLIC` on every new function, and Supabase's default privileges _additionally_ grant `anon` and `authenticated` directly — so those two need naming explicitly, or the function stays callable. See the tail of `20260914000000_book_import_schema.sql`.
+- **Writes that must be atomic across statements belong in the database.** PostgREST cannot span statements in one transaction, so a delete-then-insert has to be a plpgsql function taking a batch, not a loop of client calls (`replace_book_locations`).
+
 ## Auth flow specifics
 
 - `src/app/auth/callback/route.ts` is a Route Handler, not a Server Action — deliberately. It's hit by GitHub's own redirect (an external GET request that nothing in this app's own client triggers), so a Server Action can't serve it. This is the one exception to "writes go through Server Actions."
