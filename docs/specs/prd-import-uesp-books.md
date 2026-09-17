@@ -306,6 +306,8 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
 
 `supabase/migrations/20260914000000_book_import_schema.sql` — the block below is that file **verbatim**, so the two stay diffable; change both together or not at all.
 
+> **One comment inside has since gone stale, and is deliberately left as written.** The `is_obtainable` comment says "Exactly one book is false today". That was accurate when the migration was authored, before FR-6c added parsing UESP's own `Skyrim:Unobtainable Items` list. The real figure is **24** — 23 from that page plus the one local supplement (`Skyrim:Shalidor's Insights (unused pages)`). The migration is applied to both the local stack and the linked project, so per CLAUDE.md it is a record of what ran rather than a draft; correcting it here keeps that record intact and the two copies diffable.
+
 ```sql
 -- Migration: book_import_schema
 -- Feature: Import UESP Book Data (see docs/specs/prd-import-uesp-books.md §12)
@@ -665,4 +667,6 @@ That PRD **has been patched** against this import: its skill and category normal
 
 2. **The null-skill skill book.** Oghma Infinium is `skill_book` with `skill = null`, so it appears under no skill chip. Browse must decide whether it shows only under `category=skill_book`, gets an "artifact" affordance, or is otherwise surfaced — otherwise M2's skill filter silently loses the game's most notable book.
 
-3. **Optional:** whether the list MVP shows any location teaser at all. Deferring is fine; it should just be explicit, given this import produces ~2,500 location rows with placement notes that nothing yet renders.
+3. **The five font-test books.** `is_obtainable = false` on 24 books, and five of them are character-set samples Bethesda shipped as real game assets — `Skyrim:123 Abc Def Ghijklmnop Qrstu VWXYZ 123456789`, `Skyrim:Ä ö ü ß Ä Ö Ü`, and three more of accented vowels. They are faithfully imported and correctly excluded from the default scope (FR-3), so nothing is wrong. But they are the first odd thing anyone will see if browse builds a "show unobtainable too" toggle, and they are titles no player would recognise as books. Worth a deliberate decision there rather than a surprise.
+
+4. **Optional:** whether the list MVP shows any location teaser at all. Deferring is fine; it should just be explicit, given this import produces ~2,500 location rows with placement notes that nothing yet renders.

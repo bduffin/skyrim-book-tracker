@@ -222,9 +222,11 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 --                                             -- skill_book EXCEPT Oghma Infinium, which raises six at
 --                                             -- once and is identified by artifact_type instead
 --   artifact_type text,                        -- 'Daedric Artifact'; set on exactly one book
---   is_obtainable boolean not null default true, -- CURATED, not derived: false on one
---                                             -- cut-content page. true means "nothing marked
---                                             -- it otherwise", not "verified obtainable".
+--   is_obtainable boolean not null default true, -- CURATED, not derived: false on 24
+--                                             -- books (23 from UESP's own Unobtainable
+--                                             -- Items list, plus one cut-content page).
+--                                             -- true means "nothing marked it otherwise",
+--                                             -- not "verified obtainable".
 --   description  text, author text, value text, weight numeric(6,2),
 --   icon         text, lorename text, errata text, gameplay_note text,
 --   is_quest_related boolean not null default false,
