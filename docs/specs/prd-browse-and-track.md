@@ -85,7 +85,7 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 **Key design tradeoffs (explicit):**
 
 - **`useOptimistic` + Server Action (chosen)** vs a client-side query/cache library. Chosen for fewer moving parts and native App Router fit. Tradeoff: cross-row cache coordination (e.g., progress bar consistency) leans on `revalidatePath`/server re-render rather than a client cache. If live refetch-on-filter or richer cache invalidation becomes painful, revisit this tradeoff for the list specifically.
-- **Filter state in URL (per Decision #1)** vs client/server state. Chosen for shareability and back-button correctness. Tradeoff: every filter change is a server round-trip; mitigated by Next.js soft navigation + the <1s render budget.
+- **Filter state in URL (per Decision #1)** vs client/server state. Chosen for shareability and back-button correctness. Tradeoff: every filter change is a server round-trip; mitigated by Next.js soft navigation + the `<1s` render budget.
 - **Sparse rows (upsert/delete)** vs a row per (user, book). Per Decision #4, untouched = absent row, so setting either flag `true` = upsert and clearing both flags = delete. Tradeoff: storage stays proportional to actual progress (most users touch a fraction of the 1,207-book catalog) at the cost of a `LEFT JOIN ... COALESCE(is_read, false), COALESCE(is_collected, false)` on every read. The alternative (pre-seed a row per book per user) makes reads trivial but explodes write volume on signup and storage — rejected for a side-project scale.
 - **Two independent flags (`is_read` / `is_collected`)** vs the original `collected` implies `read` monotonic enum — **revised from the initial design**. Reading and collecting are separate in-game actions (you can grab a book to read later, or read one you don't keep), so treating them as one ladder was wrong by domain, not just a simplification. Tradeoff: progress/filters now track two dimensions instead of one (no more single "read-or-better" figure), and each row needs two toggles instead of one segmented control — more UI surface, but each toggle's meaning is unambiguous.
 
@@ -113,7 +113,7 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 
 ### Non-Functional (NFR)
 
-- **NFR-1 — Performance.** List page first render < 1s for an authenticated user (server render, no client waterfall) under expected catalog size.
+- **NFR-1 — Performance.** List page first render `< 1s` for an authenticated user (server render, no client waterfall) under expected catalog size.
 - **NFR-2 — Toggle latency.** Optimistic update is visually instant; Server Action confirmation within 500ms p50 under normal conditions.
 - **NFR-3 — Security / RLS.** RLS on `user_book`: a user can only read/write rows where `auth.uid() = user_id`. `book`/`book_location` publicly readable, not user-writable. **Zero** direct DB calls from any Client Component.
 - **NFR-4 — Architecture conformance.** Server Components default; `"use client"` only for filters and toggle. Server-only DB logic lives in `src/features/*/data.ts`.
@@ -138,7 +138,7 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 - A1. UESP data is pre-seeded into `book` and `book_location` by `prd-import-uesp-books.md`, with normalized `skill`, `category` and `source` all enforced by DB check constraints. Satisfied — the data is ready and FR-3 fixes the default scope over it.
 - A2. Auth (sign-up/sign-in) exists via a separate spec.
 - A3. A book with no `user_book` row is untouched (neither read nor collected); no pre-population.
-- A4. Performance targets (<1s, 500ms) are reasonable given a single-app Vercel + Supabase deployment and a catalog on the order of hundreds–low thousands of books.
+- A4. Performance targets (`<1s`, 500ms) are reasonable given a single-app Vercel + Supabase deployment and a catalog on the order of hundreds–low thousands of books.
 
 ## 7. Risks and Mitigations
 
@@ -146,7 +146,7 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 | --- | ----------------------------------------------------------------------- | ---------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | R1  | Default scope makes "completion" feel unachievable or trivial.          | Med        | Med    | Defaults fixed in FR-3 as allowlists giving 423 books; notes (539), journals (199), treasure maps (12) and Creation Club (326) are opt-in. Revisit if players report the target feels wrong. |
 | R2  | Progress bar drifts from DB after optimistic toggles (consistency).     | Med        | Med    | Server Action calls `revalidatePath` so the next server render recomputes counts; treat client optimistic value as transient only.                                                           |
-| R3  | <1s render breached at scale (large catalog + joins per page).          | Med        | Med    | Paginate (50), index `book(title)`, `user_book(user_id, book_id)`; left-join only the 50 visible books, not the whole catalog; count via a cheap aggregate.                                  |
+| R3  | `<1s` render breached at scale (large catalog + joins per page).        | Med        | Med    | Paginate (50), index `book(title)`, `user_book(user_id, book_id)`; left-join only the 50 visible books, not the whole catalog; count via a cheap aggregate.                                  |
 | R4  | URL param tampering / invalid filter values.                            | Med        | Low    | Validate & whitelist params server-side (zod); fall back to defaults on bad input.                                                                                                           |
 | R5  | RLS misconfig leaks/allows cross-user writes.                           | Low        | High   | Explicit RLS policies + tests asserting a user cannot read/write another's `user_book`; Server Action derives `user_id` from session, never from input.                                      |
 | R6  | Soft navigation on every filter change feels janky.                     | Med        | Low    | Pending UI (useTransition) on filters; debounce; keep payloads small.                                                                                                                        |
@@ -172,7 +172,7 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 - AC-5. The progress bar shows independent collected and read counts over a dynamically computed total, and matches the DB after any change (verified by reload). (FR-5, MI1)
 - AC-6. Static/audit check: **no** Client Component performs a direct DB call; all writes route through a Server Action. (NFR-3/4)
 - AC-7. RLS test: user B cannot read or write user A's `user_book` rows; `book`/`book_location` are publicly readable but not user-writable. (NFR-3)
-- AC-8. NFR-1: authenticated list first render < 1s; NFR-2: toggle server confirmation < 500ms p50 — both measured in the target environment.
+- AC-8. NFR-1: authenticated list first render `< 1s`; NFR-2: toggle server confirmation `< 500ms` p50 — both measured in the target environment.
 - AC-9. UESP CC BY-SA attribution is visible in the UI and present in the README. (FR-7)
 - AC-10. Invalid/tampered query params fall back to defaults without error. (R4)
 - AC-11. Static/audit check: no `dangerouslySetInnerHTML` (or equivalent raw-HTML injection) is used to render `description`, `errata`, `gameplay_note`, or any other UESP-sourced free-text field, anywhere in the app. (NFR-8)
@@ -182,8 +182,8 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 - **Adoption:** % of authenticated users who mark ≥1 book collected within their first session (target: ≥ 60%).
 - **Engagement:** median books toggled per active user per week; return rate of users who toggled in week 1.
 - **Filter usage:** % of sessions that apply ≥1 filter (validates the core "what's left, filtered" thesis; target: ≥ 40%).
-- **Performance (field):** p75 list render < 1s; p50 toggle confirmation < 500ms.
-- **Reliability:** toggle Server Action error rate < 0.5%; optimistic-rollback events < 1% of toggles.
+- **Performance (field):** p75 list render `< 1s`; p50 toggle confirmation `< 500ms`.
+- **Reliability:** toggle Server Action error rate `< 0.5%`; optimistic-rollback events `< 1%` of toggles.
 - **Correctness:** zero reported progress-bar/DB mismatches.
 - **Security:** zero RLS cross-user access incidents; zero Client-Component direct-DB-call regressions (CI guard).
 
