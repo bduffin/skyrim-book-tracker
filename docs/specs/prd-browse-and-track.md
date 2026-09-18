@@ -435,7 +435,7 @@ export async function setBookFlags(
 ```ts
 // One page of books with the current user's flags (absent row = both false).
 export type BookCategory =
-    'skill_book' | 'book' | 'journal' | 'note' | 'black_book';
+    'skill_book' | 'book' | 'journal' | 'note' | 'black_book' | 'treasure_map';
 export type BookSource =
     'base' | 'dawnguard' | 'dragonborn' | 'hearthfire' | 'creation_club';
 

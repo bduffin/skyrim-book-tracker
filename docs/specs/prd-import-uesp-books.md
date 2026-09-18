@@ -81,7 +81,7 @@ parseGameBookTemplate(wikitext)   ──► flat { key: value } params
         ├─ identity:   <page><id>            ──► uesp_page_id  (unique, stable)
         ├─ attributes: id/id2..id5, value, weight, author, description, icon, lorename
         ├─ classifyCategory(parsedPage)      ──► skill_book | book | journal | note
-        │                                        | black_book
+        │                                        | black_book | treasure_map
         ├─ classifySource(smod, categories)  ──► base | dawnguard | dragonborn
         │                                        | hearthfire | creation_club
         ├─ normalizeSkill(params.skill)      ──► one of 18 Skyrim skills | null
@@ -490,7 +490,8 @@ grant  execute on function replace_book_locations(jsonb) to service_role;
 ```ts
 type RawParams = Record<string, string>;
 
-type Category = 'skill_book' | 'book' | 'journal' | 'note' | 'black_book';
+type Category =
+    'skill_book' | 'book' | 'journal' | 'note' | 'black_book' | 'treasure_map';
 type Source =
     'base' | 'dawnguard' | 'dragonborn' | 'hearthfire' | 'creation_club';
 type Skill =
