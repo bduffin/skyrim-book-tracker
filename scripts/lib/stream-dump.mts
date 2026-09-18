@@ -114,12 +114,20 @@ export async function forEachPage(
      * sharply right after the credential prompt, where the user is watching.
      */
     onProgress?: (pagesSeen: number) => void,
-): Promise<{ compression: Compression; pagesSeen: number }> {
+): Promise<{
+    compression: Compression;
+    pagesSeen: number;
+    pagesMalformed: number;
+}> {
     const compression = await detectCompression(path);
     const source = await decompressedStream(path);
     const parser = sax.createStream(false, { trim: false, lowercase: true });
 
     let pagesSeen = 0;
+    // A <page> missing a title, ns or id cannot be used, but dropping it
+    // silently is how a dump-format change would erase books without anyone
+    // noticing. Counted so the run report can say so (AC-9, FR-17).
+    let pagesMalformed = 0;
 
     // Only the first <id> inside a <page> is the page id; <revision> carries
     // its own, and a contributor has a third.
@@ -179,6 +187,8 @@ export async function forEachPage(
                     pageId: current.pageId,
                     wikitext: current.wikitext ?? '',
                 });
+            } else if (current) {
+                pagesMalformed += 1;
             }
             current = null;
             depth = { page: false, revision: false };
@@ -219,5 +229,5 @@ export async function forEachPage(
         );
     }
 
-    return { compression, pagesSeen };
+    return { compression, pagesSeen, pagesMalformed };
 }

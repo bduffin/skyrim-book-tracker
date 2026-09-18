@@ -53,7 +53,8 @@ type Collected = {
     books: ParsedPage[];
     lore: LoreIndex;
     unobtainable: Set<string>;
-    skipped: { noTemplate: number; wrongNamespace: number };
+    skipped: { noTemplate: number };
+    pagesMalformed: number;
 };
 
 /**
@@ -99,10 +100,10 @@ async function collect(dumpPath: string): Promise<Collected> {
     const books: ParsedPage[] = [];
     const lore: LoreIndex = new Map();
     let unobtainable = new Set<string>();
-    const skipped = { noTemplate: 0, wrongNamespace: 0 };
+    const skipped = { noTemplate: 0 };
 
     const progress = progressReporter();
-    const { pagesSeen, compression } = await forEachPage(
+    const { pagesSeen, compression, pagesMalformed } = await forEachPage(
         dumpPath,
         (page: DumpPage) => {
             if (page.ns === LORE_NS) {
@@ -110,10 +111,7 @@ async function collect(dumpPath: string): Promise<Collected> {
                 if (meta) lore.set(page.title.slice('Lore:'.length), meta);
                 return;
             }
-            if (page.ns !== SKYRIM_NS) {
-                skipped.wrongNamespace += 1;
-                return;
-            }
+            if (page.ns !== SKYRIM_NS) return;
             if (page.title === UNOBTAINABLE_PAGE_TITLE) {
                 unobtainable = parseUnobtainableBooks(page.wikitext);
                 return;
@@ -141,7 +139,7 @@ async function collect(dumpPath: string): Promise<Collected> {
     process.stderr.write(
         `read ${pagesSeen.toLocaleString()} pages (${compression})\n`,
     );
-    return { books, lore, unobtainable, skipped };
+    return { books, lore, unobtainable, skipped, pagesMalformed };
 }
 
 /** Attaches the lore metadata and unobtainable set each book needs to map. */
@@ -189,6 +187,7 @@ function report(
         options: ImportOptions;
         target: Target | null;
         skipped: Collected['skipped'];
+        pagesMalformed: number;
         unobtainable: number;
         loreResolved: number;
         loreReferenced: number;
@@ -212,6 +211,9 @@ function report(
     push(
         `  skipped     ${meta.skipped.noTemplate} ns-134 pages with no {{Game Book}}`,
     );
+    // Zero is the expected reading. Anything else means the dump's own shape
+    // changed and pages are being dropped before we ever classify them (AC-9).
+    push(`  malformed   ${meta.pagesMalformed} pages with no title, ns or id`);
     push();
     push('  by category');
     push(table(tally(rows.map((r) => r.category))));
@@ -459,6 +461,7 @@ export async function run(options: ImportOptions): Promise<void> {
         options,
         target,
         skipped: collected.skipped,
+        pagesMalformed: collected.pagesMalformed,
         unobtainable: collected.unobtainable.size,
         loreResolved,
         loreReferenced,

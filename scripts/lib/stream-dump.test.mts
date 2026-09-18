@@ -2,7 +2,8 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -62,10 +63,45 @@ describe('forEachPage (FR-2)', () => {
         assert.match(deathbrand?.wikitext ?? '', /\{\{Game Book/);
     });
 
-    test('a file with no pages fails loudly rather than importing nothing', async () => {
-        await assert.rejects(
-            () => forEachPage(join(HERE, 'stream-dump.test.mts'), () => {}),
-            /No <page> elements found/,
+    // A <page> we cannot use must be COUNTED, not dropped in silence: that is
+    // how a change to the dump's own shape would erase books unnoticed (AC-9).
+    test('counts pages missing a title, ns or id instead of dropping them', async () => {
+        const tmp = join(tmpdir(), `dump-malformed-${process.pid}.xml`);
+        writeFileSync(
+            tmp,
+            `<mediawiki>
+               <page><title>A</title><ns>134</ns><id>1</id>
+                 <revision><text>{{Game Book}}</text></revision></page>
+               <page><title>No id here</title><ns>134</ns>
+                 <revision><text>{{Game Book}}</text></revision></page>
+               <page><ns>134</ns><id>3</id>
+                 <revision><text>{{Game Book}}</text></revision></page>
+             </mediawiki>`,
         );
+        try {
+            const seen: string[] = [];
+            const out = await forEachPage(tmp, (pg) => seen.push(pg.title));
+            assert.deepEqual(seen, ['A']);
+            assert.equal(out.pagesSeen, 1);
+            assert.equal(out.pagesMalformed, 2, 'both must be reported');
+        } finally {
+            rmSync(tmp, { force: true });
+        }
+    });
+
+    // Deliberately a temp file, not a source file: this test used to read
+    // stream-dump.test.mts itself, which quietly started passing pages the
+    // moment a test above embedded a <page> literal.
+    test('a file with no pages fails loudly rather than importing nothing', async () => {
+        const tmp = join(tmpdir(), `dump-empty-${process.pid}.xml`);
+        writeFileSync(tmp, '<mediawiki><siteinfo/></mediawiki>');
+        try {
+            await assert.rejects(
+                () => forEachPage(tmp, () => {}),
+                /No <page> elements found/,
+            );
+        } finally {
+            rmSync(tmp, { force: true });
+        }
     });
 });
