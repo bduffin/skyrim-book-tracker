@@ -294,7 +294,8 @@ type WriteOutcome = {
 async function existingPageIds(client: SupabaseClient): Promise<Set<number>> {
     const PAGE = 1000;
     const seen = new Set<number>();
-    for (let from = 0; ; from += PAGE) {
+    let from = 0;
+    for (;;) {
         const { data, error } = await client
             .from('book')
             .select('uesp_page_id')
@@ -302,8 +303,14 @@ async function existingPageIds(client: SupabaseClient): Promise<Set<number>> {
         if (error) {
             throw new Error(`reading existing books failed: ${error.message}`);
         }
-        for (const row of data ?? []) seen.add(row.uesp_page_id as number);
-        if (!data || data.length < PAGE) return seen;
+        // Advance by what came back, and stop only on an EMPTY page. Treating
+        // `length < PAGE` as the end assumes the server's cap is at least PAGE;
+        // when it is lower, every request returns a short page and the first
+        // one would look like the last -- leaving `seen` short, so books that
+        // already exist get reported as new.
+        if (!data || data.length === 0) return seen;
+        for (const row of data) seen.add(row.uesp_page_id as number);
+        from += data.length;
     }
 }
 
@@ -329,7 +336,20 @@ async function write(
                     `${error.message}${error.hint ? `\n  hint: ${error.hint}` : ''}`,
             );
         }
-        for (const row of data ?? []) {
+        // PostgREST caps how many rows a response may return (`max_rows`, 1000
+        // locally). If a chunk ever exceeds it the returned set is truncated,
+        // idsByPageId comes back short, and attachBookIds silently drops those
+        // books' locations -- no error, just missing rows and a location count
+        // that reads as data drift. CHUNK_SIZE is 500 today, so this is a
+        // tripwire for whoever raises it, not a live fault.
+        if ((data?.length ?? 0) !== batch.length) {
+            throw new Error(
+                `book upsert returned ${data?.length ?? 0} rows for a chunk of ` +
+                    `${batch.length}. PostgREST truncates responses at its ` +
+                    'max_rows; lower CHUNK_SIZE in scripts/lib/db.mts below it.',
+            );
+        }
+        for (const row of data) {
             idsByPageId.set(row.uesp_page_id as number, row.id as string);
         }
         process.stderr.write(

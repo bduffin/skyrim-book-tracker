@@ -337,6 +337,29 @@ export function cleanWikitext(value: string): string {
     if (!value) return '';
     let out = value;
     out = out.replace(/<!--[\s\S]*?-->/g, '');
+    // Numeric character references, decoded BEFORE the alias substitution
+    // below: one sumtitle writes its `=` as `&#61;`, which left
+    // `Fijeh's Letter to` when the alias went unrecognised. Exactly one exists
+    // in the 2026-08-30 dump, and no `&#60;`/`&#62;`, so this cannot conjure a
+    // tag out of an encoded angle bracket.
+    out = out.replace(/&#(\d+);/g, (_full, d: string) =>
+        String.fromCodePoint(Number(d)),
+    );
+    out = out.replace(/&#x([0-9a-f]+);/gi, (_full, h: string) =>
+        String.fromCodePoint(parseInt(h, 16)),
+    );
+    // Creation Kit alias placeholders -- `<Alias=QuestGiver>` -- are runtime
+    // substitutions, not HTML, but sax has already decoded `&lt;` so the tag
+    // strip below would eat them, leaving titles like `Letter from`, `Fijeh's
+    // Letter to`, and one book called simply `To`. Render the alias name
+    // instead, splitting CamelCase and keeping its own casing: the result
+    // reproduces UESP's own page titles (`To (Player)`, `Writ of Execution:
+    // (player)`), which is how their editors evidently read them too.
+    out = out.replace(
+        /<\s*alias\s*=\s*([^>]*?)\s*>/gi,
+        (_full, name: string) =>
+            `(${name.replace(/([a-z0-9])([A-Z])/g, '$1 $2')})`,
+    );
     out = out.replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, '');
     out = out.replace(/<ref[^>]*\/>/gi, '');
     out = stripTemplates(out);
@@ -577,6 +600,7 @@ export function parseLocations(
 
     const out: ParsedLocation[] = [];
     let parent: ParsedLocation | null = null;
+    let parentRaw = '';
     let children: string[] = [];
 
     // A parent with `**` children describes one place holding several copies
@@ -587,9 +611,15 @@ export function parseLocations(
         if (!parent) return;
         if (children.length) {
             for (const child of children) {
+                // Carry the parent's own text into each child. Dropping it left
+                // these rows as the only ones whose notes never name their
+                // place, and lost real detail where the parent had some --
+                // `Fort Dawnguard, on the ground floor` became just `On a shelf
+                // in the farthest room...`, placing the book nowhere.
+                const joined = `${parentRaw.replace(/[\s,;:]+$/, '')}; ${child}`;
                 out.push({
                     name: parent.name,
-                    notes: notesForBullet(child, parent.name),
+                    notes: notesForBullet(joined, parent.name),
                     locationType: parent.locationType,
                 });
             }
@@ -597,6 +627,7 @@ export function parseLocations(
             out.push(parent);
         }
         parent = null;
+        parentRaw = '';
         children = [];
     };
 
@@ -613,6 +644,7 @@ export function parseLocations(
         if (depth === 1) {
             flush();
             parent = parseLocationBullet(content);
+            parentRaw = content;
         } else if (parent) {
             children.push(content);
         }

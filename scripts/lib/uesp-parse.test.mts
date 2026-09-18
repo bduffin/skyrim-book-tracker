@@ -409,6 +409,21 @@ describe('parseLocations (FR-11)', () => {
             !locs.some((l) => /^interior/i.test(l.name)),
             'sub-bullet text must never become a location name',
         );
+        // Each child carries the parent's own text. Without it these were the
+        // only rows whose notes never named their place, and a parent like
+        // `Fort Dawnguard, on the ground floor` lost that detail entirely.
+        for (const d of deepwood) {
+            assert.match(
+                unwrapLinks(d.notes ?? ''),
+                /^Deepwood Redoubt/,
+                'child notes must lead with the parent location',
+            );
+        }
+        assert.equal(
+            new Set(deepwood.map((d) => d.notes)).size,
+            3,
+            'the three copies stay distinguishable',
+        );
     });
 
     test('non-bullet prose is ignored', () => {
@@ -843,6 +858,27 @@ describe('cleanKeepingLinks (FR-11)', () => {
     // You ... Dragon Broke` is looked up by its exact page title, so collapsing
     // that space costs a lorename resolution (FR-4a) -- silently, because the
     // dependency guard only fails at zero.
+    // Alias placeholders are runtime substitutions, not HTML. Stripping them
+    // as tags left `Letter from`, `Fijeh's Letter to`, and a book called `To`.
+    test('renders Creation Kit alias placeholders rather than eating them', () => {
+        assert.equal(
+            cleanWikitext('Letter from <Alias=QuestGiver>'),
+            'Letter from (Quest Giver)',
+        );
+        assert.equal(cleanWikitext('To <Alias=Player>'), 'To (Player)');
+        assert.equal(
+            cleanWikitext('Writ of Execution: <alias=player>'),
+            'Writ of Execution: (player)',
+        );
+        // One sumtitle writes its `=` as the numeric entity `&#61;`.
+        assert.equal(
+            cleanWikitext("Fijeh's Letter to <Alias&#61;Player>"),
+            "Fijeh's Letter to (Player)",
+        );
+        // Real HTML is still removed.
+        assert.equal(cleanWikitext('a <b>bold</b> word'), 'a bold word');
+    });
+
     test('leaves a spaced ellipsis alone', () => {
         assert.equal(
             cleanWikitext('Where Were You ... Dragon Broke'),
