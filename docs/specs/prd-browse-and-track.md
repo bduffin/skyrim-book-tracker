@@ -14,7 +14,7 @@
 | #   | Type      | Issue                                                            | Resolution in this PRD                                                                                                                                    |
 | --- | --------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | MI1 | Missing   | No canonical total book count (the "/820" denominator).          | Compute dynamically from `book`, never hardcoded, and over the default scope rather than the whole catalogue — see FR-3's default allowlists (423 books). |
-| MI3 | Missing   | Spec has no title **search**; arch §8 references search inputs.  | Out of scope for this PRD; tracked as OQ-3.                                                                                                               |
+| MI3 | Missing   | Spec has no title **search**; arch §8 references search inputs.  | In scope as a title substring filter — see FR-9. Ranked/full-text search stays out (NG5).                                                                 |
 | MI4 | Missing   | No sort order specified.                                         | Default sort: title A→Z. OQ-4.                                                                                                                            |
 | MI5 | Ambiguous | Success criterion 5: unauthenticated controls "disabled/hidden." | **Decision:** render controls **disabled** with a sign-in affordance (discoverability > hiding). OQ-5.                                                    |
 | MI6 | Missing   | No defined behavior when a toggle Server Action fails.           | Optimistic state **rolls back** + non-blocking error toast. FR-4.                                                                                         |
@@ -41,7 +41,7 @@ Skyrim completionists have no lightweight, persistent, web-based way to track wh
 - NG2. **Per-character / multi-character** tracking.
 - NG3. Saved filter presets / named collections.
 - NG4. _(Removed — `read` is now in scope; see FR-4 and the `is_read`/`is_collected` flags.)_
-- NG5. Full-text **title search** (MI3 / OQ-3).
+- NG5. **Full-text or ranked search** — `tsvector`, relevance ordering, fuzzy/trigram matching. Title search itself is in scope as a plain substring match (FR-9, MI3); nothing beyond that is planned. NG6 means there is no book text to index in any case.
 - NG6. Storing or rendering full book text — a **scope** decision, not a licensing one. CC BY-SA 2.5 permits redistribution with attribution; see `prd-import-uesp-books.md` NG2.
 - NG7. Auth/sign-up/sign-in flows (separate spec; assumed to exist).
 - NG8. UESP data import/seeding (separate task; assumed done).
@@ -58,24 +58,24 @@ Skyrim completionists have no lightweight, persistent, web-based way to track wh
 
 ## 4. Proposed Solution
 
-A single **server-rendered book list page** at e.g. `/books` (route name OQ-6), built server-first:
+Two **server-rendered** routes over one shared data layer and row component (FR-8), built server-first — `/books` is the catalogue you browse, filter and mark from, `/collection` is the signed-in user's own tracking view, and `/` redirects to one or the other depending on whether the visitor is signed in:
 
 1. **Server Component (page)** reads filter/pagination state from URL query params, fetches the matching paginated `book` rows joined to the current user's `user_book` rows (left join → absent row = untouched, `is_read`/`is_collected` both `false`), and computes the progress totals. Unauthenticated requests skip the user join.
 2. **Client Components (opt-in)** handle only interactivity: the filter controls and the per-row read/collected controls. Filter changes push new query params → Next.js soft navigation re-renders the Server Component (no full reload).
 3. **Read/Collected controls** use `useOptimistic` for instant UI feedback and call a **Server Action** that validates the Supabase session server-side and upserts the changed flag(s), or deletes the `user_book` row once both flags are `false`, under RLS. On failure, the optimistic state rolls back and a toast surfaces the error.
-4. **Progress bar** is a Server Component value reflecting true DB counts (collected, and read — counted independently, not combined); it re-derives on each server render (after any change's `revalidate`).
-5. **Unauthenticated** users get the full list with status controls rendered **disabled** plus a sign-in prompt; the progress bar shows catalog total only.
+4. **Progress bar** (on `/collection` only — FR-8) is a Server Component value reflecting true DB counts (collected, and read — counted independently, not combined); it re-derives on each server render (after any change's `revalidate`).
+5. **Unauthenticated** users get the full `/books` list with the read/collected toggles rendered **disabled** plus a sign-in prompt; they are redirected off `/collection`, so no progress bar is rendered for them at all.
 
 ```
 URL (?category=&source=&skill=&read=&collected=&page=)
         │  soft-nav
         ▼
-[Server Component: /books page]
+[Server Component: /books | /collection page]
   ├─ getBooksPage(filters, page, userId?)  ──► Supabase (book ⟕ user_book)
   ├─ getProgress(userId?)                   ──► Supabase counts
   └─ renders:
-       ├─ <ProgressBar/>            (server)
-       ├─ <Filters/>  "use client" (writes URL params)
+       ├─ <ProgressBar/>            (server; /collection only)
+       ├─ <Filters/>  "use client" (writes URL params; /books only)
        └─ <BookRow/>* with <ReadToggle/>/<CollectedToggle/> "use client"
                                    └─ Server Action: setBookFlags(bookId, { isRead?, isCollected? })
                                         ├─ assert auth.uid()
@@ -107,9 +107,19 @@ URL (?category=&source=&skill=&read=&collected=&page=)
     Together these give the **423**-book default catalogue. `is_obtainable` is **not a user control** — it is always `true` in the query and has no chip, because a book no player can acquire is never something to browse or track. Note `hearthfire` contributes only 10 items (9 notes, 1 book), so enabling it changes the default list by exactly one book; the source chips are not equally weighted.
 
 - **FR-4 — Read/Collected controls (Client Component + Server Action).** Authenticated user toggles a book's `is_read` and `is_collected` flags independently — toggling one never changes or implies the other. UI updates optimistically per flag; a Server Action validates the Supabase session and writes `user_book` under RLS — **upsert** the changed flag(s), **delete** the row once both flags are `false`. On success, server state is revalidated so the progress bar stays truthful. On failure, the optimistic change rolls back and a non-blocking error toast appears (MI6). The write path never trusts a client-supplied `user_id`.
-- **FR-5 — Progress summary.** A progress bar shows `<collected> collected · <read> read / <total>` (total computed dynamically, MI1; `collected` and `read` are independent counts, not combined). `<total>` is the count within the **default scope** (FR-3), not `count(book)` — the unscoped figure is 1,207 including 539 notes and 326 Creation Club books, which is a materially different product from the 423-book "real books" catalogue FR-3 defaults to. It reflects true DB state after any change. For unauthenticated users it shows `0 / <total>` or total only.
+- **FR-5 — Progress summary.** A progress bar shows `<collected> collected · <read> read / <total>` (total computed dynamically, MI1; `collected` and `read` are independent counts, not combined). `<total>` is the count within the **default scope** (FR-3), not `count(book)` — the unscoped figure is 1,207 including 539 notes and 326 Creation Club books, which is a materially different product from the 423-book "real books" catalogue FR-3 defaults to. It reflects true DB state after any change. Unauthenticated visitors never see it — they are redirected off `/collection` (FR-8).
 - **FR-6 — Pagination.** 50 books/page; page in URL. Stable ordering (default title A→Z, MI4) so pagination is deterministic.
 - **FR-7 — Attribution.** UESP CC BY-SA attribution visible in the UI (and README per arch §2).
+- **FR-8 — Routes and information architecture.** Two routes over the same data layer and row component:
+
+    - **`/books`** — the catalogue, and the only route that lists the whole scoped catalogue: the list (FR-1), filters (FR-3), pagination (FR-6), and the per-row read/collected toggles (FR-4). Fully readable signed out (FR-2). It carries **no** progress summary: progress is a property of a user, not of the catalogue.
+    - **`/collection`** — the signed-in user's own tracking view: the progress summary (FR-5), the books they have marked, and a **quick-add** control for marking a book without paging through the catalogue. Quick-add is a search (FR-9) over the catalogue, not a second full listing.
+    - **`/`** — redirects to `/collection` when signed in, `/books` when anonymous. It replaces the scaffold's leftover `instruments` page, which is deleted.
+    - A signed-out visitor hitting **`/collection`** directly is redirected to `/books`. If a dedicated sign-in route is added later — likely once there is more than one auth provider — that becomes the better target.
+
+    The two routes land in different milestones — `/books` at M1, `/collection` at M3 — so until M3 `/` redirects to `/books` unconditionally rather than pointing at a route that does not exist yet.
+
+- **FR-9 — Title search.** A `?q=` query param narrows the list to books whose `title` contains the term, case-insensitively — a plain `ilike '%term%'` substring match, **not** ranked or full-text (NG5). It is another filter, not a mode: it combines with the active category/source/skill/status filters and the default scope rather than replacing them, and it resets to page 1 like any other filter change (FR-3). It needs **no migration and no index** — at ~1,200 rows a sequential scan beats an index lookup, the same reasoning `20260914000000_book_import_schema.sql` records for `is_obtainable`. Two things the implementation must get right: the term's LIKE metacharacters (`%`, `_`) are escaped, so a user typing `%` matches a literal percent sign instead of every book; and an absent or empty `q` applies no predicate at all (R4). This is also what backs `/collection`'s quick-add (FR-8).
 
 ### Non-Functional (NFR)
 
@@ -157,9 +167,9 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 ## 8. Milestones / Phased Rollout
 
 - **M0 — Foundations (prereq verification).** Confirm assumed dependencies: auth works; **`prd-import-uesp-books.md` M3 has run**, so `book`/`book_location` are populated with normalized `skill`/`category`/`source` (~1,207 books, 423 in FR-3's default scope); RLS policies on `user_book` in place. This milestone gates the whole feature on that import — until it has run the `book` table is empty and every screen below renders nothing. Exit: a smoke query returns books and the session helper returns a user id.
-- **M1 — Read-only browse (public).** Server Component list with title/category/source/skill, scoped to FR-3's default allowlists, pagination (50/page), default sort, UESP attribution. No auth needed. Exit: FR-1, FR-6, FR-7; NFR-1 met for anonymous.
-- **M2 — Filters.** URL-backed category, source, skill and read/collected filters, soft-nav, page reset. Exit: FR-3, shareable URLs.
-- **M3 — Tracking.** Read/collected toggles via Server Action + `useOptimistic`, RLS-enforced writes, rollback-on-failure, progress bar. Exit: FR-4, FR-5, NFR-2/3/6.
+- **M1 — Read-only browse (public).** Server Component list with title/category/source/skill at **`/books`**, scoped to FR-3's default allowlists, pagination (50/page), default sort, UESP attribution. `/` redirects there and the scaffold's `instruments` page is deleted (FR-8). No auth needed. Exit: FR-1, FR-6, FR-7; NFR-1 met for anonymous.
+- **M2 — Filters and title search.** URL-backed category, source, skill and read/collected filters, plus the `?q=` title substring match (FR-9) — it is one more predicate on the same query and one more param on the same soft-nav plumbing, so it is cheapest built here rather than retrofitted. Soft-nav, page reset. Exit: FR-3, FR-9, shareable URLs.
+- **M3 — Tracking.** Read/collected toggles via Server Action + `useOptimistic`, RLS-enforced writes, rollback-on-failure, progress bar. Adds **`/collection`** (progress summary plus the books the user has marked) and makes `/` conditional on auth state (FR-8). Exit: FR-4, FR-5, FR-8, NFR-2/3/6.
 - **M4 — Unauthenticated polish.** Disabled controls + sign-in affordance. Exit: FR-2, MI5.
 - **M5 — Hardening.** RLS tests, param validation (R4), perf pass against NFR-1, a11y pass (NFR-7). Exit: all acceptance criteria green.
 
@@ -176,6 +186,8 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 - AC-9. UESP CC BY-SA attribution is visible in the UI and present in the README. (FR-7)
 - AC-10. Invalid/tampered query params fall back to defaults without error. (R4)
 - AC-11. Static/audit check: no `dangerouslySetInnerHTML` (or equivalent raw-HTML injection) is used to render `description`, `errata`, `gameplay_note`, or any other UESP-sourced free-text field, anywhere in the app. (NFR-8)
+- AC-12. `/books` renders the catalogue with no progress summary, and `/collection` the signed-in user's tracking view; `/` redirects to `/collection` when signed in and `/books` when anonymous (unconditionally `/books` before M3); a signed-out visitor hitting `/collection` lands on `/books`; and no route still serves the scaffold's `instruments` page. (FR-8)
+- AC-13. A `?q=` term narrows the list to titles containing it case-insensitively, **combined with** the active filters rather than replacing them; it resets to page 1, reproduces the same view from a copied URL, and a term containing `%` or `_` matches those characters literally instead of acting as a wildcard. (FR-9)
 
 ## 10. Success Metrics
 
@@ -189,11 +201,11 @@ URL (?category=&source=&skill=&read=&collected=&page=)
 
 ## 11. Open Questions
 
-- **OQ-3 (MI3):** Is title search in or out for the first release? Spec omits it; architecture references it.
 - **OQ-4 (MI4):** Default sort and available sort options (title, category, collected-first)?
 - **OQ-5 (MI5):** Unauthenticated track controls — disabled (recommended) vs hidden vs inline sign-in prompt?
-- **OQ-6:** Route/IA — `/books`, `/`, or `/collection`? Where does the progress bar live relative to filters?
 - **OQ-7:** Empty-state copy when filters match zero books.
+- **OQ-9 (from OQ-6):** Does `/collection` become a public profile — `/collection/[username]` or similar — so one user's progress can be viewed by another? This is not a UI change. `user_book_select_own` is `using ((select auth.uid()) = user_id)`, so another user's rows are invisible to the query today; it needs a new policy or a separate public projection, and it turns "what you have read" into shared rather than private data.
+- **OQ-10 (from OQ-6):** Which progress bars does `/collection` show — collected vs read, base vs base+DLC, with or without notes — and can the user configure the set? More than one revises FR-5, which specifies a single bar, and relaxes NG9, which rules out progress charts beyond a single summary bar.
 
 ---
 
@@ -425,7 +437,11 @@ export async function setBookFlags(
         if (error) return { ok: false, error: 'write_failed' };
     }
 
-    revalidatePath('/books'); // adjust to the final route (OQ-6)
+    // Both routes read user_book: /books renders the per-row flags, and
+    // /collection the progress summary and which books appear there at
+    // all (FR-8), so a toggle invalidates both.
+    revalidatePath('/books');
+    revalidatePath('/collection');
     return { ok: true, isRead: nextIsRead, isCollected: nextIsCollected };
 }
 ```
