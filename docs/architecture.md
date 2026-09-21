@@ -291,6 +291,28 @@ AI usage principles:
     - Debugging (error + minimal relevant code).
     - Code review and refactoring.
 
+### Testing
+
+There is **no CI**, so anything that has to be remembered will drift, and a stale suite is worse than none because it manufactures confidence. That shapes the whole approach: prefer mechanisms that fail the build or the lint over suites someone must think to run.
+
+**Enforcement, not tests.** Two of the browse PRD's acceptance criteria describe properties of the codebase rather than behavior, and both are enforceable:
+
+- `import 'server-only'` at the top of every `src/features/*/data.ts`. A Client Component that imports server data logic then fails the build (AC-6). This covers app data, not auth — `src/lib/supabase/client.ts` is meant to run client-side.
+- The `react/no-danger` ESLint rule, which fails `eslint` on any `dangerouslySetInnerHTML` (AC-11).
+
+**Pure logic → `node:test`.** The existing suite under `scripts/lib/` uses `node:test` and `node:assert/strict` with no third-party runner, and the app follows it. The constraint that makes this work is keeping logic **out of** the async component: parameter parsing, scope constants and page math live as pure functions in `data.ts` and are tested directly (AC-10). Expectations are hand-transcribed, never captured from the implementation — a snapshot cannot catch code being confidently wrong, which is the whole point of the gate.
+
+**RLS → a real Postgres, never a mock.** RLS is the entire authorization model, with no second check behind it, and a mocked policy only proves the mock works. The test creates two users against the **local** stack and asserts that one cannot read or write the other's `user_book` rows (AC-7). Drive it through `supabase-js` rather than raw SQL, so it exercises the path the app actually uses — PostgREST plus a JWT — and reuse the importer's local-only guard so a test can never point at the hosted project.
+
+**Browser-only behavior → Playwright.** Filters changing the list without a full reload, optimistic toggles and their rollback, disabled controls when signed out, progress matching the database after a reload (AC-2 through AC-5). It also automates the progressive-enhancement check in §9: a browser context with `javaScriptEnabled: false` turns "disable JS and see if it still works" into an assertion instead of a habit.
+
+**Deliberately skipped:**
+
+- A second test runner with a component renderer for Server Components. Async Server Components do not render meaningfully in a unit renderer, so this buys a dependency without the coverage; end-to-end is the correct level for them.
+- Snapshot tests, for the reason above.
+
+Layers arrive with the milestone that needs them — enforcement at Browse M1, Playwright at Browse M2/M3, RLS at Browse M3. Note `yarn test` currently globs `scripts/**/*.test.mts` only, so it needs widening when the first `src/` test lands.
+
 ## 12. Non-Goals (for Now)
 
 - Over‑engineering infrastructure (Kubernetes, custom CI/CD, complex observability).

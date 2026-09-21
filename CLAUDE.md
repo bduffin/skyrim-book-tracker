@@ -80,6 +80,15 @@ Full reasoning lives in `docs/architecture.md` §9; these are the parts that are
 - `user_book` tracks `is_read` and `is_collected` as two independent booleans — collecting a book and reading it are separate in-game actions, so neither implies the other (this replaced an earlier three-state `unread|read|collected` enum design). Absence of a `user_book` row means untouched (both `false`) and is never persisted as its own state — a `user_book_touched` check constraint (`is_read or is_collected`) enforces this at the DB level.
 - User notes live in a separate `user_book_note` table, not on `user_book`. Two reasons: `user_book` is the hottest, most frequently-written table (every read/collected toggle writes it), and Postgres rewrites the whole row on every update (MVCC), so a large notes column there would get copied on every unrelated flag toggle; splitting it out also means a note can exist whether or not the book is tracked at all, and clearing both flags on `user_book` never risks losing a note.
 
+## Testing
+
+Full approach in `docs/architecture.md` §11; the conventions that bite are:
+
+- **Every `src/features/*/data.ts` opens with `import 'server-only'`.** That import is what makes `prd-browse-and-track.md` AC-6 a build failure rather than a review note, so dropping it silently removes the guarantee without breaking anything visible. It applies to app data only — `src/lib/supabase/client.ts` is supposed to run in Client Components for the auth handshake.
+- **Tests are `node:test` + `node:assert/strict`. No third-party runner, and no snapshots.** Expectations are hand-transcribed from the source data, as `scripts/lib/uesp-parse.test.mts` says in its header: a snapshot captured from the implementation cannot catch that implementation being confidently wrong, which is the only failure mode worth gating on here.
+- **Keep logic out of async Server Components if it needs testing.** They do not render in a unit renderer, so anything worth asserting — param parsing, scope constants, page math — belongs in a pure function in `data.ts`, with end-to-end coverage for the component itself.
+- **Database tests point at the local stack only.** RLS tests need real Postgres (a mocked policy proves only that the mock works), so reuse the importer's local-only guard rather than trusting a well-aimed env var.
+
 ## Not yet set up
 
 - shadcn/ui is planned (`docs/architecture.md` §3) but not installed yet — Tailwind CSS itself is now set up (see "Tooling" above).
