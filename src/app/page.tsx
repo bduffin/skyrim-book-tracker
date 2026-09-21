@@ -1,24 +1,13 @@
-import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 
-export default async function Page() {
-    const supabase = await createClient();
-    const { data: instruments, error } = await supabase
-        .from('instruments')
-        .select();
-
-    if (error) {
-        console.error('Failed to load instruments:', error);
-        throw new Error(error.message);
-    }
-
-    return (
-        <main>
-            <h1>Hello, Next.js!</h1>
-            <ul>
-                {(instruments ?? []).map((instrument) => (
-                    <li key={instrument.id}>{instrument.name}</li>
-                ))}
-            </ul>
-        </main>
-    );
+/**
+ * FR-8: `/` sends the visitor to whichever page is theirs.
+ *
+ * Unconditionally `/books` until Browse M3 adds `/collection/[user]`, at which
+ * point this reads the session and picks. `redirect()` issues a **307**; a
+ * permanent 308 would be cached by the browser indefinitely, so anyone who
+ * first landed here signed out would never reach their collection afterwards.
+ */
+export default function Home() {
+    redirect('/books');
 }
