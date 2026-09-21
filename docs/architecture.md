@@ -38,7 +38,7 @@ Guidelines:
 - **Framework:** Next.js (App Router, React Server Components).
 - **Backend / DB / Auth:** Supabase (Postgres, Supabase Auth, Row‑Level Security).
 - **Hosting:** Vercel (primary target) with Supabase’s managed infrastructure.
-- **Styling:** Tailwind CSS + shadcn/ui component primitives.
+- **Styling:** Tailwind CSS + shadcn/ui component primitives — responsive strategy and the browser floor are in §9.
 - **Client‑side interactivity:** Server Actions + React's `useOptimistic`/`useTransition` — no separate client-side data-fetching library.
 - **Language / Tooling:** TypeScript, Yarn, ESLint, Prettier.
 
@@ -197,6 +197,60 @@ Client Components handle interactivity via **Server Actions** plus React's `useO
 - For **filter changes**, push new URL query params and let Next.js soft navigation re-render the Server Component — no client-side refetching needed.
 
 Everywhere else, rely on Server Components fetching data directly from Supabase (via server‑side helpers).
+
+### Why there is no client-side store
+
+**No client-side state or data-fetching library is used, and none should be added.**
+
+In the App Router a Server Component **is** the data layer. `await getBooksPage(...)` runs on the server and the rows are in the HTML before anything reaches the browser — there is no fetch-on-mount, no loading state to model, and no client cache to invalidate. The three jobs a client store would do are each already covered:
+
+| Job a client store would do      | What does it here                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------- |
+| Hold filter and pagination state | The URL (`prd-browse-and-track.md` Decision #1) — shareable and back-button correct for free |
+| Cache fetched data               | The server render itself, re-derived after a write via `revalidatePath`                      |
+| Share data between components    | Props, passed down from the Server Component that fetched it                                 |
+
+So the abstraction layer is an async function in `src/features/{domain}/data.ts`, not a hook. **Hooks are for interaction state, never for server data:** `useOptimistic` and `useTransition` for in-flight UI, `useState`/`useContext` for genuinely client-side concerns like a toast queue or whether a filter panel is open. A Client Component that fetches app data itself is a bug rather than a style choice (`prd-browse-and-track.md` NFR-3, audited by AC-6).
+
+The accepted cost is that every filter change is a server round-trip instead of a client cache hit.
+
+### Progressive enhancement
+
+The app is server-rendered, so it should work without client-side JavaScript. The rule is **degrade, do not break** — where a feature cannot work JS-free, it loses its enhancement rather than its function.
+
+- **Navigation, pagination and filters** are URL state, so they are plain links and `` `<form method="get">` `` submissions. Without JS they full-page-load; with JS, Next.js soft-navigates.
+- **Server Actions progressively enhance on their own — but only through a form.** `` `<form action={serverAction}>` `` performs a real POST and re-render with JS disabled, then upgrades to `useOptimistic` when JS runs. An `onClick` handler calling the same action does not degrade at all, so write the form even when the control looks like a button.
+
+Accepted as non-degradable: optimistic updates, non-blocking toasts (a JS-free failure has to surface server-rendered on the next paint), and typeahead/quick-add.
+
+There is no CI, so the check is manual: **disable JavaScript and confirm the list, its filters and the read/collected controls still work.**
+
+### Responsive design and the browser floor
+
+Layout adapts through media and container queries, never user-agent sniffing. Tailwind provides both natively, so no UI library is needed for it:
+
+- **Breakpoint variants** (`sm:`, `md:`, `lg:`) compile to media queries. Use these for page-level layout, such as how many columns the book list shows.
+- **Container queries** (`@container` with `@sm:` variants) are **core in Tailwind v4**, having been a plugin in v3. Use these when a component must adapt to the width of its slot rather than the viewport — which is what happens as soon as a book row is reused inside a narrower panel.
+
+**The browser floor is set by the toolchain, not chosen independently — and two parts of it set their halves separately.** Tailwind v4's core depends on `@property`, `color-mix()` and cascade layers, and its targets are compiled in: it does not read a `browserslist` config at all. Next resolves its own targets through `getSupportedBrowsers`, which _does_ read `browserslist` and otherwise falls back to a built-in modern default. As of the installed **Tailwind 4.3.3** and **Next 16.3.0**:
+
+| Browser | Tailwind 4.3.3 | Next 16.3.0 default | Effective floor |
+| ------- | -------------- | ------------------- | --------------- |
+| Chrome  | 111            | 111                 | 111             |
+| Edge    | —              | 111                 | 111             |
+| Safari  | 16.4           | 16.4                | 16.4            |
+| Firefox | 128            | 111                 | **128**         |
+
+They agree everywhere except Firefox, where Tailwind is the stricter of the two — so 128 is the number that actually binds, and the one to quote when someone asks what the app supports.
+
+Sources: [Tailwind's compatibility page](https://tailwindcss.com/docs/compatibility), and Next's `MODERN_BROWSERSLIST_TARGET` in `next/dist/shared/lib/modern-browserslist-target.js`. **Re-read both when upgrading either, and update this table** — these are a snapshot of two dependencies' requirements, not an independent commitment.
+
+Two consequences:
+
+- Container queries sit comfortably inside this floor (Chrome 105, Safari 16, Firefox 110), so preferring them costs nothing.
+- **The floor is not uniform.** Tailwind also ships utilities for platform features with _narrower_ support than its own baseline — `field-sizing: content`, `@starting-style`, `text-wrap: balance`. "Tailwind has a utility for it" therefore does not mean "it is inside our floor"; check [Can I Use](https://caniuse.com) for those specifically.
+
+**A `browserslist` key would not unify the two halves.** Next reads one (in `package.json` or `.browserslistrc`) and applies it to JavaScript transpilation and to its own Lightning CSS processing; Tailwind ignores it entirely. Setting one therefore moves Next's half of the floor while leaving Tailwind's generated CSS exactly where it is — and lowering it would not make Tailwind's output run in an older browser. If the key is ever added, this table stops describing the build unless it is updated alongside.
 
 ## 10. AI Integration (Future)
 
