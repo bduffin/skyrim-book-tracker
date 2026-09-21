@@ -85,3 +85,61 @@ export function rangeFor(page: number): [number, number] {
     const from = (page - 1) * PAGE_SIZE;
     return [from, from + PAGE_SIZE - 1];
 }
+
+/** A rendered pagination slot: a page number, or an elided run of them. */
+export type PageItem = number | 'gap';
+
+/** How many pages either side of the current one stay visible. */
+const WINDOW = 2;
+
+/**
+ * The page numbers a pagination control should offer: always the first and
+ * last, plus a window around the current page, with elisions between.
+ *
+ * A gap standing in for exactly one page is pointless -- it costs the same
+ * width as the number it hides -- so a single missing page is shown instead.
+ */
+export function paginationItems(page: number, pageCount: number): PageItem[] {
+    const wanted = new Set<number>([1, pageCount]);
+    for (let p = page - WINDOW; p <= page + WINDOW; p++) wanted.add(p);
+
+    const shown = [...wanted]
+        .filter((p) => p >= 1 && p <= pageCount)
+        .sort((a, b) => a - b);
+
+    const items: PageItem[] = [];
+    let previous = 0;
+    for (const p of shown) {
+        if (previous) {
+            if (p - previous === 2) items.push(previous + 1);
+            else if (p - previous > 2) items.push('gap');
+        }
+        items.push(p);
+        previous = p;
+    }
+    return items;
+}
+
+/**
+ * Resolved `searchParams` for a page. Matches what Next's generated
+ * `PageProps` hands over, once awaited.
+ */
+export type SearchParams = Record<string, string | string[] | undefined>;
+
+/**
+ * The query string for a given page, carrying every other param through
+ * unchanged so pagination survives the filters added in Browse M2.
+ *
+ * `page=1` is omitted: it is the default, and a bare `/books` is the tidier
+ * thing to copy out of the address bar.
+ */
+export function pageQuery(page: number, params: SearchParams = {}): string {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+        if (key === 'page' || value === undefined) continue;
+        if (Array.isArray(value)) value.forEach((v) => query.append(key, v));
+        else query.set(key, value);
+    }
+    if (page > 1) query.set('page', String(page));
+    return query.toString();
+}

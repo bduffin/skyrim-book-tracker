@@ -14,6 +14,8 @@ import {
     DEFAULT_SOURCES,
     clampPage,
     pageCountFor,
+    pageQuery,
+    paginationItems,
     parsePageParam,
     rangeFor,
 } from './scope';
@@ -139,5 +141,79 @@ describe('rangeFor', () => {
 
     test('the last page of the default scope', () => {
         assert.deepEqual(rangeFor(9), [400, 449]);
+    });
+});
+
+describe('paginationItems (FR-6)', () => {
+    test('a single page needs no elision', () => {
+        assert.deepEqual(paginationItems(1, 1), [1]);
+        assert.deepEqual(paginationItems(1, 2), [1, 2]);
+    });
+
+    test('the default scope, from the first page', () => {
+        // 9 pages: first, a window of two ahead, then the last.
+        assert.deepEqual(paginationItems(1, 9), [1, 2, 3, 'gap', 9]);
+    });
+
+    test('the default scope, from the last page', () => {
+        assert.deepEqual(paginationItems(9, 9), [1, 'gap', 7, 8, 9]);
+    });
+
+    test('9 pages are few enough to show whole from the middle', () => {
+        assert.deepEqual(paginationItems(5, 9), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    });
+
+    test('a long run elides on both sides', () => {
+        assert.deepEqual(paginationItems(25, 50), [
+            1,
+            'gap',
+            23,
+            24,
+            25,
+            26,
+            27,
+            'gap',
+            50,
+        ]);
+    });
+
+    test('a gap standing in for one page shows the page instead', () => {
+        // 1 and 3 are both shown, so eliding "2" would cost the same width
+        // as printing it.
+        assert.deepEqual(paginationItems(5, 50)[1], 2);
+    });
+});
+
+describe('pageQuery (FR-6)', () => {
+    test('page 1 is the default and is left out', () => {
+        assert.equal(pageQuery(1), '');
+        assert.equal(pageQuery(1, {}), '');
+    });
+
+    test('later pages carry the param', () => {
+        assert.equal(pageQuery(2), 'page=2');
+    });
+
+    test('other params survive, so Browse M2 filters keep working', () => {
+        assert.equal(
+            pageQuery(2, { category: 'book' }),
+            'category=book&page=2',
+        );
+        assert.equal(pageQuery(1, { category: 'book' }), 'category=book');
+    });
+
+    test('a repeated param keeps every value', () => {
+        assert.equal(
+            pageQuery(2, { category: ['book', 'black_book'] }),
+            'category=book&category=black_book&page=2',
+        );
+    });
+
+    test('an incoming page param is replaced, never duplicated', () => {
+        assert.equal(pageQuery(3, { page: '2' }), 'page=3');
+    });
+
+    test('an undefined value is dropped rather than stringified', () => {
+        assert.equal(pageQuery(2, { category: undefined }), 'page=2');
     });
 });
