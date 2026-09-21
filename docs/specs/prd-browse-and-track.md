@@ -15,7 +15,7 @@
 | --- | --------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | MI1 | Missing   | No canonical total book count (the "/820" denominator).          | Compute dynamically from `book`, never hardcoded, and over the default scope rather than the whole catalogue — see FR-3's default allowlists (423 books). |
 | MI3 | Missing   | Spec has no title **search**; arch §8 references search inputs.  | In scope as a title substring filter — see FR-9. Ranked/full-text search stays out (NG5).                                                                 |
-| MI4 | Missing   | No sort order specified.                                         | Default sort: title A→Z. OQ-4.                                                                                                                            |
+| MI4 | Missing   | No sort order specified.                                         | Title A→Z, and no sort controls — see FR-6.                                                                                                               |
 | MI5 | Ambiguous | Success criterion 5: unauthenticated controls "disabled/hidden." | **Decision:** render controls **disabled** with a sign-in affordance (discoverability > hiding). OQ-5.                                                    |
 | MI6 | Missing   | No defined behavior when a toggle Server Action fails.           | Optimistic state **rolls back** + non-blocking error toast. FR-4.                                                                                         |
 
@@ -109,7 +109,7 @@ Together these give the **423**-book default catalogue. `is_obtainable` is **not
 
 - **FR-4 — Read/Collected controls (Client Component + Server Action).** Authenticated user toggles a book's `is_read` and `is_collected` flags independently — toggling one never changes or implies the other. UI updates optimistically per flag; a Server Action validates the Supabase session and writes `user_book` under RLS — **upsert** the changed flag(s), **delete** the row once both flags are `false`. On success, server state is revalidated so the progress bar stays truthful. On failure, the optimistic change rolls back and a non-blocking error toast appears (MI6). The write path never trusts a client-supplied `user_id`.
 - **FR-5 — Progress summary.** A progress bar shows `<collected> collected · <read> read / <total>` (total computed dynamically, MI1; `collected` and `read` are independent counts, not combined). `<total>` is the count within the **default scope** (FR-3), not `count(book)` — the unscoped figure is 1,207 including 539 notes and 326 Creation Club books, which is a materially different product from the 423-book "real books" catalogue FR-3 defaults to. It reflects true DB state after any change. Unauthenticated visitors never see it — they are redirected off `/collection/[user]` (FR-8).
-- **FR-6 — Pagination.** 50 books/page; page in URL. Stable ordering (default title A→Z, MI4) so pagination is deterministic.
+- **FR-6 — Pagination and ordering.** 50 books/page; page in URL. Books are ordered by **title A→Z** and then `uesp_page_id`; title alone is not deterministic, because two titles are duplicated inside the default scope, and a non-deterministic sort makes pagination drop or repeat rows between pages. **That is the only order, and there are no sort controls** (MI4). Every dimension worth sorting by — category, source, skill, read, collected — is one FR-3 already filters by, and filtering answers "show me just these" more precisely than sorting answers "group these together". The list is deliberately not rendered as a table for the same reason: column headers would imply a sortability the data does not benefit from.
 - **FR-7 — Attribution.** UESP CC BY-SA attribution visible in the UI (and README per arch §2).
 - **FR-8 — Routes and information architecture.** Two routes over the same data layer and row component:
 
@@ -213,7 +213,6 @@ The two routes land in different milestones — `/books` at M1, `/collection/[us
 
 ## 11. Open Questions
 
-- **OQ-4 (MI4):** Default sort and available sort options (title, category, collected-first)?
 - **OQ-5 (MI5):** Unauthenticated track controls — disabled (recommended) vs hidden vs inline sign-in prompt?
 - **OQ-7:** Empty-state copy when filters match zero books.
 - **OQ-10 (from OQ-6):** Which progress bars does `/collection/[user]` show — collected vs read, base vs base+DLC, with or without notes — and can the user configure the set? More than one revises FR-5, which specifies a single bar, and relaxes NG9, which rules out progress charts beyond a single summary bar.
