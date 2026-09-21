@@ -19,7 +19,7 @@
         "lint:fix": "eslint --fix .",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "test": "tsx --test \"scripts/**/*.test.mts\"",
+        "test": "tsx --test \"scripts/**/*.test.mts\" \"src/**/*.test.ts\"",
         "import:uesp": "node --env-file-if-exists=.env.local --import tsx scripts/import-uesp.mts"
     },
     "devDependencies": {
