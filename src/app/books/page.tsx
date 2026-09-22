@@ -11,6 +11,7 @@ import {
 } from '@/features/books/scope';
 import { BookFilters } from '@/features/books/components/book-filters';
 import { BookList } from '@/features/books/components/book-list';
+import { EmptyState } from '@/features/books/components/empty-state';
 import { PaginationNav } from '@/features/books/components/pagination-nav';
 
 export const metadata: Metadata = {
@@ -75,7 +76,11 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
                 )}
             </div>
 
-            <BookList books={books.rows} />
+            {books.rows.length === 0 ? (
+                <EmptyState filters={filters} />
+            ) : (
+                <BookList books={books.rows} />
+            )}
             <PaginationNav
                 page={books.page}
                 pageCount={books.pageCount}
