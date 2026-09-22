@@ -1,11 +1,15 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 import { getBooksPage } from '@/features/books/data';
 import {
+    BOOKS_PATH,
+    isDefaultFilters,
     parseFilters,
     parsePageParam,
     PAGE_SIZE,
 } from '@/features/books/scope';
+import { BookFilters } from '@/features/books/components/book-filters';
 import { BookList } from '@/features/books/components/book-list';
 import { PaginationNav } from '@/features/books/components/pagination-nav';
 
@@ -31,12 +35,27 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
         <main className="mx-auto max-w-3xl py-6">
             <header className="px-4 pb-4">
                 <h1>Books</h1>
-                {/* A filter that matches nothing is reachable for the first
-                    time now that the query honours them, and the range
-                    arithmetic reads "1-0 of 0" there. The designed empty state
-                    is the next step; this only keeps the header from printing
-                    nonsense in the meantime. */}
-                <p className="pt-1 text-sm text-gray-600">
+            </header>
+
+            <BookFilters filters={filters} />
+
+            {/*
+             * Below the controls rather than under the heading: this line is a
+             * result of the filters, so above them it described something the
+             * reader had not set yet.
+             *
+             * "Reset filters" lives here rather than in the form so that
+             * everything in this bar -- the count, the link and the list below
+             * it -- reflects server state together. Inside the form it would
+             * have tracked the optimistic value and disagreed with the count
+             * beside it for the length of a round trip.
+             */}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-5 pb-2 text-sm text-gray-600">
+                {/* A filter that matches nothing is reachable now that the
+                    query honors them, and the range arithmetic reads "1-0 of
+                    0" there. The designed empty state is the next step; this
+                    only keeps the bar from printing nonsense meanwhile. */}
+                <p>
                     {books.total === 0 ? (
                         'No matching books'
                     ) : (
@@ -46,7 +65,16 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
                         </>
                     )}
                 </p>
-            </header>
+                {!isDefaultFilters(filters) && (
+                    <Link
+                        href={BOOKS_PATH}
+                        className="underline underline-offset-2 transition-colors hover:text-gray-900"
+                    >
+                        Reset filters
+                    </Link>
+                )}
+            </div>
+
             <BookList books={books.rows} />
             <PaginationNav
                 page={books.page}
