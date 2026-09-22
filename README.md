@@ -27,7 +27,28 @@ _The Elder Scrolls_ and _Skyrim_ are trademarks of Bethesda Softworks LLC. This 
 
 ## Getting started
 
-Requires **Node 24** (see [`.nvmrc`](.nvmrc)) and **Docker**, for the local Supabase stack.
+Requires **Node 24** (see [`.nvmrc`](.nvmrc)), the **Supabase CLI**, and **Docker**, which the local Supabase stack runs in.
+
+### Prerequisites on macOS with Homebrew
+
+```bash
+brew install node@24
+brew install supabase
+brew install --cask docker-desktop
+```
+
+`node@24` is keg-only, so Homebrew does not put it on your `PATH`. Either follow the `brew install` caveat it prints, or use [nvm](https://github.com/nvm-sh/nvm) and let [`.nvmrc`](.nvmrc) pick the version:
+
+```bash
+nvm use            # reads .nvmrc
+node --version     # expect v24.x
+```
+
+Docker Desktop must be **running**, not merely installed — `supabase start` talks to its daemon. Launch it once from Applications (it asks for privileges on first run), or `open -a Docker`. Any other Docker daemon works too; [Colima](https://github.com/abiosoft/colima) is a lighter alternative.
+
+Other platforms aren't written up yet. The only macOS-specific parts are the three installs above.
+
+### Then, from a fresh checkout
 
 ```bash
 corepack enable          # Yarn 4.17.1 is pinned via packageManager
@@ -72,6 +93,23 @@ yarn format:check
 yarn test
 supabase db advisors --local --type security
 ```
+
+`yarn test` is the unit suite — pure functions only, no Docker, no database, under a second.
+
+### Database tests
+
+```bash
+supabase start     # if it isn't already running
+yarn test:db
+```
+
+Separate from `yarn test` because these need the local stack up. They cover behaviour no unit test can reach: that PostgREST's join semantics mean what the queries assume, and that row-level security scopes a viewer to their own rows. A mocked client would only prove the mock agrees with the code.
+
+Three things worth knowing:
+
+- **No `.env.local` needed.** The tests read the stack's URL and keys from `supabase status`, deliberately, rather than from `.env.local` — which points wherever you last pointed it.
+- **No catalog import needed.** They insert their own book fixtures and assert against a measured baseline, so they pass on a stack that has only had `supabase start` run against it. The ~185 MB UESP dump is not a prerequisite.
+- **Local only.** They create a user and write rows using the secret key, which bypasses RLS, so they refuse to run against a non-localhost host — the same `isLocalHost` guard the importer uses. They clean up after themselves.
 
 ## Further reading
 

@@ -31,7 +31,7 @@ export type Target = {
  * 'localhost' would happily accept `https://localhost.evil.com` and, worse,
  * `https://prod.example.com/?x=localhost`.
  */
-function isLocalHost(hostname: string): boolean {
+export function isLocalHost(hostname: string): boolean {
     // `URL.hostname` KEEPS the brackets on an IPv6 literal, so `[::1]` arrives
     // bracketed; it also normalizes `[0:0:0:0:0:0:0:1]` down to `[::1]` for us.
     const host = hostname.replace(/^\[|\]$/g, '');
