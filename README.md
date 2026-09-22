@@ -4,14 +4,15 @@ A web app for tracking your library in _The Elder Scrolls V: Skyrim_ — which b
 
 ## Status
 
-Early. Not yet usable as a book tracker — the catalog imports, but nothing renders it.
+Early. You can browse, filter and search the catalog, but not yet track what you have read or collected.
 
-| Part                                        | State                                |
-| ------------------------------------------- | ------------------------------------ |
-| GitHub sign-in                              | Works                                |
-| Database schema and row-level security      | Works                                |
-| UESP catalog import                         | Works — 1,207 books, 2,327 locations |
-| Browsing, searching, marking read/collected | Not built                            |
+| Part                                   | State                                  |
+| -------------------------------------- | -------------------------------------- |
+| GitHub sign-in                         | Works                                  |
+| Database schema and row-level security | Works                                  |
+| UESP catalog import                    | Works — 1,207 books, 2,327 locations   |
+| Browsing, filtering and title search   | Works — 423 books in the default scope |
+| Marking books read/collected           | Not built                              |
 
 ## Attribution and licensing
 
