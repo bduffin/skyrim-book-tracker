@@ -1,12 +1,15 @@
 import Link from 'next/link';
 
-import { pageQuery, paginationItems, type SearchParams } from '../scope';
-
-const BASE_PATH = '/books';
+import {
+    BOOKS_PATH,
+    pageQuery,
+    paginationItems,
+    type SearchParams,
+} from '../scope';
 
 function hrefFor(page: number, params: SearchParams) {
     const query = pageQuery(page, params);
-    return query ? `${BASE_PATH}?${query}` : BASE_PATH;
+    return query ? `${BOOKS_PATH}?${query}` : BOOKS_PATH;
 }
 
 const SLOT =

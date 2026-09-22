@@ -1,29 +1,19 @@
 import type { ReactNode } from 'react';
 import type { BookRow as Book } from '../types';
 
-/**
- * Only the categories worth calling out. `book` is deliberately absent: it is
- * 310 of the 423 books in the default scope, so tagging it would put a label
- * meaning "ordinary" on three rows in four.
- */
-const CATEGORY_LABELS: Partial<Record<Book['category'], string>> = {
-    skill_book: 'Skill book',
-    journal: 'Journal',
-    note: 'Note',
-    black_book: 'Black Book',
-    treasure_map: 'Treasure map',
-};
+import { CATEGORY_LABELS, SOURCE_LABELS } from '../labels';
 
 /**
- * Add-on sources only. `base` is 360 of 423, and labelling it "Skyrim" inside
- * an app about Skyrim tells the reader nothing.
+ * The values not worth tagging, rather than a second set of labels.
+ *
+ * `book` is 310 of the 423 books in the default scope and `base` is 360, so
+ * tagging either puts a label meaning "ordinary" on most of the page. The
+ * filter controls still have to name them (`labels.ts`), which is why this is
+ * a list of omissions and not a partial label map -- the two would otherwise
+ * drift into disagreeing about how a category is spelled.
  */
-const SOURCE_LABELS: Partial<Record<Book['source'], string>> = {
-    dawnguard: 'Dawnguard',
-    dragonborn: 'Dragonborn',
-    hearthfire: 'Hearthfire',
-    creation_club: 'Creation Club',
-};
+const UNTAGGED_CATEGORIES = new Set<Book['category']>(['book']);
+const UNTAGGED_SOURCES = new Set<Book['source']>(['base']);
 
 /**
  * One tone per kind of fact. `Skill book` and `Dragonborn` answer different
@@ -71,8 +61,12 @@ function Tag({
  * from UESP wikitext (NFR-8, AC-11).
  */
 export function BookRow({ book }: { book: Book }) {
-    const category = CATEGORY_LABELS[book.category];
-    const source = SOURCE_LABELS[book.source];
+    const category = UNTAGGED_CATEGORIES.has(book.category)
+        ? null
+        : CATEGORY_LABELS[book.category];
+    const source = UNTAGGED_SOURCES.has(book.source)
+        ? null
+        : SOURCE_LABELS[book.source];
 
     return (
         <li className="px-4 py-3 transition-colors hover:bg-gray-50">
