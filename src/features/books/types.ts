@@ -28,6 +28,8 @@ export type BookRow = {
     category: BookCategory;
     source: BookSource;
     skill: string | null;
+    /** The UESP page this row was imported from, for the outbound link (FR-7). */
+    uespTitle: string;
     isRead: boolean;
     isCollected: boolean;
 };

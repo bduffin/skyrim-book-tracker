@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
+import Image from 'next/image';
 import type { BookRow as Book } from '../types';
 
 import { CATEGORY_LABELS, SOURCE_LABELS } from '../labels';
+import { uespUrl } from '../uesp';
 
 /**
  * The values not worth tagging, rather than a second set of labels.
@@ -72,6 +74,64 @@ const TONES = {
     skillRare: 'border-emerald-900 bg-emerald-900 text-emerald-100',
 } as const;
 
+/**
+ * UESP's own logo, used to mark the outbound link.
+ *
+ * Licensed CC BY-SA 3.0 Unported by UESP, which is a *copyright* licence --
+ * see the attribution in the footer and the README. Trademark is a separate
+ * right that no Creative Commons licence grants, so the use stays nominative:
+ * it identifies where the link goes and nothing about it claims affiliation.
+ *
+ * Used unmodified. Resizing is a format change the licence permits, but
+ * recolouring it to suit a theme would be a derivative work and would have to
+ * ship under CC BY-SA 3.0 itself -- worth remembering during any styling pass.
+ *
+ * `alt=""` because the link's `aria-label` already names the destination;
+ * announcing the logo as well would just repeat it.
+ */
+function UespLogo() {
+    return (
+        <Image
+            src="/uesp-logo.png"
+            alt=""
+            // 36px is the smallest size at which the wordmark inside the
+            // logo resolves into "UESP" rather than a tan speck; below
+            // about 28 it is unreadable at any density. The cost is row
+            // height, 56px to 72px, or roughly one extra screenful over a
+            // 50-book page.
+            width={36}
+            height={36}
+            className="size-9 shrink-0"
+        />
+    );
+}
+
+/**
+ * The conventional "arrow leaving a box" external-link glyph.
+ *
+ * Carries the "this leaves the site" half of the signal; the logo beside it
+ * carries the "goes to UESP" half. Decorative, like the logo: the link's
+ * `aria-label` says both.
+ */
+function ExternalLinkIcon() {
+    return (
+        <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-3 shrink-0"
+        >
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <path d="M15 3h6v6" />
+            <path d="M10 14 21 3" />
+        </svg>
+    );
+}
+
 function Tag({
     children,
     tone,
@@ -110,17 +170,72 @@ export function BookRow({ book }: { book: Book }) {
 
     return (
         <li className="px-4 py-3 transition-colors hover:bg-gray-50">
-            <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1.5">
-                <span className="font-medium text-gray-900">{book.title}</span>
-                {category && <Tag tone="category">{category}</Tag>}
-                {source && <Tag tone="source">{source}</Tag>}
-                {book.skill ? (
-                    <Tag tone="skill">+1 {book.skill}</Tag>
-                ) : (
-                    isMultiSkill(book) && (
-                        <Tag tone="skillRare">Forbidden knowledge</Tag>
-                    )
-                )}
+            {/*
+             * Two blocks centred against each other, rather than one flat
+             * baseline row. The link is an inline-flex around a 36px logo,
+             * so its baseline sits near its own bottom edge; with the
+             * whole row baseline-aligned it dragged the title down with
+             * it, leaving 22px of dead space above the title and none
+             * below. The title and its tags keep a baseline group of their
+             * own, which is what makes the pills sit on the title's
+             * baseline instead of floating beside it.
+             */}
+            <div className="flex items-center gap-x-2.5">
+                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-1.5">
+                    <span className="font-medium text-gray-900">
+                        {book.title}
+                    </span>
+                    {category && <Tag tone="category">{category}</Tag>}
+                    {source && <Tag tone="source">{source}</Tag>}
+                    {book.skill ? (
+                        <Tag tone="skill">+1 {book.skill}</Tag>
+                    ) : (
+                        isMultiSkill(book) && (
+                            <Tag tone="skillRare">Forbidden knowledge</Tag>
+                        )
+                    )}
+                </div>
+                <a
+                    href={uespUrl(book.uespTitle)}
+                    // A new tab, so following a link does not cost the reader
+                    // the filtered list they built.
+                    target="_blank"
+                    // `noopener` only, deliberately **not** `noreferrer`.
+                    // Sending traffic UESP can see is half the point of
+                    // linking out at all, and noreferrer would strip the
+                    // header that tells them where it came from. Every browser
+                    // inside the floor already implies noopener for
+                    // target=_blank; it is stated anyway, as the intent.
+                    rel="noopener"
+                    // "wiki" carries the weight that a bare "UESP" cannot:
+                    // it says what is on the other side to a reader who has
+                    // never heard of the site, in one short word that is
+                    // repeated on all fifty rows. A bare "Details" would say
+                    // that too, but credits nobody and takes the label NG1's
+                    // own detail page would want.
+                    //
+                    // The title is prefixed for screen readers, which would
+                    // otherwise hear fifty identical entries in a links list.
+                    // The accessible name contains the visible label verbatim,
+                    // which is what WCAG 2.5.3 requires.
+                    aria-label={`${book.title} on the UESP wiki`}
+                    // `py-1` is not decoration: it lifts the tap target to 24px
+                    // tall, which is WCAG 2.5.8's minimum. The text alone is 16.
+                    // A tooltip earns its place once the visible label is
+                    // gone: a mouse user has no other way to learn where this
+                    // goes without clicking it.
+                    title={`${book.title} on the UESP wiki`}
+                    // The rounded fill covers both marks at once, which is
+                    // what makes them read as a single control rather than two
+                    // decorations that happen to sit together. It has to be
+                    // two steps darker than the row's own hover, not one:
+                    // against `bg-gray-50` a `bg-gray-100` chip is invisible,
+                    // because the row highlights at the same moment.
+                    className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700"
+                >
+                    <UespLogo />
+                    <ExternalLinkIcon />
+                </a>
             </div>
         </li>
     );

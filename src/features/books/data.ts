@@ -21,7 +21,7 @@ export type BooksPage = {
 };
 
 /** Only the columns FR-1 renders; the rest of `book` is not this feature's. */
-const COLUMNS = 'id, title, category, source, skill';
+const COLUMNS = 'id, title, category, source, skill, uesp_title';
 
 /**
  * What `COLUMNS` selects.
@@ -38,6 +38,7 @@ type BookQueryRow = {
     category: BookCategory;
     source: BookSource;
     skill: string | null;
+    uesp_title: string;
 };
 
 /**
@@ -116,6 +117,7 @@ export async function getBooksPage({
             category: row.category,
             source: row.source,
             skill: row.skill,
+            uespTitle: row.uesp_title,
             // Still false for every row: Browse M2 joins user_book to *filter*
             // by it, not to display it, and the filtering embed is prefiltered
             // in the anti-join case. The toggles and the display join are M3's.

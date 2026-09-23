@@ -16,13 +16,15 @@ Early. You can browse, filter and search the catalog, but not yet track what you
 
 ## Attribution and licensing
 
-Two different licences cover two different things in this repository.
+Three different licences cover three different things in this repository.
 
 **The code** is licensed **GPL-3.0-or-later**. See [`LICENSE`](LICENSE).
 
 **The book data** comes from the [Unofficial Elder Scrolls Pages](https://en.uesp.net) (UESP) and is licensed **[CC BY-SA 2.5](https://en.uesp.net/wiki/UESPWiki:Copyright_and_Ownership)**. It is derived from the `uespwiki-2026-08-30-current.xml.bz2` database dump published at [dumps.uesp.net](https://dumps.uesp.net), and covers book titles, categories, authors, in-game identifiers, skill effects, and locations. UESP is an independent community project and is not affiliated with Bethesda Softworks.
 
 Share-alike applies to that data: redistributing it, or a derivative of it, requires the same attribution and licence. The dump itself is not committed to this repository — see [Importing the catalog](#importing-the-catalog).
+
+**The UESP logo** (`public/uesp-logo.png`) is licensed **[CC BY-SA 3.0 Unported](https://creativecommons.org/licenses/by-sa/3.0/)**, per its [file page](https://en.uesp.net/wiki/File:UESP-logo-Social.png) — a _different_ version from the 2.5 covering the book data, which is why the footer credits the two separately. It marks the per-book links out to UESP and is used **unmodified**: resizing is a format change the licence permits, but recolouring or reworking it would create a derivative that must itself ship under CC BY-SA 3.0. Note that a Creative Commons licence grants copyright permissions only — trademark is a separate right that no CC licence conveys, so the logo is used nominatively, to identify where a link goes, and implies no endorsement.
 
 _The Elder Scrolls_ and _Skyrim_ are trademarks of Bethesda Softworks LLC. This project is unofficial and unaffiliated.
 
