@@ -8,19 +8,19 @@
  */
 export function UespAttribution() {
     return (
-        <footer className="mx-auto max-w-3xl px-4 py-8 text-xs leading-relaxed text-gray-500">
+        <footer className="mx-auto max-w-3xl px-4 py-8 text-xs leading-relaxed text-iron-500">
             <p>
                 Book data from the{' '}
                 <a
                     href="https://en.uesp.net"
-                    className="underline hover:text-gray-700"
+                    className="underline hover:text-iron-900"
                 >
                     Unofficial Elder Scrolls Pages
                 </a>{' '}
                 (UESP), licensed{' '}
                 <a
                     href="https://en.uesp.net/wiki/UESPWiki:Copyright_and_Ownership"
-                    className="underline hover:text-gray-700"
+                    className="underline hover:text-iron-900"
                 >
                     CC BY-SA 2.5
                 </a>
@@ -40,7 +40,7 @@ export function UespAttribution() {
                 The UESP logo is used under{' '}
                 <a
                     href="https://creativecommons.org/licenses/by-sa/3.0/"
-                    className="underline hover:text-gray-700"
+                    className="underline hover:text-iron-900"
                 >
                     CC BY-SA 3.0
                 </a>
