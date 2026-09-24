@@ -1,13 +1,33 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { PageTitle } from '@/components/page-title';
 
+export const metadata: Metadata = {
+    title: 'Sign-in failed',
+};
+
+/**
+ * One usable value from a query param, or `undefined`.
+ *
+ * `PageProps` types a param honestly as `string | string[] | undefined`, and
+ * the array case is real: `?error=a&error=b` arrives as two values. The
+ * handwritten type this replaced claimed a plain string, so nothing forced
+ * that case to be handled. Repeated and blank params both read as absent,
+ * the same rule `src/features/books/scope.ts` applies -- there is no
+ * non-arbitrary way to pick between two error messages, and an empty one
+ * would render an empty paragraph instead of the fallback.
+ */
+function single(value: string | string[] | undefined): string | undefined {
+    return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
 export default async function AuthErrorPage({
     searchParams,
-}: {
-    searchParams: Promise<{ error?: string; error_description?: string }>;
-}) {
-    const { error, error_description: errorDescription } = await searchParams;
+}: PageProps<'/auth/auth-error'>) {
+    const params = await searchParams;
+    const error = single(params.error);
+    const errorDescription = single(params.error_description);
 
     return (
         <main className="mx-auto max-w-3xl py-6">
