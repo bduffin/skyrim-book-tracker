@@ -1,0 +1,215 @@
+/**
+ * Tests for the sign-in error page's message selection.
+ *
+ * Expectations are transcribed from the two sources the mapping cites --
+ * RFC 6749 section 4.1.2.1 for the standard `error` values, and Supabase's
+ * error-code documentation for `error_code` -- not captured from the
+ * implementation. They pin the *classification*, not the prose, so editing
+ * the copy does not break them; one test checks every kind has some.
+ */
+
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+    AUTH_ERROR_COPY,
+    authErrorKind,
+    authErrorMessage,
+    type AuthErrorKind,
+} from './auth-error-message';
+
+describe('authErrorKind: RFC 6749 error values', () => {
+    // "The resource owner or authorization server denied the request."
+    test('access_denied is a cancelled sign-in', () => {
+        assert.equal(authErrorKind({ error: 'access_denied' }), 'cancelled');
+    });
+
+    // "encountered an unexpected condition" / "temporary overloading or
+    // maintenance of the server" -- both worth retrying later.
+    test('server_error and temporarily_unavailable are transient', () => {
+        assert.equal(authErrorKind({ error: 'server_error' }), 'unavailable');
+        assert.equal(
+            authErrorKind({ error: 'temporarily_unavailable' }),
+            'unavailable',
+        );
+    });
+
+    // The remaining four describe a malformed or unauthorized *request* --
+    // the app's side of the integration, which the reader cannot fix.
+    test('the request-shape errors are misconfiguration', () => {
+        for (const error of [
+            'invalid_request',
+            'unauthorized_client',
+            'unsupported_response_type',
+            'invalid_scope',
+        ]) {
+            assert.equal(authErrorKind({ error }), 'misconfigured', error);
+        }
+    });
+});
+
+describe('authErrorKind: Supabase error codes', () => {
+    // "Ask the user to sign in again."
+    test('an expired or missing PKCE flow state asks for a fresh sign-in', () => {
+        assert.equal(
+            authErrorKind({ errorCode: 'flow_state_expired' }),
+            'expired',
+        );
+        assert.equal(
+            authErrorKind({ errorCode: 'flow_state_not_found' }),
+            'expired',
+        );
+    });
+
+    // "try again in a few minutes" / "Retry the request" / "Auth service is
+    // degraded".
+    test('rate limits, timeouts and degraded service are transient', () => {
+        for (const errorCode of [
+            'over_request_rate_limit',
+            'request_timeout',
+            'unexpected_failure',
+        ]) {
+            assert.equal(
+                authErrorKind({ errorCode }),
+                'unavailable',
+                errorCode,
+            );
+        }
+    });
+
+    // "sent out when a verification email is sent after completing the OAuth
+    // flow".
+    test('an unverified provider email points at the verification email', () => {
+        assert.equal(
+            authErrorKind({ errorCode: 'provider_email_needs_verification' }),
+            'verifyEmail',
+        );
+    });
+
+    test('disabled sign-ups and banned users get their own messages', () => {
+        assert.equal(
+            authErrorKind({ errorCode: 'signup_disabled' }),
+            'signupDisabled',
+        );
+        assert.equal(
+            authErrorKind({ errorCode: 'user_banned' }),
+            'accountBlocked',
+        );
+    });
+
+    // Each documented as a provider-integration, server-configuration or
+    // client-library problem.
+    test('integration and configuration faults are misconfiguration', () => {
+        for (const errorCode of [
+            'bad_oauth_state',
+            'bad_oauth_callback',
+            'oauth_provider_not_supported',
+            'provider_disabled',
+            'bad_code_verifier',
+            'validation_failed',
+        ]) {
+            assert.equal(
+                authErrorKind({ errorCode }),
+                'misconfigured',
+                errorCode,
+            );
+        }
+    });
+});
+
+describe('authErrorKind: precedence and fallback', () => {
+    // A standard server_error can stand for several Supabase conditions, so
+    // the more specific code has to win when both are present.
+    test('a recognized Supabase code beats the standard error value', () => {
+        assert.equal(
+            authErrorKind({
+                error: 'server_error',
+                errorCode: 'flow_state_expired',
+            }),
+            'expired',
+        );
+    });
+
+    test('an unrecognized Supabase code falls through to the error value', () => {
+        assert.equal(
+            authErrorKind({
+                error: 'access_denied',
+                errorCode: 'something_new',
+            }),
+            'cancelled',
+        );
+    });
+
+    test('nothing recognized, or nothing at all, is the generic message', () => {
+        assert.equal(authErrorKind({}), 'unknown');
+        assert.equal(authErrorKind({ error: 'made_up' }), 'unknown');
+        assert.equal(authErrorKind({ errorCode: 'made_up' }), 'unknown');
+    });
+
+    // Codes are lowercase identifiers in both sources; guessing at variants
+    // would widen what a crafted link can select, for no real input.
+    test('matching is exact', () => {
+        assert.equal(authErrorKind({ error: 'ACCESS_DENIED' }), 'unknown');
+        assert.equal(authErrorKind({ error: ' access_denied' }), 'unknown');
+    });
+
+    // A plain object would answer these from Object.prototype and return a
+    // function; the lookup has to fall through to the generic message.
+    test('prototype property names are not codes', () => {
+        for (const name of [
+            'constructor',
+            '__proto__',
+            'toString',
+            'hasOwnProperty',
+            'valueOf',
+        ]) {
+            assert.equal(authErrorKind({ error: name }), 'unknown', name);
+            assert.equal(authErrorKind({ errorCode: name }), 'unknown', name);
+        }
+    });
+});
+
+describe('authErrorMessage', () => {
+    test('every kind has copy', () => {
+        const kinds: AuthErrorKind[] = [
+            'cancelled',
+            'expired',
+            'unavailable',
+            'verifyEmail',
+            'signupDisabled',
+            'accountBlocked',
+            'misconfigured',
+            'unknown',
+        ];
+        for (const kind of kinds) {
+            assert.equal(typeof AUTH_ERROR_COPY[kind], 'string', kind);
+            assert.ok(AUTH_ERROR_COPY[kind].trim().length > 0, kind);
+        }
+    });
+
+    test('returns the copy for the kind it resolves to', () => {
+        assert.equal(
+            authErrorMessage({ error: 'access_denied' }),
+            AUTH_ERROR_COPY.cancelled,
+        );
+        assert.equal(authErrorMessage({}), AUTH_ERROR_COPY.unknown);
+    });
+
+    // The injection this module exists to close: whatever a code-shaped
+    // param contains, the result is one of the app's own strings.
+    test('always returns one of the app-authored messages', () => {
+        const ours = new Set(Object.values(AUTH_ERROR_COPY));
+        for (const hostile of [
+            'Your account is locked, email support@evil.example',
+            '<script>alert(1)</script>',
+            'constructor',
+            '',
+        ]) {
+            assert.ok(ours.has(authErrorMessage({ error: hostile })), hostile);
+            assert.ok(
+                ours.has(authErrorMessage({ errorCode: hostile })),
+                hostile,
+            );
+        }
+    });
+});
