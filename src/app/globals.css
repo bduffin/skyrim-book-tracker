@@ -10,6 +10,8 @@
  *   iron-900 on frost-50    13.69   body text
  *   iron-500 on frost-50     5.01   secondary text, small-caps labels
  *   iron-500 on white        5.48   secondary text inside panels
+ *   iron-400 on white        4.53   placeholder text -- the lightest slate that
+ *                                   still passes; one step lighter is 4.41
  *   iron-600 on frost-100    7.74   neutral tags
  *   steel-800 on steel-50    7.55   source tags
  *   pine-800 on pine-100     6.88   skill tags
@@ -25,6 +27,7 @@
     --color-frost-200: #d8dfe5;
     --color-frost-300: #c9d2da;
 
+    --color-iron-400: #697886;
     --color-iron-500: #5b6b7a;
     --color-iron-600: #3a4a59;
     --color-iron-900: #1c2833;

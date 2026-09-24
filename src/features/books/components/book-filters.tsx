@@ -18,16 +18,81 @@ import type { BookCategory, BookSource } from '../types';
 /** How long to wait after the last keystroke before searching (R6). */
 const SEARCH_DEBOUNCE_MS = 300;
 
-const FIELD =
-    'rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-900';
-const LABEL = 'text-xs font-semibold tracking-wide text-gray-500 uppercase';
+/*
+ * Focus is an *outline*, never Tailwind's `ring`. A ring is a box-shadow, and
+ * forced-colors mode (Windows High Contrast) strips box-shadows entirely, so
+ * a ring-only control has no visible focus there at all. `outline-hidden`
+ * rather than `outline-none` for the same reason: it keeps a transparent
+ * outline that forced-colors mode paints in the system color.
+ *
+ * steel-800 against the white panel clears WCAG's 3:1 for focus indicators
+ * with plenty to spare.
+ */
+const FOCUS =
+    'outline-hidden focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-steel-800';
+
+/*
+ * The placeholder is as light as AA allows (iron-400, 4.53:1 on white; the
+ * next slate step is 4.41) and a weight lighter than typed text. The weight
+ * is what separates "example" from "already typed" without spending any
+ * more contrast, and Jost is variable, so it costs no extra font file.
+ */
+const FIELD = `rounded-md border border-frost-300 bg-white py-1.5 text-sm text-iron-900 placeholder:font-light placeholder:text-iron-400 ${FOCUS}`;
+
+const LABEL = 'text-xs font-medium tracking-[0.18em] text-iron-500 uppercase';
+
+/*
+ * The chips and segments hide their real input and style the <label> around
+ * it by that input's state, through `:has()`. Chrome 105, Safari 15.4 and
+ * Firefox 121 support it, all inside the app's floor of 111 / 16.4 / 128
+ * (architecture.md section 9) -- checked rather than assumed, since Tailwind
+ * shipping a `has-*` variant says nothing about where `:has()` runs.
+ *
+ * `sr-only`, never `display: none`: the input has to stay focusable for the
+ * keyboard and present for the GET form to submit it.
+ *
+ * In forced-colors mode every background is repainted to the system Canvas,
+ * which would erase the iron fill that is the *only* sign a segment is
+ * chosen. So a chosen control opts out of the repaint and uses the system's
+ * own Highlight pair, which is exactly what forced-colors mode reserves for
+ * "selected".
+ */
+const CHOSEN =
+    'has-checked:border-iron-900 has-checked:bg-iron-900 has-checked:font-medium has-checked:text-frost-50 forced-colors:has-checked:[forced-color-adjust:none] forced-colors:has-checked:bg-[Highlight] forced-colors:has-checked:text-[HighlightText]';
+
+const FOCUS_WITHIN =
+    'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-steel-800';
+
+function CheckIcon() {
+    return (
+        <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            // Shown only while checked, by CSS rather than by the `checked`
+            // prop, so it stays correct with JavaScript disabled too.
+            className="hidden size-3.5 shrink-0 group-has-checked:block"
+        >
+            <path d="M5 12l5 5L20 7" />
+        </svg>
+    );
+}
 
 /**
+ * One choice among three, so the three sit *joined*: the visual grammar says
+ * "pick one" before a word is read, against the separated chips below, which
+ * say "pick any".
+ *
  * `any` travels as an empty value, never as the string "any": an omitted param
  * is what "no filter" means everywhere else, so a JS-free GET submission
- * produces the same tidy URL the enhanced path does.
+ * produces the same URL the enhanced path does. It has to be a segment of its
+ * own, because a radio cannot be unchecked by clicking it again.
  */
-function FlagSelect({
+function FlagSegments({
     name,
     label,
     value,
@@ -42,26 +107,51 @@ function FlagSelect({
     trueLabel: string;
     falseLabel: string;
 }) {
+    const options: [FlagFilter, string][] = [
+        ['any', 'Any'],
+        ['true', trueLabel],
+        ['false', falseLabel],
+    ];
+
     return (
-        <label className="flex flex-col gap-1">
-            <span className={LABEL}>{label}</span>
-            <select
-                name={name}
-                value={value === 'any' ? '' : value}
-                onChange={(event) =>
-                    onChange((event.target.value || 'any') as FlagFilter)
-                }
-                className={FIELD}
-            >
-                <option value="">Any</option>
-                <option value="true">{trueLabel}</option>
-                <option value="false">{falseLabel}</option>
-            </select>
-        </label>
+        <fieldset>
+            <legend className={`${LABEL} pb-1.5`}>{label}</legend>
+            <div className="flex">
+                {options.map(([option, text]) => (
+                    <label
+                        key={option}
+                        // Each segment carries its own border and overlaps its
+                        // neighbour by a pixel, rather than the group clipping
+                        // with overflow-hidden -- which would also clip the
+                        // focus outline off the segment that has it.
+                        className={`-ml-px cursor-pointer border border-frost-300 bg-white px-3 py-1.5 text-sm text-iron-600 transition-colors first:ml-0 first:rounded-l-md last:rounded-r-md not-has-checked:hover:bg-frost-100 has-checked:relative has-checked:z-10 has-focus-visible:relative has-focus-visible:z-20 ${CHOSEN} ${FOCUS_WITHIN}`}
+                    >
+                        <input
+                            type="radio"
+                            name={name}
+                            value={option === 'any' ? '' : option}
+                            checked={value === option}
+                            onChange={() => onChange(option)}
+                            className="sr-only"
+                        />
+                        {text}
+                    </label>
+                ))}
+            </div>
+        </fieldset>
     );
 }
 
-function Check({
+/**
+ * An independent toggle, so the chips sit *apart* -- against the joined
+ * segments above, which say "pick one".
+ *
+ * Chosen chips carry a check mark as well as the iron fill. The fill is a
+ * luminance change, so it survives grayscale; the mark is the cue that does
+ * not depend on fill at all, where the segments have their position within a
+ * group to lean on and a chip has nothing.
+ */
+function Chip({
     name,
     value,
     label,
@@ -75,15 +165,18 @@ function Check({
     onChange: (checked: boolean) => void;
 }) {
     return (
-        <label className="flex items-center gap-1.5 text-sm text-gray-700">
+        <label
+            className={`group inline-flex cursor-pointer items-center gap-1 rounded-full border border-frost-300 bg-white px-3 py-1 text-sm text-iron-600 transition-colors not-has-checked:hover:bg-frost-100 ${CHOSEN} ${FOCUS_WITHIN}`}
+        >
             <input
                 type="checkbox"
                 name={name}
                 value={value}
                 checked={checked}
                 onChange={(event) => onChange(event.target.checked)}
-                className="size-4 rounded border-gray-300"
+                className="sr-only"
             />
+            <CheckIcon />
             {label}
         </label>
     );
@@ -188,46 +281,90 @@ export function BookFilters({ filters }: { filters: BookFilters }) {
                     apply({ ...shown, q: term.trim() || null });
                 }}
                 aria-busy={pending}
-                className={`flex flex-col gap-3.5 rounded-lg border border-gray-200 bg-gray-50 p-4 transition-opacity ${
+                // White on the frost page, which lifts the controls off the
+                // list below them.
+                className={`flex flex-col gap-4 rounded-lg border border-frost-300 bg-white p-4 transition-opacity ${
                     pending ? 'opacity-60' : ''
                 }`}
             >
                 <div className="flex flex-wrap items-end gap-4">
-                    <label className="flex flex-1 flex-col gap-1">
+                    <label className="flex min-w-48 flex-1 flex-col gap-1.5">
                         <span className={LABEL}>Search titles</span>
-                        <input
-                            type="search"
-                            name="q"
-                            value={term}
-                            onChange={(event) => search(event.target.value)}
-                            placeholder="e.g. Dwemer"
-                            className={`${FIELD} min-w-48`}
-                        />
+                        <span className="relative">
+                            {/*
+                             * On the left: Chromium and Safari draw a native
+                             * clear button inside type="search" on the right
+                             * as soon as there is text, and the two collide.
+                             */}
+                            <svg
+                                aria-hidden="true"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-iron-500"
+                            >
+                                <circle cx="11" cy="11" r="7" />
+                                <path d="m20 20-3.5-3.5" />
+                            </svg>
+                            <input
+                                type="search"
+                                name="q"
+                                value={term}
+                                onChange={(event) => search(event.target.value)}
+                                placeholder="e.g. Dwemer"
+                                className={`${FIELD} w-full pr-2.5 pl-8`}
+                            />
+                        </span>
                     </label>
 
-                    <label className="flex flex-col gap-1">
+                    <label className="flex w-full flex-col gap-1.5 sm:w-48">
                         <span className={LABEL}>Skill</span>
-                        <select
-                            name="skill"
-                            value={shown.skill ?? ''}
-                            onChange={(event) =>
-                                apply({
-                                    ...shown,
-                                    skill: event.target.value || null,
-                                })
-                            }
-                            className={FIELD}
-                        >
-                            <option value="">Any skill</option>
-                            {SKILLS.map((skill) => (
-                                <option key={skill} value={skill}>
-                                    {skill}
-                                </option>
-                            ))}
-                        </select>
+                        {/*
+                         * Only the closed trigger is styled. Its popup stays
+                         * the platform's own: styling that needs
+                         * `appearance: base-select`, which has not been checked
+                         * against the Firefox 128 / Safari 16.4 floor.
+                         */}
+                        <span className="relative">
+                            <select
+                                name="skill"
+                                value={shown.skill ?? ''}
+                                onChange={(event) =>
+                                    apply({
+                                        ...shown,
+                                        skill: event.target.value || null,
+                                    })
+                                }
+                                className={`${FIELD} w-full cursor-pointer appearance-none pr-8 pl-2.5`}
+                            >
+                                <option value="">Any skill</option>
+                                {SKILLS.map((skill) => (
+                                    <option key={skill} value={skill}>
+                                        {skill}
+                                    </option>
+                                ))}
+                            </select>
+                            <svg
+                                aria-hidden="true"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="pointer-events-none absolute top-1/2 right-2.5 size-4 -translate-y-1/2 text-iron-500"
+                            >
+                                <path d="m6 9 6 6 6-6" />
+                            </svg>
+                        </span>
                     </label>
+                </div>
 
-                    <FlagSelect
+                <div className="flex flex-wrap gap-x-6 gap-y-4">
+                    <FlagSegments
                         name="read"
                         label="Read"
                         value={shown.read}
@@ -235,7 +372,7 @@ export function BookFilters({ filters }: { filters: BookFilters }) {
                         trueLabel="Read"
                         falseLabel="Unread"
                     />
-                    <FlagSelect
+                    <FlagSegments
                         name="collected"
                         label="Collected"
                         value={shown.collected}
@@ -245,66 +382,62 @@ export function BookFilters({ filters }: { filters: BookFilters }) {
                     />
                 </div>
 
-                <div className="flex flex-wrap gap-x-8 gap-y-4">
-                    <fieldset>
-                        <legend className={`${LABEL} pb-1.5`}>Category</legend>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                            {CATEGORIES.map((category) => (
-                                <Check
-                                    key={category}
-                                    name="category"
-                                    value={category}
-                                    label={CATEGORY_LABELS[category]}
-                                    checked={shown.categories.includes(
-                                        category,
-                                    )}
-                                    onChange={(checked) =>
-                                        apply({
-                                            ...shown,
-                                            categories: toggle<BookCategory>(
-                                                CATEGORIES,
-                                                shown.categories,
-                                                category,
-                                                checked,
-                                            ),
-                                        })
-                                    }
-                                />
-                            ))}
-                        </div>
-                    </fieldset>
+                <fieldset>
+                    <legend className={`${LABEL} pb-1.5`}>Category</legend>
+                    <div className="flex flex-wrap gap-1.5">
+                        {CATEGORIES.map((category) => (
+                            <Chip
+                                key={category}
+                                name="category"
+                                value={category}
+                                label={CATEGORY_LABELS[category]}
+                                checked={shown.categories.includes(category)}
+                                onChange={(checked) =>
+                                    apply({
+                                        ...shown,
+                                        categories: toggle<BookCategory>(
+                                            CATEGORIES,
+                                            shown.categories,
+                                            category,
+                                            checked,
+                                        ),
+                                    })
+                                }
+                            />
+                        ))}
+                    </div>
+                </fieldset>
 
-                    <fieldset>
-                        <legend className={`${LABEL} pb-1.5`}>Source</legend>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                            {SOURCES.map((source) => (
-                                <Check
-                                    key={source}
-                                    name="source"
-                                    value={source}
-                                    label={SOURCE_LABELS[source]}
-                                    checked={shown.sources.includes(source)}
-                                    onChange={(checked) =>
-                                        apply({
-                                            ...shown,
-                                            sources: toggle<BookSource>(
-                                                SOURCES,
-                                                shown.sources,
-                                                source,
-                                                checked,
-                                            ),
-                                        })
-                                    }
-                                />
-                            ))}
-                        </div>
-                    </fieldset>
-                </div>
+                <fieldset>
+                    <legend className={`${LABEL} pb-1.5`}>Source</legend>
+                    <div className="flex flex-wrap gap-1.5">
+                        {SOURCES.map((source) => (
+                            <Chip
+                                key={source}
+                                name="source"
+                                value={source}
+                                label={SOURCE_LABELS[source]}
+                                checked={shown.sources.includes(source)}
+                                onChange={(checked) =>
+                                    apply({
+                                        ...shown,
+                                        sources: toggle<BookSource>(
+                                            SOURCES,
+                                            shown.sources,
+                                            source,
+                                            checked,
+                                        ),
+                                    })
+                                }
+                            />
+                        ))}
+                    </div>
+                </fieldset>
 
                 <noscript>
                     <button
                         type="submit"
-                        className="self-start rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-sm font-medium text-white"
+                        className="self-start rounded-md border border-iron-900 bg-iron-900 px-3 py-1.5 text-sm font-medium text-frost-50"
                     >
                         Apply filters
                     </button>
