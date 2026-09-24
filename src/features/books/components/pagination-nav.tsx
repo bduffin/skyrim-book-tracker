@@ -14,9 +14,9 @@ function hrefFor(page: number, params: SearchParams) {
 
 const SLOT =
     'inline-flex h-9 min-w-9 items-center justify-center rounded-md px-3 text-sm';
-const LINK = `${SLOT} border border-gray-200 text-gray-700 transition-colors hover:bg-gray-50`;
-const CURRENT = `${SLOT} border border-gray-900 bg-gray-900 font-medium text-white`;
-const DISABLED = `${SLOT} border border-gray-100 text-gray-300`;
+const LINK = `${SLOT} border border-frost-300 bg-white text-iron-600 transition-colors hover:bg-frost-100`;
+const CURRENT = `${SLOT} border border-iron-900 bg-iron-900 font-medium text-frost-50`;
+const DISABLED = `${SLOT} border border-frost-200 text-frost-300`;
 
 /**
  * Pagination for the book list (FR-6).
@@ -61,7 +61,7 @@ export function PaginationNav({
                     <span
                         key={`gap-${i}`}
                         aria-hidden="true"
-                        className={`${SLOT} text-gray-400`}
+                        className={`${SLOT} text-iron-500`}
                     >
                         …
                     </span>

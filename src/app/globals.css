@@ -12,8 +12,9 @@
  *   iron-500 on white        5.48   secondary text inside panels
  *   iron-600 on frost-100    7.74   neutral tags
  *   steel-800 on steel-50    7.55   source tags
- *   pine-900 on pine-50      8.49   skill tags
- *   pine-50 on pine-900      8.71   the inverted "Forbidden knowledge" tag
+ *   pine-800 on pine-100     6.88   skill tags
+ *   pine-50 on pine-800      7.61   the inverted "Forbidden knowledge" tag
+ *   iron-900 on frost-50    13.69   the sign-in button, inverted on the header
  *
  * gold-600 is 3.63 on frost-50: enough for an ornament (WCAG's 3:1 for
  * graphics) and not enough for text, so it is decoration only.
@@ -32,9 +33,17 @@
     --color-steel-200: #b9ccdb;
     --color-steel-800: #274b66;
 
-    --color-pine-50: #e4efe9;
-    --color-pine-200: #b7d1c4;
-    --color-pine-900: #1f4a3a;
+    /*
+     * The one saturated hue. Every other tag describes the book; the skill
+     * tag says what it does for your character, so it is the only one that
+     * gets color strong enough to read as a reward. A desaturated pine was
+     * tried first and measured identical in luminance to the neutral tags
+     * (0.841 each), which is why it read as one more piece of plain info.
+     */
+    --color-pine-50: #e0f6e9;
+    --color-pine-100: #c6efd8;
+    --color-pine-400: #5fc593;
+    --color-pine-800: #07573a;
 
     --color-gold-600: #9a7b3f;
 }

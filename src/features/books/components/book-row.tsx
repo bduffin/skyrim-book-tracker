@@ -49,29 +49,27 @@ function isMultiSkill(book: Book): boolean {
  */
 const TONES = {
     /** What kind of thing it is. Neutral, as the baseline classification. */
-    category: 'border-gray-200 bg-gray-50 text-gray-700',
+    category: 'border-frost-300 bg-frost-100 text-iron-600',
     /** Which release it came from -- only ever an add-on (63 of 423). */
-    source: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    /** What it does to your character. */
-    skill: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    source: 'border-steel-200 bg-steel-50 text-steel-800',
+    /**
+     * What it does to your character -- and the only tag with real
+     * saturation, since it is the only one that is a reward rather than a
+     * description. Its fill is also a step darker than the neutral tags
+     * (0.787 luminance against 0.841), so it stays distinct in grayscale
+     * and not by hue alone.
+     */
+    skill: 'border-pine-400 bg-pine-100 text-pine-800',
     /**
      * The same fact as `skill`, turned up -- not a fourth kind of fact, so
      * it stays green: the hue still means "what it does to your character".
      *
-     * Emphasis by *luminance*, not by tint. Earlier attempts varied only
-     * saturation within emerald, which is precisely the signal lost to
-     * colour vision deficiency and in grayscale -- measured, the lightest
-     * of them sat at 0.874 background luminance against the ordinary tag's
-     * 0.947, so it stayed just another pale pill. Inverting to 0.059 keeps
-     * it obviously different without relying on hue at all. Text contrast
-     * is 8.47, above the ordinary tag's own 5.09.
-     *
-     * Deliberately not black, which would read louder still: `bg-gray-900`
-     * is this app's *interactive* fill (the sign-in button, the current
-     * pagination page), so a black pill sitting inertly in a row would
-     * borrow an affordance it does not have.
+     * Emphasis by *luminance*, not by tint. Varying only saturation within
+     * the green is exactly the signal lost to color vision deficiency and in
+     * grayscale, so the ordinary skill tag's light fill (relative luminance
+     * 0.787) is inverted to a dark one (0.072) instead. Text contrast is 7.61.
      */
-    skillRare: 'border-emerald-900 bg-emerald-900 text-emerald-100',
+    skillRare: 'border-pine-800 bg-pine-800 text-pine-50',
 } as const;
 
 /**
@@ -96,9 +94,8 @@ function UespLogo() {
             alt=""
             // 36px is the smallest size at which the wordmark inside the
             // logo resolves into "UESP" rather than a tan speck; below
-            // about 28 it is unreadable at any density. The cost is row
-            // height, 56px to 72px, or roughly one extra screenful over a
-            // 50-book page.
+            // about 28 it is unreadable at any density. It is the tallest
+            // thing in a row, so it is what sets the row height, at 65px.
             width={36}
             height={36}
             className="size-9 shrink-0"
@@ -169,7 +166,7 @@ export function BookRow({ book }: { book: Book }) {
         : SOURCE_LABELS[book.source];
 
     return (
-        <li className="px-4 py-3 transition-colors hover:bg-gray-50">
+        <li className="px-4 py-3 transition-colors hover:bg-frost-100">
             {/*
              * Two blocks centred against each other, rather than one flat
              * baseline row. The link is an inline-flex around a 36px logo,
@@ -182,7 +179,7 @@ export function BookRow({ book }: { book: Book }) {
              */}
             <div className="flex items-center gap-x-2.5">
                 <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-1.5">
-                    <span className="font-medium text-gray-900">
+                    <span className="font-serif text-lg font-medium text-iron-900">
                         {book.title}
                     </span>
                     {category && <Tag tone="category">{category}</Tag>}
@@ -229,9 +226,9 @@ export function BookRow({ book }: { book: Book }) {
                     // what makes them read as a single control rather than two
                     // decorations that happen to sit together. It has to be
                     // two steps darker than the row's own hover, not one:
-                    // against `bg-gray-50` a `bg-gray-100` chip is invisible,
+                    // a chip one step off the row's highlight is invisible,
                     // because the row highlights at the same moment.
-                    className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700"
+                    className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-iron-500 transition-colors hover:bg-frost-300 hover:text-iron-900"
                 >
                     <UespLogo />
                     <ExternalLinkIcon />

@@ -24,12 +24,12 @@ export function GitHubLoginButton() {
         <div className="flex flex-col items-end gap-1">
             <button
                 onClick={signIn}
-                className="rounded bg-black px-4 py-2 text-white"
+                className="rounded bg-frost-50 px-4 py-2 font-medium text-iron-900 transition-colors hover:bg-frost-200"
             >
                 Sign in with GitHub
             </button>
             {failed && (
-                <span className="text-sm text-red-600">
+                <span className="text-sm text-red-300">
                     Couldn&apos;t sign in. Please try again.
                 </span>
             )}

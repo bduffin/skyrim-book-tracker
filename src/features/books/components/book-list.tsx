@@ -12,7 +12,7 @@ import type { BookRow as Book } from '../types';
  */
 export function BookList({ books }: { books: Book[] }) {
     return (
-        <ul className="divide-y divide-gray-100 border-y border-gray-100">
+        <ul className="divide-y divide-frost-200 border-y border-frost-200">
             {books.map((book) => (
                 <BookRow key={book.id} book={book} />
             ))}

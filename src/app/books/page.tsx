@@ -13,6 +13,7 @@ import { BookFilters } from '@/features/books/components/book-filters';
 import { BookList } from '@/features/books/components/book-list';
 import { EmptyState } from '@/features/books/components/empty-state';
 import { PaginationNav } from '@/features/books/components/pagination-nav';
+import { PageTitle } from '@/components/page-title';
 
 export const metadata: Metadata = {
     title: 'Books',
@@ -34,9 +35,7 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
 
     return (
         <main className="mx-auto max-w-3xl py-6">
-            <header className="px-4 pb-4">
-                <h1>Books</h1>
-            </header>
+            <PageTitle>Books</PageTitle>
 
             <BookFilters filters={filters} />
 
@@ -51,7 +50,7 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
              * have tracked the optimistic value and disagreed with the count
              * beside it for the length of a round trip.
              */}
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-5 pb-2 text-sm text-gray-600">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-5 pb-2 text-sm text-iron-500">
                 {/* A filter that matches nothing is reachable now that the
                     query honors them, and the range arithmetic reads "1-0 of
                     0" there. The designed empty state is the next step; this
@@ -69,7 +68,7 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
                 {!isDefaultFilters(filters) && (
                     <Link
                         href={BOOKS_PATH}
-                        className="underline underline-offset-2 transition-colors hover:text-gray-900"
+                        className="underline underline-offset-2 transition-colors hover:text-iron-900"
                     >
                         Reset filters
                     </Link>

@@ -18,7 +18,7 @@ export async function SiteHeader() {
     }
 
     return (
-        <header className="flex justify-end border-b px-4 py-3">
+        <header className="flex justify-end bg-iron-900 px-4 py-3 text-frost-50">
             {claims ? (
                 <span>Welcome, {getDisplayName(claims)}</span>
             ) : (

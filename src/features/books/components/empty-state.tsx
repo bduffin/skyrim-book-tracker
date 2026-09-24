@@ -29,8 +29,8 @@ import { BOOKS_PATH, isDefaultFilters, type BookFilters } from '../scope';
  */
 export function EmptyState({ filters }: { filters: BookFilters }) {
     return (
-        <div className="border-y border-gray-100 px-4 py-12 text-center">
-            <p className="text-gray-900">
+        <div className="border-y border-frost-200 px-4 py-12 text-center">
+            <p className="text-iron-900">
                 {filters.q !== null ? (
                     <>No books match “{filters.q}” with these filters.</>
                 ) : (
@@ -45,10 +45,10 @@ export function EmptyState({ filters }: { filters: BookFilters }) {
              * something it cannot deliver.
              */}
             {!isDefaultFilters(filters) && (
-                <p className="pt-2 text-sm text-gray-600">
+                <p className="pt-2 text-sm text-iron-500">
                     <Link
                         href={BOOKS_PATH}
-                        className="underline underline-offset-2 transition-colors hover:text-gray-900"
+                        className="underline underline-offset-2 transition-colors hover:text-iron-900"
                     >
                         Reset filters
                     </Link>{' '}
