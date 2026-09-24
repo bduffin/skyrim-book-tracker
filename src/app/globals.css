@@ -1,7 +1,68 @@
 @import 'tailwindcss';
 
+/*
+ * "Frost and iron": a cool, light Nordic palette. Skyrim is snow, stone and
+ * iron, so cool fits with the game.
+ *
+ * Every pair that carries text is measured against WCAG AA (4.5:1), several
+ * of them at 11px where there is no large-text allowance:
+ *
+ *   iron-900 on frost-50    13.69   body text
+ *   iron-500 on frost-50     5.01   secondary text, small-caps labels
+ *   iron-500 on white        5.48   secondary text inside panels
+ *   iron-600 on frost-100    7.74   neutral tags
+ *   steel-800 on steel-50    7.55   source tags
+ *   pine-900 on pine-50      8.49   skill tags
+ *   pine-50 on pine-900      8.71   the inverted "Forbidden knowledge" tag
+ *
+ * gold-600 is 3.63 on frost-50: enough for an ornament (WCAG's 3:1 for
+ * graphics) and not enough for text, so it is decoration only.
+ */
+@theme {
+    --color-frost-50: #f2f5f7;
+    --color-frost-100: #e8edf2;
+    --color-frost-200: #d8dfe5;
+    --color-frost-300: #c9d2da;
+
+    --color-iron-500: #5b6b7a;
+    --color-iron-600: #3a4a59;
+    --color-iron-900: #1c2833;
+
+    --color-steel-50: #e1eaf1;
+    --color-steel-200: #b9ccdb;
+    --color-steel-800: #274b66;
+
+    --color-pine-50: #e4efe9;
+    --color-pine-200: #b7d1c4;
+    --color-pine-900: #1f4a3a;
+
+    --color-gold-600: #9a7b3f;
+}
+
+/*
+ * `inline` because these point at variables next/font sets on <html> at
+ * runtime; a plain theme block would try to resolve them when the theme is
+ * built.
+ *
+ * Jost is a free Futura-like sans -- a nod to the Futura of Skyrim's own
+ * menus without borrowing anything from the game. EB Garamond is for the
+ * books themselves and the page title.
+ */
+@theme inline {
+    --font-sans: var(--font-jost), ui-sans-serif, system-ui, sans-serif;
+    --font-serif: var(--font-eb-garamond), ui-serif, Georgia, serif;
+}
+
 @layer base {
+    body {
+        @apply bg-frost-50 text-iron-900;
+    }
+
+    /*
+     * Weight 400, not 500: at 30px the medium weight read too heavy beside
+     * the hairline ornament that sits under the page title.
+     */
     h1 {
-        @apply text-3xl font-bold;
+        @apply font-serif text-3xl font-normal;
     }
 }
