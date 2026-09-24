@@ -26,11 +26,8 @@
 
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-import { isLocalHost } from '../../scripts/lib/db.mjs';
 import { applyFlagFilters, flagEmbed } from '../../src/features/books/query.js';
 import {
     DEFAULT_CATEGORIES,
@@ -38,45 +35,7 @@ import {
     type FlagFilter,
 } from '../../src/features/books/scope.js';
 
-type LocalStack = { url: string; publishableKey: string; secretKey: string };
-
-/**
- * Where the local stack is listening, straight from the CLI rather than from
- * `.env.local` -- which points wherever the developer last pointed it, and is
- * exactly the well-aimed environment variable this must not trust.
- */
-function localStack(): LocalStack {
-    let raw: string;
-    try {
-        raw = execFileSync('supabase', ['status', '-o', 'json'], {
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-    } catch {
-        throw new Error(
-            'Could not read the local Supabase stack.\n' +
-                '  Start it with `supabase start` (Docker must be running), ' +
-                'then re-run `yarn test:db`.',
-        );
-    }
-
-    const status = JSON.parse(raw);
-    const url: string = status.API_URL;
-    const host = new URL(url).hostname;
-    if (!isLocalHost(host)) {
-        throw new Error(
-            `Refusing to run database tests against ${host}.\n` +
-                '  These create a user and write rows, and the secret key ' +
-                'bypasses row-level security.',
-        );
-    }
-
-    return {
-        url,
-        publishableKey: status.PUBLISHABLE_KEY ?? status.ANON_KEY,
-        secretKey: status.SECRET_KEY ?? status.SERVICE_ROLE_KEY,
-    };
-}
+import { localStack } from './lib/stack.mjs';
 
 /** `uesp_page_id` is NOT NULL and unique; real pages are far below this. */
 const FIXTURE_PAGE_ID_BASE = 990_000_000;
