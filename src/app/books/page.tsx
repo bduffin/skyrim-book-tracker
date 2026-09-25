@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { getViewerId } from '@/features/auth/get-viewer-id';
 import { getBooksPage } from '@/features/books/data';
 import {
     BOOKS_PATH,
@@ -28,6 +29,7 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
     const books = await getBooksPage({
         page: parsePageParam(params.page),
         filters,
+        viewerId: await getViewerId(),
     });
 
     const first = (books.page - 1) * PAGE_SIZE + 1;

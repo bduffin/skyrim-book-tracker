@@ -28,7 +28,14 @@ import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-import { applyFlagFilters, flagEmbed } from '../../src/features/books/query.js';
+import {
+    applyFlagFilters,
+    flagEmbed,
+    readViewerFlags,
+    VIEWER_FLAGS_EMBED,
+    withViewerFlags,
+    type ViewerFlagsEmbed,
+} from '../../src/features/books/query.js';
 import {
     DEFAULT_CATEGORIES,
     DEFAULT_SOURCES,
@@ -41,6 +48,7 @@ import { localStack } from './lib/stack.mjs';
 const FIXTURE_PAGE_ID_BASE = 990_000_000;
 
 const EMAIL = 'browse-m2-flag-filters@example.test';
+const OTHER_EMAIL = 'browse-m3-flag-display-other@example.test';
 const PASSWORD = 'correct-horse-battery-staple';
 
 /**
@@ -68,10 +76,47 @@ async function countFor(
     return count ?? 0;
 }
 
+type Shown = { isRead: boolean; isCollected: boolean };
+
+/**
+ * The flags each of `bookIds` displays under a pair of filters, built the way
+ * `getBooksPage` builds its page of rows: `flagEmbed` and `applyFlagFilters`
+ * for the filters, `VIEWER_FLAGS_EMBED` and `withViewerFlags` for the display.
+ * Books the filters exclude are absent from the result.
+ */
+async function shownFor(
+    supabase: SupabaseClient,
+    viewerId: string,
+    bookIds: string[],
+    read: FlagFilter,
+    collected: FlagFilter,
+): Promise<Map<string, Shown>> {
+    // Annotated as a plain string, as data.ts's is. Passed inline, the
+    // template infers as a template-literal type, which supabase-js's select
+    // parser tries to turn into a row type, and tsc gives up (TS2589).
+    const select: string = `id${flagEmbed(read, collected)}${VIEWER_FLAGS_EMBED}`;
+    const query = withViewerFlags(
+        supabase.from('book').select(select).in('id', bookIds),
+        viewerId,
+    );
+
+    const { data, error } = await applyFlagFilters(query, read, collected);
+    if (error) throw new Error(`${read}/${collected}: ${error.message}`);
+
+    const rows = data as unknown as {
+        id: string;
+        viewer_flags: ViewerFlagsEmbed;
+    }[];
+    return new Map(
+        rows.map((row) => [row.id, readViewerFlags(row.viewer_flags)]),
+    );
+}
+
 describe('read/collected filters against the database (FR-3)', () => {
     let admin: SupabaseClient;
     let viewer: SupabaseClient;
     let userId: string;
+    let otherUserId: string;
     let bookIds: string[] = [];
 
     /** Books in the default scope with no `user_book` row for this viewer. */
@@ -142,12 +187,43 @@ describe('read/collected filters against the database (FR-3)', () => {
             password: PASSWORD,
         });
         if (signInError) throw signInError;
+
+        // A second user with the opposite flags on B and C, and no row on A.
+        // Invisible to the viewer under today's RLS; the display tests below
+        // read through the admin client, which is not.
+        const { data: other, error: otherError } =
+            await admin.auth.admin.createUser({
+                email: OTHER_EMAIL,
+                password: PASSWORD,
+                email_confirm: true,
+            });
+        if (otherError) throw otherError;
+        otherUserId = other.user!.id;
+
+        const { error: otherTrackError } = await admin
+            .from('user_book')
+            .insert([
+                {
+                    user_id: otherUserId,
+                    book_id: B,
+                    is_read: false,
+                    is_collected: true,
+                },
+                {
+                    user_id: otherUserId,
+                    book_id: C,
+                    is_read: true,
+                    is_collected: false,
+                },
+            ]);
+        if (otherTrackError) throw otherTrackError;
     });
 
     after(async () => {
         // Deleting the books cascades to user_book (on delete cascade).
         if (bookIds.length) await admin.from('book').delete().in('id', bookIds);
         if (userId) await admin.auth.admin.deleteUser(userId);
+        if (otherUserId) await admin.auth.admin.deleteUser(otherUserId);
     });
 
     test('no flag filter returns the whole default scope', async () => {
@@ -198,5 +274,89 @@ describe('read/collected filters against the database (FR-3)', () => {
         assert.equal(await countFor(anon, 'true', 'any'), 0);
         assert.equal(await countFor(anon, 'any', 'true'), 0);
         assert.equal(await countFor(anon, 'false', 'false'), untouched + 3);
+    });
+
+    describe('each row displays the viewer’s own flags (FR-1)', () => {
+        const expected = () =>
+            new Map<string, Shown>([
+                [bookIds[0], { isRead: true, isCollected: true }],
+                [bookIds[1], { isRead: true, isCollected: false }],
+                [bookIds[2], { isRead: false, isCollected: true }],
+            ]);
+
+        test('with no flag filter', async () => {
+            assert.deepEqual(
+                await shownFor(viewer, userId, bookIds, 'any', 'any'),
+                expected(),
+            );
+        });
+
+        // The case the filtering embed gets wrong. Its anti-join prefilters
+        // the embed down to read rows, so the collected-only book's row is
+        // filtered out of it and reading flags off it would show that book
+        // as not collected.
+        test('under read=false, a collected book still shows collected', async () => {
+            assert.deepEqual(
+                await shownFor(viewer, userId, bookIds, 'false', 'any'),
+                new Map([[bookIds[2], { isRead: false, isCollected: true }]]),
+            );
+        });
+
+        test('under collected=false, a read book still shows read', async () => {
+            assert.deepEqual(
+                await shownFor(viewer, userId, bookIds, 'any', 'false'),
+                new Map([[bookIds[1], { isRead: true, isCollected: false }]]),
+            );
+        });
+
+        test('under an inner-joined filter, both flags still show', async () => {
+            assert.deepEqual(
+                await shownFor(viewer, userId, bookIds, 'true', 'any'),
+                new Map([
+                    [bookIds[0], { isRead: true, isCollected: true }],
+                    [bookIds[1], { isRead: true, isCollected: false }],
+                ]),
+            );
+        });
+
+        // FR-10 will let anyone read a public user's user_book rows, and then
+        // RLS alone no longer confines the embed to the viewer. The admin
+        // client bypasses RLS the same way, so this is that future today:
+        // withViewerFlags must be what keeps each user's flags off the other's
+        // rows.
+        //
+        // Checked from both sides, because the first side alone can pass by
+        // luck: an unscoped embed on B or C holds both users' rows, and
+        // readViewerFlags takes the first, which was the viewer's on every run
+        // measured. Book A cannot hide it -- only the viewer has a row there,
+        // so an unscoped embed shows it to the other user as read and collected.
+        test('another user’s rows never display, even where RLS would admit them', async () => {
+            assert.deepEqual(
+                await shownFor(admin, userId, bookIds, 'any', 'any'),
+                expected(),
+            );
+            assert.deepEqual(
+                await shownFor(admin, otherUserId, bookIds, 'any', 'any'),
+                new Map([
+                    [bookIds[0], { isRead: false, isCollected: false }],
+                    [bookIds[1], { isRead: false, isCollected: true }],
+                    [bookIds[2], { isRead: true, isCollected: false }],
+                ]),
+            );
+        });
+
+        test('a viewer with no rows sees every book untouched', async () => {
+            const untouchedFlags = { isRead: false, isCollected: false };
+            assert.deepEqual(
+                await shownFor(
+                    admin,
+                    crypto.randomUUID(),
+                    bookIds,
+                    'any',
+                    'any',
+                ),
+                new Map(bookIds.map((id) => [id, untouchedFlags])),
+            );
+        });
     });
 });

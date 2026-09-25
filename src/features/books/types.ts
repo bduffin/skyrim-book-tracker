@@ -17,10 +17,9 @@ export type BookSource =
 /**
  * One row of the book list (FR-1).
  *
- * `isRead`/`isCollected` are coalesced from the viewer's `user_book` row, which
- * is absent for an untouched book. Browse M1 has no user join at all, so both
- * are `false` for every row -- which is what FR-2 specifies for an anonymous
- * visitor, rather than a placeholder waiting on M3.
+ * `isRead`/`isCollected` are coalesced from the viewer's own `user_book` row,
+ * which is absent for an untouched book, and are `false` on every row for a
+ * signed-out visitor (FR-2).
  */
 export type BookRow = {
     id: string;

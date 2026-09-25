@@ -8,7 +8,14 @@ import {
     rangeFor,
     type BookFilters,
 } from './scope';
-import { applyFlagFilters, flagEmbed } from './query';
+import {
+    applyFlagFilters,
+    flagEmbed,
+    readViewerFlags,
+    VIEWER_FLAGS_EMBED,
+    withViewerFlags,
+    type ViewerFlagsEmbed,
+} from './query';
 import type { BookCategory, BookRow, BookSource } from './types';
 
 export type BooksPage = {
@@ -39,6 +46,8 @@ type BookQueryRow = {
     source: BookSource;
     skill: string | null;
     uesp_title: string;
+    /** Absent when the viewer is signed out and the embed is not selected. */
+    viewer_flags?: ViewerFlagsEmbed;
 };
 
 /**
@@ -51,18 +60,24 @@ type BookQueryRow = {
 export async function getBooksPage({
     page,
     filters,
+    viewerId,
 }: {
     page: number;
     filters: BookFilters;
+    /** From `getViewerId()`; `null` renders every row untouched (FR-2). */
+    viewerId: string | null;
 }): Promise<BooksPage> {
     // Per-request, never module scope: a cached client can leak one user's
     // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
 
     const { read, collected } = filters;
-    const select = `${COLUMNS}${flagEmbed(read, collected)}`;
+    const filterSelect = `${COLUMNS}${flagEmbed(read, collected)}`;
 
-    const scoped = (options?: { count: 'exact'; head: boolean }) => {
+    const scoped = (
+        select: string,
+        options?: { count: 'exact'; head: boolean },
+    ) => {
         let query = supabase
             .from('book')
             .select(select, options)
@@ -87,7 +102,7 @@ export async function getBooksPage({
     // has to be clamped *before* the range is built: PostgREST answers a range
     // starting past the last row with a 416 rather than an empty list, so
     // `?page=99` would throw instead of falling back (AC-10).
-    const { count, error: countError } = await scoped({
+    const { count, error: countError } = await scoped(filterSelect, {
         count: 'exact',
         head: true,
     });
@@ -101,7 +116,18 @@ export async function getBooksPage({
     const clamped = clampPage(page, pageCount);
     const [from, to] = rangeFor(clamped);
 
-    const { data, error } = await scoped()
+    // Only the page of rows needs the displayed flags, not the count above.
+    // A signed-out viewer has no row to display, so the join is skipped
+    // rather than made and coalesced away.
+    const rows =
+        viewerId === null
+            ? scoped(filterSelect)
+            : withViewerFlags(
+                  scoped(`${filterSelect}${VIEWER_FLAGS_EMBED}`),
+                  viewerId,
+              );
+
+    const { data, error } = await rows
         .order('title', { ascending: true })
         .order('uesp_page_id', { ascending: true })
         .range(from, to);
@@ -118,11 +144,7 @@ export async function getBooksPage({
             source: row.source,
             skill: row.skill,
             uespTitle: row.uesp_title,
-            // Still false for every row: Browse M2 joins user_book to *filter*
-            // by it, not to display it, and the filtering embed is prefiltered
-            // in the anti-join case. The toggles and the display join are M3's.
-            isRead: false,
-            isCollected: false,
+            ...readViewerFlags(row.viewer_flags),
         })),
         total,
         page: clamped,
