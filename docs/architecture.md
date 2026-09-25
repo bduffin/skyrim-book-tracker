@@ -305,7 +305,7 @@ There is **no CI**, so anything that has to be remembered will drift, and a stal
 
 **RLS → a real Postgres, never a mock.** RLS is the entire authorization model, with no second check behind it, and a mocked policy only proves the mock works. The test creates two users against the **local** stack and asserts that one cannot read or write the other's `user_book` rows (AC-7). Drive it through `supabase-js` rather than raw SQL, so it exercises the path the app actually uses — PostgREST plus a JWT — and reuse the importer's local-only guard so a test can never point at the hosted project.
 
-**Browser-only behavior → Playwright.** Filters changing the list without a full reload, optimistic toggles and their rollback, disabled controls when signed out, progress matching the database after a reload (AC-2 through AC-5). It also automates the progressive-enhancement check in §9: a browser context with `javaScriptEnabled: false` turns "disable JS and see if it still works" into an assertion instead of a habit.
+**Browser-only behavior → Playwright.** Filters changing the list without a full reload, optimistic toggles and their rollback, the signed-out controls and their sign-in prompts, progress matching the database after a reload (AC-2 through AC-5). It also automates the progressive-enhancement check in §9: a browser context with `javaScriptEnabled: false` turns "disable JS and see if it still works" into an assertion instead of a habit.
 
 **Deliberately skipped:**
 
