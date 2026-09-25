@@ -12,6 +12,7 @@ import {
     applyFlagFilters,
     flagEmbed,
     readViewerFlags,
+    resolveFlagFilters,
     VIEWER_FLAGS_EMBED,
     withViewerFlags,
     type ViewerFlagsEmbed,
@@ -71,7 +72,12 @@ export async function getBooksPage({
     // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
 
-    const { read, collected } = filters;
+    const flags = resolveFlagFilters(filters.read, filters.collected, viewerId);
+    // A signed-out visitor filtering on read or collected books: nothing can
+    // match, and asking the database would only hand the answer to RLS.
+    if (flags === null) return { rows: [], total: 0, page: 1, pageCount: 1 };
+
+    const { read, collected } = flags;
     const filterSelect = `${COLUMNS}${flagEmbed(read, collected)}`;
 
     const scoped = (
@@ -95,7 +101,7 @@ export async function getBooksPage({
             query = query.ilike('title', `%${escapeLike(filters.q)}%`);
         }
 
-        return applyFlagFilters(query, read, collected);
+        return applyFlagFilters(query, read, collected, viewerId);
     };
 
     // Counted first, in a head request that returns no rows, because the page

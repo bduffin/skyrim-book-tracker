@@ -32,6 +32,7 @@ import {
     applyFlagFilters,
     flagEmbed,
     readViewerFlags,
+    resolveFlagFilters,
     VIEWER_FLAGS_EMBED,
     withViewerFlags,
     type ViewerFlagsEmbed,
@@ -52,15 +53,25 @@ const OTHER_EMAIL = 'browse-m3-flag-display-other@example.test';
 const PASSWORD = 'correct-horse-battery-staple';
 
 /**
- * Counts books the way `getBooksPage` does, through the same `flagEmbed` and
- * `applyFlagFilters` the app calls. The base scope is FR-3's defaults, which
- * is not what these tests are about -- the flags are.
+ * Counts books the way `getBooksPage` does, through the same
+ * `resolveFlagFilters`, `flagEmbed` and `applyFlagFilters` the app calls. The
+ * base scope is FR-3's defaults, which is not what these tests are about --
+ * the flags are.
  */
 async function countFor(
     supabase: SupabaseClient,
-    read: FlagFilter,
-    collected: FlagFilter,
+    viewerId: string | null,
+    requestedRead: FlagFilter,
+    requestedCollected: FlagFilter,
 ): Promise<number> {
+    const flags = resolveFlagFilters(
+        requestedRead,
+        requestedCollected,
+        viewerId,
+    );
+    if (flags === null) return 0;
+    const { read, collected } = flags;
+
     const query = supabase
         .from('book')
         .select(`id, title${flagEmbed(read, collected)}`, {
@@ -71,7 +82,12 @@ async function countFor(
         .in('category', [...DEFAULT_CATEGORIES])
         .in('source', [...DEFAULT_SOURCES]);
 
-    const { count, error } = await applyFlagFilters(query, read, collected);
+    const { count, error } = await applyFlagFilters(
+        query,
+        read,
+        collected,
+        viewerId,
+    );
     if (error) throw new Error(`${read}/${collected}: ${error.message}`);
     return count ?? 0;
 }
@@ -100,7 +116,12 @@ async function shownFor(
         viewerId,
     );
 
-    const { data, error } = await applyFlagFilters(query, read, collected);
+    const { data, error } = await applyFlagFilters(
+        query,
+        read,
+        collected,
+        viewerId,
+    );
     if (error) throw new Error(`${read}/${collected}: ${error.message}`);
 
     const rows = data as unknown as {
@@ -130,7 +151,7 @@ describe('read/collected filters against the database (FR-3)', () => {
 
         // Measured before the fixtures land, so the assertions below hold
         // whether or not the UESP catalog has been imported locally.
-        const baseline = await countFor(admin, 'any', 'any');
+        const baseline = await countFor(admin, null, 'any', 'any');
 
         const fixtures = [
             'Browse M2 fixture: read and collected',
@@ -227,53 +248,88 @@ describe('read/collected filters against the database (FR-3)', () => {
     });
 
     test('no flag filter returns the whole default scope', async () => {
-        assert.equal(await countFor(viewer, 'any', 'any'), untouched + 3);
+        assert.equal(
+            await countFor(viewer, userId, 'any', 'any'),
+            untouched + 3,
+        );
     });
 
     test('read=true returns only books with a read row', async () => {
-        assert.equal(await countFor(viewer, 'true', 'any'), 2);
+        assert.equal(await countFor(viewer, userId, 'true', 'any'), 2);
     });
 
     // The one an embedded filter gets wrong: a LEFT-joined
     // `user_book.is_read=eq.false` leaves every parent in place, so this would
     // return untouched + 3 instead of excluding the two read books.
     test('read=false excludes read books, including untracked ones', async () => {
-        assert.equal(await countFor(viewer, 'false', 'any'), untouched + 1);
+        assert.equal(
+            await countFor(viewer, userId, 'false', 'any'),
+            untouched + 1,
+        );
     });
 
     test('collected=true returns only books with a collected row', async () => {
-        assert.equal(await countFor(viewer, 'any', 'true'), 2);
+        assert.equal(await countFor(viewer, userId, 'any', 'true'), 2);
     });
 
     test('collected=false excludes collected books', async () => {
-        assert.equal(await countFor(viewer, 'any', 'false'), untouched + 1);
+        assert.equal(
+            await countFor(viewer, userId, 'any', 'false'),
+            untouched + 1,
+        );
     });
 
     test('the flags combine independently', async () => {
-        assert.equal(await countFor(viewer, 'true', 'true'), 1);
-        assert.equal(await countFor(viewer, 'true', 'false'), 1);
-        assert.equal(await countFor(viewer, 'false', 'true'), 1);
+        assert.equal(await countFor(viewer, userId, 'true', 'true'), 1);
+        assert.equal(await countFor(viewer, userId, 'true', 'false'), 1);
+        assert.equal(await countFor(viewer, userId, 'false', 'true'), 1);
     });
 
     // Both false means no row at all. Expressed as an anti-join over either
     // flag rather than over row existence, so it does not lean on
     // user_book_touched to be correct.
     test('read=false and collected=false returns only untouched books', async () => {
-        assert.equal(await countFor(viewer, 'false', 'false'), untouched);
+        assert.equal(
+            await countFor(viewer, userId, 'false', 'false'),
+            untouched,
+        );
     });
 
-    // FR-2: an anonymous visitor sees every book as untouched. RLS is what
-    // makes this true -- user_book_select_own admits no rows without a session
-    // -- so a policy that leaked would show up here as a non-zero read count.
+    // FR-2: an anonymous visitor sees every book as untouched. Decided by
+    // resolveFlagFilters without asking the database, so this holds whatever
+    // RLS lets anon read; that anon can read no user_book rows today is
+    // asserted in rls.test.mts instead.
     test('a signed-out visitor has read nothing and collected nothing', async () => {
         const stack = localStack();
         const anon = createClient(stack.url, stack.publishableKey, {
             auth: { autoRefreshToken: false, persistSession: false },
         });
 
-        assert.equal(await countFor(anon, 'true', 'any'), 0);
-        assert.equal(await countFor(anon, 'any', 'true'), 0);
-        assert.equal(await countFor(anon, 'false', 'false'), untouched + 3);
+        assert.equal(await countFor(anon, null, 'true', 'any'), 0);
+        assert.equal(await countFor(anon, null, 'any', 'true'), 0);
+        assert.equal(
+            await countFor(anon, null, 'false', 'false'),
+            untouched + 3,
+        );
+    });
+
+    // FR-10 will let anyone read a public user's user_book rows, and then RLS
+    // alone no longer confines the filtering embed to the viewer. The admin
+    // client bypasses RLS the same way, and the other user's flags on B and C
+    // are the opposite of the viewer's, so an unscoped embed gets every one of
+    // these counts wrong: read=true would count C, which only the other user
+    // has read, and read=false would drop it.
+    test('the filters count only the viewer’s own rows, even where RLS would admit others', async () => {
+        assert.equal(await countFor(admin, userId, 'true', 'any'), 2);
+        assert.equal(
+            await countFor(admin, userId, 'false', 'any'),
+            untouched + 1,
+        );
+        assert.equal(await countFor(admin, userId, 'any', 'true'), 2);
+        assert.equal(
+            await countFor(admin, userId, 'any', 'false'),
+            untouched + 1,
+        );
     });
 
     describe('each row displays the viewer’s own flags (FR-1)', () => {

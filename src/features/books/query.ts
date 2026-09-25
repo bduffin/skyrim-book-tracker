@@ -69,6 +69,29 @@ export function flagEmbed(read: FlagFilter, collected: FlagFilter): string {
 }
 
 /**
+ * The read/collected filters as they apply to one viewer, or `null` when they
+ * match no book at all.
+ *
+ * Only a signed-in viewer's filters need the database. A signed-out visitor
+ * has read and collected nothing (FR-2), so their answer is known up front: a
+ * `true` filter matches no book, and a `false` one matches every book and is
+ * no filter at all. Deciding that here rather than letting RLS decide it
+ * matters because RLS only gives that answer while it hides every row from
+ * `anon` -- FR-10's public-read policy will let `anon` see public users' rows,
+ * and a `read=true` resolved by the database would then match books that
+ * *anyone* has read.
+ */
+export function resolveFlagFilters(
+    read: FlagFilter,
+    collected: FlagFilter,
+    viewerId: string | null,
+): { read: FlagFilter; collected: FlagFilter } | null {
+    if (viewerId !== null) return { read, collected };
+    if (read === 'true' || collected === 'true') return null;
+    return { read: 'any', collected: 'any' };
+}
+
+/**
  * The subset of a PostgREST filter builder this module touches.
  *
  * Structural rather than imported from `@supabase/postgrest-js`: the client is
@@ -77,14 +100,21 @@ export function flagEmbed(read: FlagFilter, collected: FlagFilter): string {
  * double honest.
  */
 export type FlagQuery<Q> = {
-    eq(column: string, value: boolean): Q;
+    eq(column: string, value: boolean | string): Q;
     is(column: string, value: null): Q;
     or(filters: string, options: { referencedTable: string }): Q;
 };
 
 /**
  * Applies the read/collected predicates to a query already carrying
- * `flagEmbed`'s select.
+ * `flagEmbed`'s select, for one viewer's own rows.
+ *
+ * Scoped to the viewer explicitly, as `withViewerFlags` is, rather than left
+ * to RLS: once FR-10 lets anyone read a public user's rows, an unscoped embed
+ * would make `read=true` match books any public user has read. Takes filters
+ * already through `resolveFlagFilters`, which is what leaves a signed-out
+ * visitor with nothing to scope; a flag filter arriving with no viewer means
+ * that step was skipped, so it throws rather than quietly falling back to RLS.
  *
  * Both filters share one embed, which is why they cannot be a `true` and a
  * `false` anti-join at once. They never need to be: `read=true` already
@@ -95,10 +125,24 @@ export function applyFlagFilters<Q extends FlagQuery<Q>>(
     query: Q,
     read: FlagFilter,
     collected: FlagFilter,
+    viewerId: string | null,
 ): Q {
+    if (read === 'any' && collected === 'any') return query;
+    if (viewerId === null) {
+        throw new Error(
+            'A read/collected filter needs a viewer; resolve it with ' +
+                'resolveFlagFilters first.',
+        );
+    }
+
+    // Both branches below filter this same embed, so pinning it to the viewer
+    // once covers the inner join and the anti-join alike: the anti-join then
+    // looks for the viewer's own contradicting row, not anybody's.
+    const own = query.eq(`${FLAG_FILTER}.user_id`, viewerId);
+
     if (read === 'true' || collected === 'true') {
         // Inner join: the row exists, so both flags are plain equalities.
-        let next = query;
+        let next = own;
         if (read !== 'any')
             next = next.eq(`${FLAG_FILTER}.is_read`, read === 'true');
         if (collected !== 'any') {
@@ -117,12 +161,12 @@ export function applyFlagFilters<Q extends FlagQuery<Q>>(
             ...(read === 'false' ? ['is_read.eq.true'] : []),
             ...(collected === 'false' ? ['is_collected.eq.true'] : []),
         ];
-        return query
+        return own
             .or(contradictions.join(','), { referencedTable: FLAG_FILTER })
             .is(FLAG_FILTER, null);
     }
 
-    return query;
+    return own;
 }
 
 /**

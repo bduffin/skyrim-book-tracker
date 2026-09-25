@@ -249,6 +249,16 @@ describe('row-level security (AC-7)', () => {
             assert.equal(count, 1);
         });
 
+        test("a signed-out visitor cannot read the owner's row", async () => {
+            const { data, error } = await anon
+                .from('user_book')
+                .select('book_id')
+                .eq('user_id', userA.userId);
+
+            assert.equal(error, null);
+            assert.deepEqual(data, []);
+        });
+
         test('a signed-out visitor cannot write a row', async () => {
             const { error } = await anon.from('user_book').insert({
                 user_id: userA.userId,
