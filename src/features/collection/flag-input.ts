@@ -1,0 +1,110 @@
+/**
+ * The pure half of the read/collected write path (FR-4): what a toggle's form
+ * submits, how that is validated, and what the Server Action answers.
+ *
+ * Split from `actions.ts` so it can be unit-tested -- a `'use server'` module
+ * can only export async functions, and the action itself needs a request
+ * context to run -- and so the toggle form can import the field names without
+ * importing the action's server-side dependencies.
+ *
+ * Validated by hand rather than with a schema library, for the same reason as
+ * `src/features/books/scope.ts` (R4): every field is either a UUID or a
+ * member of a two- or three-item allowlist.
+ */
+
+/** The form field names a toggle submits. One source, so they cannot drift. */
+export const FLAG_FIELDS = {
+    bookId: 'bookId',
+    flag: 'flag',
+    value: 'value',
+} as const;
+
+/** Which flag a toggle owns. Each toggle writes only its own (FR-4). */
+export type FlagName = 'read' | 'collected';
+
+/**
+ * A validated request to change one flag on one book. Never carries a user id:
+ * that comes from the session, whatever the form says (R5).
+ */
+export type SetFlagInput = {
+    bookId: string;
+    flag: FlagName;
+    value: boolean;
+};
+
+/**
+ * What the action answers, shaped for `useActionState`: `idle` is the state a
+ * toggle holds before its first submission.
+ *
+ * `error` carries the book it was about, when the input got far enough to name
+ * one, so the rollback toast can say which book failed.
+ */
+export type SetFlagResult =
+    | { status: 'idle' }
+    | {
+          status: 'ok';
+          bookId: string;
+          isRead: boolean;
+          isCollected: boolean;
+      }
+    | {
+          status: 'error';
+          bookId: string | null;
+          error: 'invalid_input' | 'unauthenticated' | 'write_failed';
+      };
+
+export const IDLE: SetFlagResult = { status: 'idle' };
+
+/**
+ * The subset of `FormData` this reads. `getAll` rather than `get` so that a
+ * repeated field is visible and can be rejected: `get` silently returns the
+ * first, and there is no non-arbitrary way to choose between two book ids.
+ */
+export type FormFields = {
+    getAll(name: string): unknown[];
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A field's single string value, or `null` if absent, repeated or a file. */
+function single(form: FormFields, name: string): string | null {
+    const values = form.getAll(name);
+    if (values.length !== 1) return null;
+    const [value] = values;
+    return typeof value === 'string' ? value : null;
+}
+
+/**
+ * Reads a toggle's submission into a `SetFlagInput`, or `null` if any field is
+ * missing, repeated or not one of its allowed values.
+ *
+ * Strict on purpose, unlike the URL parsers in `scope.ts`, which fall back to
+ * defaults on bad input. A tampered filter param can safely degrade to the
+ * default view; a tampered *write* has no safe default, so it is rejected.
+ */
+export function parseSetFlagInput(form: FormFields): SetFlagInput | null {
+    const bookId = single(form, FLAG_FIELDS.bookId);
+    const flag = single(form, FLAG_FIELDS.flag);
+    const value = single(form, FLAG_FIELDS.value);
+
+    if (bookId === null || !UUID.test(bookId)) return null;
+    if (flag !== 'read' && flag !== 'collected') return null;
+    if (value !== 'true' && value !== 'false') return null;
+
+    return { bookId, flag, value: value === 'true' };
+}
+
+/**
+ * The `set_book_flags` arguments for one flag change. The other flag is left
+ * out entirely, which the function reads as "leave it as it is" -- so toggling
+ * one can never touch the other (FR-4).
+ */
+export function rpcArgsFor(input: SetFlagInput): {
+    p_book_id: string;
+    p_is_read?: boolean;
+    p_is_collected?: boolean;
+} {
+    return input.flag === 'read'
+        ? { p_book_id: input.bookId, p_is_read: input.value }
+        : { p_book_id: input.bookId, p_is_collected: input.value };
+}
