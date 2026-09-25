@@ -91,7 +91,7 @@ A logged-in user can:
 2. Changing a book's status feels instant (optimistic update), with server confirmation within 500 ms.
 3. Filter changes update the visible list without a full page reload.
 4. Progress bar always reflects the true DB state after any status change.
-5. An unauthenticated user sees the book list but all status controls are disabled (with a sign-in affordance).
+5. An unauthenticated user sees the book list. Read/collected filters still work and say they need sign-in, and tracking controls offer sign-in instead of tracking.
 6. Zero direct DB calls from any Client Component.
 
 ---
