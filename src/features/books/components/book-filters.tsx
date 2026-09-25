@@ -29,7 +29,7 @@ const SEARCH_DEBOUNCE_MS = 300;
  * with plenty to spare.
  */
 const FOCUS =
-    'outline-hidden focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-steel-800';
+    'outline-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-steel-800';
 
 /*
  * The placeholder is as light as AA allows (iron-400, 4.53:1 on white; the
