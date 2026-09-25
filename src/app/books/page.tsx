@@ -26,10 +26,11 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
     // active filters through unchanged.
     const params = await searchParams;
     const filters = parseFilters(params);
+    const viewerId = await getViewerId();
     const books = await getBooksPage({
         page: parsePageParam(params.page),
         filters,
-        viewerId: await getViewerId(),
+        viewerId,
     });
 
     const first = (books.page - 1) * PAGE_SIZE + 1;
@@ -80,7 +81,7 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
             {books.rows.length === 0 ? (
                 <EmptyState filters={filters} />
             ) : (
-                <BookList books={books.rows} />
+                <BookList books={books.rows} signedIn={viewerId !== null} />
             )}
             <PaginationNav
                 page={books.page}

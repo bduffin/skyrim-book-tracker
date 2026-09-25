@@ -108,3 +108,34 @@ export function rpcArgsFor(input: SetFlagInput): {
         ? { p_book_id: input.bookId, p_is_read: input.value }
         : { p_book_id: input.bookId, p_is_collected: input.value };
 }
+
+/**
+ * Why a toggle's change did not stick: one of the action's own errors, or
+ * `unreachable` when the action never answered at all -- a dropped connection
+ * throws rather than returning a result.
+ */
+export type FlagFailure =
+    Extract<SetFlagResult, { status: 'error' }>['error'] | 'unreachable';
+
+/**
+ * The rollback toast's message (FR-4, MI6). Names the book, since the toggle
+ * has already flipped back by the time it is read and the reader may have
+ * clicked several.
+ *
+ * `invalid_input` shares the generic wording: it means the form was tampered
+ * with or is out of date, and neither is anything the reader can act on.
+ */
+export function flagFailureMessage(
+    failure: FlagFailure,
+    title: string,
+): string {
+    switch (failure) {
+        case 'unauthenticated':
+            return `You’re signed out. Changes to “${title}” not saved. Sign in to track books.`;
+        case 'unreachable':
+            return `Couldn’t reach the server. Changes to “${title}” cannot be saved. Check your connection and try again.`;
+        case 'write_failed':
+        case 'invalid_input':
+            return `Couldn’t save changes to “${title}”.`;
+    }
+}

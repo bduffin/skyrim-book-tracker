@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
+
+import { FlagToggles } from '@/features/collection/components/flag-toggles';
+
 import type { BookRow as Book } from '../types';
 
 import { CATEGORY_LABELS, SOURCE_LABELS } from '../labels';
@@ -153,11 +156,12 @@ function Tag({
  * cannot honour -- category, source and skill are filter facets (FR-3), not
  * dimensions anyone compares down a column.
  *
- * Server-rendered; the read/collected toggles arrive with Browse M3. Every
- * field is interpolated rather than injected as HTML, since the text comes
- * from UESP wikitext (NFR-8, AC-11).
+ * Server-rendered, apart from the read/collected toggles (FR-4), which only a
+ * signed-in viewer gets; what a signed-out one should see instead is OQ-5.
+ * Every field is interpolated rather than injected as HTML, since the text
+ * comes from UESP wikitext (NFR-8, AC-11).
  */
-export function BookRow({ book }: { book: Book }) {
+export function BookRow({ book, signedIn }: { book: Book; signedIn: boolean }) {
     const category = UNTAGGED_CATEGORIES.has(book.category)
         ? null
         : CATEGORY_LABELS[book.category];
@@ -177,8 +181,23 @@ export function BookRow({ book }: { book: Book }) {
              * own, which is what makes the pills sit on the title's
              * baseline instead of floating beside it.
              */}
-            <div className="flex items-center gap-x-2.5">
-                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-1.5">
+            {/*
+             * With toggles, a narrow screen puts the title on a line of its
+             * own and the controls on the next: three controls beside it at
+             * 375px leave the title a couple of words per line. From `sm` up
+             * it is one row again, which the 36px logo still sets the height
+             * of -- the toggles are shorter.
+             */}
+            <div
+                className={`flex items-center gap-x-2.5 ${
+                    signedIn ? 'flex-wrap gap-y-2 sm:flex-nowrap' : ''
+                }`}
+            >
+                <div
+                    className={`flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-1.5 ${
+                        signedIn ? 'basis-full sm:basis-0' : ''
+                    }`}
+                >
                     <span className="font-serif text-lg font-medium text-iron-900">
                         {book.title}
                     </span>
@@ -192,6 +211,14 @@ export function BookRow({ book }: { book: Book }) {
                         )
                     )}
                 </div>
+                {signedIn && (
+                    <FlagToggles
+                        bookId={book.id}
+                        title={book.title}
+                        isRead={book.isRead}
+                        isCollected={book.isCollected}
+                    />
+                )}
                 <a
                     href={uespUrl(book.uespTitle)}
                     // A new tab, so following a link does not cost the reader
@@ -228,7 +255,7 @@ export function BookRow({ book }: { book: Book }) {
                     // two steps darker than the row's own hover, not one:
                     // a chip one step off the row's highlight is invisible,
                     // because the row highlights at the same moment.
-                    className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-iron-500 transition-colors hover:bg-frost-300 hover:text-iron-900"
+                    className="ml-auto inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-iron-500 transition-colors hover:bg-frost-300 hover:text-iron-900"
                 >
                     <UespLogo />
                     <ExternalLinkIcon />

@@ -1,7 +1,12 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { FLAG_FIELDS, parseSetFlagInput, rpcArgsFor } from './flag-input';
+import {
+    FLAG_FIELDS,
+    flagFailureMessage,
+    parseSetFlagInput,
+    rpcArgsFor,
+} from './flag-input';
 
 const BOOK = '3f6c2a1e-8b4d-4e2f-9a7c-1d5e6f7a8b9c';
 
@@ -140,5 +145,32 @@ describe('rpcArgsFor (FR-4)', () => {
             rpcArgsFor({ bookId: BOOK, flag: 'collected', value: true }),
             { p_book_id: BOOK, p_is_collected: true },
         );
+    });
+});
+
+describe('flagFailureMessage (FR-4, MI6)', () => {
+    const TITLE = 'The Lusty Argonian Maid';
+
+    test('names the book in every message', () => {
+        for (const failure of [
+            'unauthenticated',
+            'unreachable',
+            'write_failed',
+            'invalid_input',
+        ] as const) {
+            assert.match(
+                flagFailureMessage(failure, TITLE),
+                /Lusty Argonian/,
+                failure,
+            );
+        }
+    });
+
+    test('tells a signed-out reader to sign in, not that something broke', () => {
+        assert.match(flagFailureMessage('unauthenticated', TITLE), /Sign in/);
+    });
+
+    test('points a connection failure at the connection', () => {
+        assert.match(flagFailureMessage('unreachable', TITLE), /connection/);
     });
 });

@@ -10,11 +10,18 @@ import type { BookRow as Book } from '../types';
  * `currentColor`, so a bare `border-b` draws a black rule and turns the list
  * into a grid.
  */
-export function BookList({ books }: { books: Book[] }) {
+export function BookList({
+    books,
+    signedIn,
+}: {
+    books: Book[];
+    /** Whether rows get read/collected toggles (FR-4). */
+    signedIn: boolean;
+}) {
     return (
         <ul className="divide-y divide-frost-200 border-y border-frost-200">
             {books.map((book) => (
-                <BookRow key={book.id} book={book} />
+                <BookRow key={book.id} book={book} signedIn={signedIn} />
             ))}
         </ul>
     );
