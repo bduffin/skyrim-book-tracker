@@ -2,6 +2,8 @@
 
 import {
     Component,
+    createRef,
+    Fragment,
     useActionState,
     useEffect,
     type MouseEvent,
@@ -90,6 +92,13 @@ function GuardedToggle(props: ToggleProps) {
  * On a catch it raises the toast and remounts the toggle, which resets its
  * action state and shows the server's value again -- the rollback FR-4 asks
  * for, reached by a different road than a returned error.
+ *
+ * Remounting replaces the button, and a focused element that leaves the page
+ * drops focus to the start of the document -- so a keyboard user who pressed
+ * the toggle would be sent back to the top of a fifty-row list. The boundary
+ * notes whether focus was inside it just before the old button goes, and
+ * puts it on the new one afterwards. Only then: restoring it unconditionally
+ * would pull focus back from wherever the reader had moved on to.
  */
 class UnreachableBoundary extends Component<
     { onError: () => void; children: ReactNode },
@@ -97,8 +106,33 @@ class UnreachableBoundary extends Component<
 > {
     state = { failed: false, attempt: 0 };
 
+    private readonly wrapper = createRef<HTMLDivElement>();
+    private restoreFocus = false;
+
     static getDerivedStateFromError() {
         return { failed: true };
+    }
+
+    /**
+     * Runs just before React commits the failed render that removes the
+     * button -- the last moment the old button is still in the document.
+     * `componentDidCatch` is too late: it runs after that commit, by which
+     * time focus has already fallen to the body.
+     */
+    getSnapshotBeforeUpdate(
+        _props: unknown,
+        previous: { failed: boolean },
+    ): boolean {
+        if (previous.failed || !this.state.failed) return false;
+        return this.wrapper.current?.contains(document.activeElement) ?? false;
+    }
+
+    componentDidUpdate(_props: unknown, _state: unknown, hadFocus: boolean) {
+        if (hadFocus) this.restoreFocus = true;
+        if (this.restoreFocus && !this.state.failed) {
+            this.restoreFocus = false;
+            this.wrapper.current?.querySelector('button')?.focus();
+        }
     }
 
     componentDidCatch(error: unknown) {
@@ -111,8 +145,17 @@ class UnreachableBoundary extends Component<
     }
 
     render() {
-        if (this.state.failed) return null;
-        return <div key={this.state.attempt}>{this.props.children}</div>;
+        // The wrapper outlives the remount, so it is still there to look for
+        // focus in and to find the new button through.
+        return (
+            <div ref={this.wrapper}>
+                {this.state.failed ? null : (
+                    <Fragment key={this.state.attempt}>
+                        {this.props.children}
+                    </Fragment>
+                )}
+            </div>
+        );
     }
 }
 
