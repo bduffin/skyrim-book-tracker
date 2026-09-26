@@ -1,13 +1,9 @@
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
-import {
-    clampPage,
-    escapeLike,
-    pageCountFor,
-    rangeFor,
-    type BookFilters,
-} from './scope';
+import { clampPage, pageCountFor, rangeFor } from '@/lib/pagination';
+
+import { escapeLike, type BookFilters } from './scope';
 import {
     applyFlagFilters,
     flagEmbed,

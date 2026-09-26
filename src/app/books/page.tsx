@@ -3,17 +3,16 @@ import Link from 'next/link';
 
 import { getViewerId } from '@/features/auth/get-viewer-id';
 import { getBooksPage } from '@/features/books/data';
+import { PAGE_SIZE, parsePageParam } from '@/lib/pagination';
 import {
     BOOKS_PATH,
     isDefaultFilters,
     parseFilters,
-    parsePageParam,
-    PAGE_SIZE,
 } from '@/features/books/scope';
 import { BookFilters } from '@/features/books/components/book-filters';
 import { BookList } from '@/features/books/components/book-list';
 import { EmptyState } from '@/features/books/components/empty-state';
-import { PaginationNav } from '@/features/books/components/pagination-nav';
+import { PaginationNav } from '@/components/pagination-nav';
 import { PageTitle } from '@/components/page-title';
 
 export const metadata: Metadata = {

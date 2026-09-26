@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
-import { pageQuery, paginationItems, type SearchParams } from '../scope';
+import { pageQuery, paginationItems } from '@/lib/pagination';
+import type { SearchParams } from '@/lib/search-params';
 
 function hrefFor(basePath: string, page: number, params: SearchParams) {
     const query = pageQuery(page, params);
