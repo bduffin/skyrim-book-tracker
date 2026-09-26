@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The header's BookCheckMark (src/components/site-logo.tsx) on a dark
+       tile of its own: browser tab bars are often light, where the frost
+       strokes would vanish and the gold would drop to about 2:1.
+       icon.png and apple-icon.png are rendered from this file: after any
+       change, run `node scripts/render-icons.mjs`. -->
+  <rect width="32" height="32" rx="6" fill="#1c2833"/>
+  <g fill="none" transform="translate(0.5 0)">
+    <rect x="7" y="4" width="19" height="24" rx="1.5" stroke="#f2f5f7" stroke-width="1.8"/>
+    <path d="M10 4v24" stroke="#f2f5f7" stroke-width="1.8"/>
+    <path d="M13.5 16l3 3 6-7" stroke="#c9a45a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

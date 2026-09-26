@@ -20,6 +20,11 @@
  *
  * gold-600 is 3.63 on frost-50: enough for an ornament (WCAG's 3:1 for
  * graphics) and not enough for text, so it is decoration only.
+ *
+ * gold-400 is the dark-ground gold, for the logo's check mark on the iron
+ * header: 6.38 on iron-900, where gold-600 manages only 3.77 and turns muddy
+ * as a thin stroke at icon size. It is 2.15 on frost-50, so it never goes on
+ * a light background.
  */
 @theme {
     --color-frost-50: #f2f5f7;
@@ -48,6 +53,7 @@
     --color-pine-400: #5fc593;
     --color-pine-800: #07573a;
 
+    --color-gold-400: #c9a45a;
     --color-gold-600: #9a7b3f;
 }
 
