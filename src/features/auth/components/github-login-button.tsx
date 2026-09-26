@@ -1,38 +1,23 @@
-'use client';
+import { signInWithGitHub } from '../actions';
 
-import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-
+/**
+ * The sign-in button: a `<form>` posting to a Server Action, so signing in
+ * works with JavaScript disabled, and returns the reader to the page they
+ * signed in from (`return-path.ts`).
+ *
+ * A Server Component; nothing here needs the browser. A failure to start
+ * sign-in lands on `/auth/auth-error`, which says what went wrong in fixed
+ * wording, rather than on an inline message beside the button.
+ */
 export function GitHubLoginButton() {
-    const supabase = createClient();
-    const [failed, setFailed] = useState(false);
-
-    async function signIn() {
-        setFailed(false);
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'github',
-            options: {
-                redirectTo: `${window.location.origin}/auth/callback`,
-            },
-        });
-        if (error) {
-            setFailed(true);
-        }
-    }
-
     return (
-        <div className="flex flex-col items-end gap-1">
+        <form action={signInWithGitHub}>
             <button
-                onClick={signIn}
-                className="rounded bg-frost-50 px-4 py-2 font-medium text-iron-900 transition-colors hover:bg-frost-200"
+                type="submit"
+                className="rounded bg-frost-50 px-4 py-2 font-medium text-iron-900 transition-colors hover:bg-frost-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-frost-50"
             >
                 Sign in with GitHub
             </button>
-            {failed && (
-                <span className="text-sm text-red-300">
-                    Couldn&apos;t sign in. Please try again.
-                </span>
-            )}
-        </div>
+        </form>
     );
 }

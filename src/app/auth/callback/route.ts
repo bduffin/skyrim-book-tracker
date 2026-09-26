@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
+import { isSafeReturnPath } from '@/features/auth/return-path';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
 
-    // Only ever redirect to a relative path — an unvalidated `next` param
-    // from the query string is an open-redirect vector.
-    let next = searchParams.get('next') ?? '/';
-    if (!next.startsWith('/')) {
-        next = '/';
-    }
+    // Only ever redirect to a safe relative path: an unvalidated `next` from
+    // the query string is an open-redirect vector, and anyone can write a
+    // callback URL, so this cannot rely on signInWithGitHub having checked it
+    // on the way out. Same rule as there (`isSafeReturnPath`).
+    const requested = searchParams.get('next');
+    const next =
+        requested !== null && isSafeReturnPath(requested) ? requested : '/';
 
     if (code) {
         const supabase = await createClient();
