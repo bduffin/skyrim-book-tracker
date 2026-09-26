@@ -39,7 +39,7 @@ Guidelines:
 - **Backend / DB / Auth:** Supabase (Postgres, Supabase Auth, Row‑Level Security).
 - **Hosting:** Vercel (primary target) with Supabase’s managed infrastructure.
 - **Styling:** Tailwind CSS + shadcn/ui component primitives — responsive strategy and the browser floor are in §9.
-- **Client‑side interactivity:** Server Actions + React's `useOptimistic`/`useTransition` — no separate client-side data-fetching library.
+- **Client‑side interactivity:** Server Actions + React's `useActionState`/`useFormStatus` for writes and `useOptimistic`/`useTransition` for URL-driven controls — no separate client-side data-fetching library.
 - **Language / Tooling:** TypeScript, Yarn, ESLint, Prettier.
 
 ## 4. High-Level Architecture
@@ -192,9 +192,9 @@ Future flows:
 
 ## 9. Client‑Side Interactivity
 
-Client Components handle interactivity via **Server Actions** plus React's `useOptimistic`/`useTransition` — no separate client-side data-fetching library:
+Client Components handle interactivity via **Server Actions** plus React's own hooks — no separate client-side data-fetching library:
 
-- For **optimistic updates** (e.g., marking a book as read/collected without a full reload), call a Server Action and reflect the change immediately via `useOptimistic`, rolling back on failure.
+- For **optimistic updates** (e.g., marking a book as read/collected without a full reload), pass the Server Action to a `<form>` through `useActionState`, and read the submitted value from `useFormStatus` while it is pending. Once the submission settles the control shows the server's value again, so a failure rolls back on its own. `useOptimistic` would need a client function wrapping the action, which costs the JS-free path (below); the filters, which are URL state rather than writes, still use it.
 - For **filter changes**, push new URL query params and let Next.js soft navigation re-render the Server Component — no client-side refetching needed.
 
 Everywhere else, rely on Server Components fetching data directly from Supabase (via server‑side helpers).
@@ -211,7 +211,7 @@ In the App Router a Server Component **is** the data layer. `await getBooksPage(
 | Cache fetched data               | The server render itself, re-derived after a write via `revalidatePath`                      |
 | Share data between components    | Props, passed down from the Server Component that fetched it                                 |
 
-So the abstraction layer is an async function in `src/features/{domain}/data.ts`, not a hook. **Hooks are for interaction state, never for server data:** `useOptimistic` and `useTransition` for in-flight UI, `useState`/`useContext` for genuinely client-side concerns like a toast queue or whether a filter panel is open. A Client Component that fetches app data itself is a bug rather than a style choice (`prd-browse-and-track.md` NFR-3, audited by AC-6).
+So the abstraction layer is an async function in `src/features/{domain}/data.ts`, not a hook. **Hooks are for interaction state, never for server data:** `useOptimistic`, `useTransition` and `useFormStatus` for in-flight UI, `useState`/`useContext` for genuinely client-side concerns like a toast queue or whether a filter panel is open. A Client Component that fetches app data itself is a bug rather than a style choice (`prd-browse-and-track.md` NFR-3, audited by AC-6).
 
 The accepted cost is that every filter change is a server round-trip instead of a client cache hit.
 
@@ -220,7 +220,7 @@ The accepted cost is that every filter change is a server round-trip instead of 
 The app is server-rendered, so it should work without client-side JavaScript. The rule is **degrade, do not break** — where a feature cannot work JS-free, it loses its enhancement rather than its function.
 
 - **Navigation, pagination and filters** are URL state, so they are plain links and `` `<form method="get">` `` submissions. Without JS they full-page-load; with JS, Next.js soft-navigates.
-- **Server Actions progressively enhance on their own — but only through a form.** `` `<form action={serverAction}>` `` performs a real POST and re-render with JS disabled, then upgrades to `useOptimistic` when JS runs. An `onClick` handler calling the same action does not degrade at all, so write the form even when the control looks like a button.
+- **Server Actions progressively enhance on their own — but only through a form.** `` `<form action={serverAction}>` `` performs a real POST and re-render with JS disabled, and `useActionState` enhances it when JS runs. The action has to reach the form _itself_: wrap it in a client function and React server-renders the form as `javascript:throw`, so it does nothing without JS. An `onClick` handler calling the same action does not degrade at all either, so write the form even when the control looks like a button.
 
 Accepted as non-degradable: optimistic updates, non-blocking toasts (a JS-free failure has to surface server-rendered on the next paint), and typeahead/quick-add.
 

@@ -62,29 +62,30 @@ Two **server-rendered** routes over one shared data layer and row component (FR-
 
 1. **Server Component (page)** reads filter/pagination state from URL query params, fetches the matching paginated `book` rows joined to the current user's `user_book` rows (left join → absent row = untouched, `is_read`/`is_collected` both `false`), and computes the progress totals. Unauthenticated requests skip the user join.
 2. **Client Components (opt-in)** handle only interactivity: the filter controls and the per-row read/collected controls. Filter changes push new query params → Next.js soft navigation re-renders the Server Component (no full reload).
-3. **Read/Collected controls** use `useOptimistic` for instant UI feedback and call a **Server Action** that validates the Supabase session server-side and upserts the changed flag(s), or deletes the `user_book` row once both flags are `false`, under RLS. On failure, the optimistic state rolls back and a toast surfaces the error.
-4. **Progress bar** (on `/collection/[user]` only — FR-8) is a Server Component value reflecting true DB counts (collected, and read — counted independently, not combined); it re-derives on each server render (after any change's `revalidate`).
-5. **Unauthenticated** users get the full `/books` list. The read/collected filters stay usable and explain themselves (FR-2), and the toggles offer sign-in rather than tracking (OQ-5). Unauthenticated users are redirected off `/collection/[user]`, so no progress bar is rendered for them at all.
+3. **Read/Collected controls** are each a `<form>` posting to a **Server Action**, which takes the user from the session and writes through the `set_book_flags` database function: upsert the changed flag, or delete the `user_book` row once both flags are `false`, in one transaction under RLS. The UI updates optimistically through `useFormStatus`; on failure it rolls back and a toast surfaces the error (§12.3).
+4. **Progress summary** (on `/collection/[user]` only — FR-8) is a Server Component value reflecting true DB counts (collected, and read — counted independently, not combined) over a named scope; it re-derives on each server render (after any change's `revalidate`).
+5. **Unauthenticated** users get the full `/books` list. The read/collected filters stay usable and explain themselves (FR-2), and the toggles offer sign-in rather than tracking (OQ-5). Unauthenticated users are redirected off `/collection/[user]`, so no progress summary is rendered for them at all.
 
 ```
 URL (?category=&source=&skill=&read=&collected=&page=)
         │  soft-nav
         ▼
 [Server Component: /books | /collection/[user] page]
-  ├─ getBooksPage(filters, page, userId?)  ──► Supabase (book ⟕ user_book)
-  ├─ getProgress(userId?)                   ──► Supabase counts
+  ├─ getBooksPage(filters, page, viewerId)  ──► Supabase (book ⟕ user_book)   /books
+  ├─ getMarkedBooksPage(userId, page)       ──► Supabase (book ⋈ user_book)   /collection/[user]
+  ├─ getProgress(userId, scope)             ──► Supabase counts                /collection/[user]
   └─ renders:
-       ├─ <ProgressBar/>            (server; /collection/[user] only)
-       ├─ <Filters/>  "use client" (writes URL params; /books only)
-       └─ <BookRow/>* with <ReadToggle/>/<CollectedToggle/> "use client"
-                                   └─ Server Action: setBookFlags(bookId, { isRead?, isCollected? })
-                                        ├─ assert auth.uid()
-                                        └─ upsert changed flag(s) | delete once both flags false  user_book (RLS)
+       ├─ <ProgressSummary/>        (server; /collection/[user] only)
+       ├─ <BookFilters/> "use client" (writes URL params; /books only)
+       └─ <BookRow/>* with <FlagToggles/> "use client" (signed in only)
+                                   └─ <form action> → Server Action: setBookFlags(previous, form)
+                                        ├─ user from getClaims(), never from the form
+                                        └─ rpc set_book_flags(book, read?, collected?)  user_book (RLS, one transaction)
 ```
 
 **Key design tradeoffs (explicit):**
 
-- **`useOptimistic` + Server Action (chosen)** vs a client-side query/cache library. Chosen for fewer moving parts and native App Router fit. Tradeoff: cross-row cache coordination (e.g., progress bar consistency) leans on `revalidatePath`/server re-render rather than a client cache. If live refetch-on-filter or richer cache invalidation becomes painful, revisit this tradeoff for the list specifically.
+- **Server Action through a `<form>`, optimistic via `useFormStatus` (chosen)** vs a client-side query/cache library. Chosen for fewer moving parts and native App Router fit — and `useFormStatus` rather than `useOptimistic` because only a Server Action handed to the form directly still submits without JavaScript; the client function `useOptimistic` needs is server-rendered as `javascript:throw`. Tradeoff: cross-row cache coordination (e.g., progress summary consistency) leans on `revalidatePath`/server re-render rather than a client cache. If live refetch-on-filter or richer cache invalidation becomes painful, revisit this tradeoff for the list specifically.
 - **Filter state in URL (per Decision #1)** vs client/server state. Chosen for shareability and back-button correctness. Tradeoff: every filter change is a server round-trip; mitigated by Next.js soft navigation + the `<1s` render budget.
 - **Sparse rows (upsert/delete)** vs a row per (user, book). Per Decision #4, untouched = absent row, so setting either flag `true` = upsert and clearing both flags = delete. Tradeoff: storage stays proportional to actual progress (most users touch a fraction of the 1,207-book catalog) at the cost of a `LEFT JOIN ... COALESCE(is_read, false), COALESCE(is_collected, false)` on every read. The alternative (pre-seed a row per book per user) makes reads trivial but explodes write volume on signup and storage — rejected for a side-project scale.
 - **Two independent flags (`is_read` / `is_collected`)** vs the original `collected` implies `read` monotonic enum — **revised from the initial design**. Reading and collecting are separate in-game actions (you can grab a book to read later, or read one you don't keep), so treating them as one ladder was wrong by domain, not just a simplification. Tradeoff: progress/filters now track two dimensions instead of one (no more single "read-or-better" figure), and each row needs two toggles instead of one segmented control — more UI surface, but each toggle's meaning is unambiguous.
@@ -111,8 +112,8 @@ Together these give the **423**-book default catalogue. `is_obtainable` is **not
 
 **Empty results.** Filters make a zero-result view reachable, so the list says so and offers a way back. The message names the search term when there is one, which is what catches a typo; it deliberately does not spell out the active filters, because the controls directly above it already show them and readable copy for every combination of six controls is a lot to get subtly wrong. It carries a **Reset filters** link to `/books` — "reset", not "clear", because `/books` is the default scope above rather than the absence of filtering, so "clear all filters" would name a view this app never renders. The link is suppressed when the active filters _are_ the defaults, since resetting would change nothing; that state is reachable only on a database where the import has not run.
 
-- **FR-4 — Read/Collected controls (Client Component + Server Action).** Authenticated user toggles a book's `is_read` and `is_collected` flags independently — toggling one never changes or implies the other. UI updates optimistically per flag; a Server Action validates the Supabase session and writes `user_book` under RLS — **upsert** the changed flag(s), **delete** the row once both flags are `false`. On success, server state is revalidated so the progress bar stays truthful. On failure, the optimistic change rolls back and a non-blocking error toast appears (MI6). The write path never trusts a client-supplied `user_id`.
-- **FR-5 — Progress summary.** One summary with **two meters**, `<collected> / <total> collected` and `<read> / <total> read` — independent counts, never combined into one figure (total computed dynamically, MI1). `<total>` is the count within the **default scope** (FR-3), not `count(book)` — the unscoped figure is 1,207 including 539 notes and 326 Creation Club books, which is a materially different product from the 423-book "real books" catalogue FR-3 defaults to. **The counts are scoped the same way as the total**: a marked book outside the default scope — a collected Creation Club note, say — counts toward neither meter, because counting it in the numerator but not the denominator lets a meter pass 100%. It reflects true DB state after any change. Unauthenticated visitors never see it — they are redirected off `/collection/[user]` (FR-8). **Possible later: custom meters.** Each meter could carry its own scope — base only, base plus DLC, with notes — and a user could add, remove and arrange them on the page like a dashboard. Not planned for any milestone; it would need a per-user store for the meter set (on the profile, NG10) and would relax NG9.
+- **FR-4 — Read/Collected controls (Client Component + Server Action).** Authenticated user toggles a book's `is_read` and `is_collected` flags independently — toggling one never changes or implies the other. UI updates optimistically per flag; a Server Action validates the Supabase session and writes `user_book` under RLS — **upsert** the changed flag(s), **delete** the row once both flags are `false`. On success, server state is revalidated so the progress summary stays truthful. On failure, the optimistic change rolls back and a non-blocking error toast appears (MI6). The write path never trusts a client-supplied `user_id`. Choosing between upsert and delete means reading the row first, which PostgREST cannot do in one transaction, so the decision lives in the `set_book_flags` database function (§12.3). Toggles render for signed-in viewers only until OQ-5 settles what signed-out ones see.
+- **FR-5 — Progress summary.** One summary with **two meters**, `<collected> / <total> collected` and `<read> / <total> read` — independent counts, never combined into one figure (total computed dynamically, MI1). `<total>` is the count within the **default scope** (FR-3), not `count(book)` — the unscoped figure is 1,207 including 539 notes and 326 Creation Club books, which is a materially different product from the 423-book "real books" catalogue FR-3 defaults to. **The counts are scoped the same way as the total**: a marked book outside the default scope — a collected Creation Club note, say — counts toward neither meter, because counting it in the numerator but not the denominator lets a meter pass 100%. It reflects true DB state after any change. Unauthenticated visitors never see it — they are redirected off `/collection/[user]` (FR-8). **The scope is shown, not assumed**: the summary is headed with the scope's name ("Progress · Default catalog"), and a native `<details>` ("What's included?") renders the scope as the filters it is — every category and source, the counted ones checked. The collection list holds every marked book while the meters count only this scope, so a reader who has marked only notes needs to see why both meters read zero. The scope is carried as data (`ProgressScope`: a name, categories and sources) that both the counts and the display read, which is what custom meters would each carry. **Possible later: custom meters.** Each meter could carry its own scope — base only, base plus DLC, with notes — and a user could add, remove and arrange them on the page like a dashboard. Not planned for any milestone; it would need a per-user store for the meter set (on the profile, NG10) and would relax NG9.
 - **FR-6 — Pagination and ordering.** 50 books/page; page in URL. Books are ordered by **title A→Z** and then `uesp_page_id`; title alone is not deterministic, because two titles are duplicated inside the default scope, and a non-deterministic sort makes pagination drop or repeat rows between pages. **That is the only order, and there are no sort controls** (MI4). Every dimension worth sorting by — category, source, skill, read, collected — is one FR-3 already filters by, and filtering answers "show me just these" more precisely than sorting answers "group these together". The list is deliberately not rendered as a table for the same reason: column headers would imply a sortability the data does not benefit from.
 - **FR-7 — Attribution.** UESP CC BY-SA attribution visible in the UI (and README per arch §2).
 - **FR-8 — Routes and information architecture.** Two routes over the same data layer and row component:
@@ -120,6 +121,7 @@ Together these give the **423**-book default catalogue. `is_obtainable` is **not
 - **`/books`** — the catalogue, and the only route that lists the whole scoped catalogue: the list (FR-1), filters (FR-3), pagination (FR-6), and the per-row read/collected toggles (FR-4). Fully readable signed out (FR-2). It carries **no** progress summary: progress is a property of a user, not of the catalogue.
 - **`/collection/[user]`** — a user's own tracking view: the progress summary (FR-5) and every book they have marked, in any category or source rather than only the default scope — a marked book is the user's data whether or not it counts toward progress. A **quick-add** control for marking a book without paging through the catalogue is specified but **deferred**: `/books`'s search and filters already do that job, so the collection page links there until quick-add lands. Quick-add is a search (FR-9) over the catalogue, not a second full listing.
     - The segment holds the owner's **Supabase user id** (`auth.users.id`, the JWT's `sub`), and that form is **permanent**: a collection URL minted today keeps working after custom usernames exist (FR-11), which is what makes adding them later free rather than a URL migration. The id is not a secret — RLS and the owner check protect the data, not the id's obscurity. It is deliberately not a handle from the auth provider: those are editable by the user in `user_metadata`, can be renamed and re-registered on GitHub, and collide across providers once there is more than one.
+- **Navigation** — a secondary nav under the header links **Books** and, when signed in, **My collection**, marking the current one with `aria-current`. Signed out it offers Books alone, since My collection would only bounce back to `/books`.
 - **`/`** — redirects to the signed-in user's own `/collection/[user]`, or to `/books` when anonymous. It replaces the scaffold's leftover `instruments` page, which is deleted.
 - A signed-out visitor hitting **`/collection/[user]`** directly is redirected to `/books` — as is a signed-in user asking for somebody else's, until FR-10's setting exists to permit it. If a dedicated sign-in route is added later — likely once there is more than one auth provider — that becomes the better target for the signed-out case.
 
@@ -192,7 +194,7 @@ The two routes land in different milestones — `/books` at M1, `/collection/[us
 - **M0 — Foundations (prereq verification).** Confirm assumed dependencies: auth works; **`prd-import-uesp-books.md` M3 has run**, so `book`/`book_location` are populated with normalized `skill`/`category`/`source` (~1,207 books, 423 in FR-3's default scope); RLS policies on `user_book` in place. This milestone gates the whole feature on that import — until it has run the `book` table is empty and every screen below renders nothing. Exit: a smoke query returns books and the session helper returns a user id.
 - **M1 — Read-only browse (public).** ✅ **Done.** `/books` renders the catalogue server-side — 423 books in FR-3's default scope across 9 pages, title A→Z then `uesp_page_id`, verified against the linked project. `/` redirects there with a 307 and the scaffold's `instruments` page is gone (FR-8, AC-12); the UESP notice renders from the root layout rather than the list, so `/collection/[user]` cannot lose it later (FR-7). The two standing guards went in here rather than waiting for M5, which was the only moment they were not a retrofit: `server-only` in `src/features/*/data.ts` makes AC-6 a build failure, and `react/no-danger` makes AC-11 a lint failure. Three things worth carrying forward. The list is **not** a table, because category, source and skill are filter facets (FR-3) rather than dimensions anyone compares down a column — which is also what closed OQ-4 into FR-6. Tags are shown only where they carry information, since `book` is 310 of 423 rows and `base` is 360, so labelling them puts the word "ordinary" on most of the page. And `getBooksPage` counts before it clamps: PostgREST answers a range starting past the last row with a 416 rather than an empty list, so fetching first and correcting afterwards made `?page=99` an error page instead of the fallback AC-10 requires. **Exit:** met. FR-1, FR-6 and FR-7 green; AC-6 and AC-11 enforced by the build and the linter rather than by review; AC-10's param handling covered by tests and checked in the browser (`?page=0`, `?page=abc` and a repeated `?page=2&page=3` all fall back to page 1, `?page=99` clamps to 9). Pagination is plain links, verified in the server-rendered HTML, so it works with JavaScript disabled. **NFR-1 is deliberately not claimed here.** Local dev measured a median of `705ms` over five requests with an outlier at `1141ms`, but that is a development build talking to the hosted database over the internet, which is not the target environment AC-8 asks for — it stays open for M5's perf pass.
 - **M2 — Filters and title search.** ✅ **Done.** URL-backed category, source, skill and read/collected filters plus FR-9's `?q=` substring match, all on one `<form method="get">` that `router.push`es for soft navigation when JavaScript runs and submits as an ordinary navigation when it does not. Four things worth carrying forward. **Native controls rather than a component library** — a scripted listbox is a dead button without JavaScript, so shadcn/ui would have cost the degraded path `architecture.md` §9 requires; NFR-7 is rewritten accordingly, and the submit button sits in a `<noscript>` because every control applies on change once hydrated. **Params are validated by pure parsers in `scope.ts`, not by a schema library** (R4): each one is allowlist membership over a check-constraint-derived list, and an absent allowlist param reads back as the default set, which is what lets the default view stay a bare `/books`. **PostgREST cannot express a `false` flag filter as an embedded predicate** — a filter on a left-joined embed narrows the embedded rows and leaves every parent in place, so `user_book.is_read=eq.false` returns the whole catalogue rather than the unread part of it. It is an anti-join instead, and `src/features/books/query.ts` exists so the database test drives the same code the app does rather than a copy of it. **`escapeLike` escapes `*` alongside `%` and `_`**, because PostgREST rewrites `*` to `%` before the pattern reaches Postgres: unescaped, a single asterisk matched all 1,207 books. **Exit:** met. FR-3 and FR-9 green; AC-3, AC-10 and AC-13 checked in the browser, and AC-15 added for the empty state that closed OQ-7. The read/collected filters are verified against real `user_book` rows under real RLS on the local stack (`yarn test:db`, the repo's first database test), which matters because nothing in the UI can create such a row until M3 — until then both filters are correct and inert.
-- **M3 — Tracking.** Read/collected toggles via Server Action + `useOptimistic`, RLS-enforced writes, rollback-on-failure, progress bar. Adds **`/collection/[user]`** (progress summary plus the books that user has marked) and makes `/` conditional on auth state (FR-8). Exit: FR-4, FR-5, FR-8, NFR-2/3/6.
+- **M3 — Tracking.** ✅ **Done.** Signed-in viewers get read and collected toggles on every row, written through the `set_book_flags` database function by a form-based Server Action, optimistic and rolling back on failure with a toast. `/collection/[user]` shows the owner's progress — two meters over a named scope — and every book they have marked; `/` redirects signed-in visitors there, and a secondary nav links Books and My collection (FR-8). The write path is §12.3. Six things worth carrying forward. **`useFormStatus`, not `useOptimistic`** — only a Server Action handed straight to `<form action>` still submits without JavaScript, and `useOptimistic` needs a client function around it, which React server-renders as `javascript:throw`; showing the pending form's submitted value gives the same instant feedback, and rollback falls out of the submission settling. **Every `user_book` embed is aliased** — with the table embedded twice (once to filter, once to display), a bare `user_book.*` filter also matched the aliased embed ([PostgREST#4075](https://github.com/PostgREST/postgrest/issues/4075)) and `read=false` returned no books at all; addressing embeds only by alias is correct before and after PostgREST 16's deprecation of the old behavior. **Every query over `user_book` names its user explicitly** — filters, displayed flags, the marked list and the counts — because RLS is what confines them to one user today and FR-10's public-read policy will widen it; each has a database test that reads through the admin client, which sees every user's rows the way that policy will. Signed-out flag filters are answered without a query at all (FR-2): `true` matches nothing, `false` everything. **A thrown action needs an error boundary** — `useActionState` rethrows a dropped connection to the nearest boundary, so without one per toggle a single offline click replaced the page with `error.tsx`. **The progress scope is data** (`ProgressScope`), shown rather than explained: the meters count only the default catalog while the list holds every marked book, so a reader who has marked only notes sees them listed beside two zeros, and "What's included?" shows the scope as filters. **The collection lists only books with a `user_book` row**, so once notes have a UI, a book carrying only a note will not appear there; whether "marked" should include notes is a decision for that feature. Also: `yarn test:db` now runs files serially, because they share one database and a concurrent file's fixtures landed inside another's baseline count. Deferred: quick-add (FR-8), and what signed-out visitors see instead of toggles (OQ-5, Browse M4). **Exit:** FR-4, FR-5, FR-8, NFR-3 and NFR-6 met. The write path, RLS (AC-7), the display and filter scoping, and the counts are covered by 53 database tests against the local stack, several checked by breaking the code they guard and watching them fail; toggles, rollback, the unreachable-server boundary and the JS-free form POST were exercised in the browser signed out, and the signed-out redirects confirmed as 307s. Signed in, the collection page was checked by hand against the hosted project. **NFR-2 is deliberately not claimed**, for the same reason as NFR-1 at Browse M1: AC-8 asks for the target environment, and a development build talking to the hosted database is not it — it stays open for Browse M5's perf pass.
 - **M4 — Unauthenticated polish.** The signed-out hint and active-filter notice on the read/collected filters, sign-in that returns to the same URL, and the toggles' sign-in affordance (OQ-5). Exit: FR-2, OQ-5.
 - **M5 — Hardening.** RLS tests, param validation (R4), perf pass against NFR-1, a11y pass (NFR-7). Exit: all acceptance criteria green.
 
@@ -202,7 +204,7 @@ The two routes land in different milestones — `/books` at M1, `/collection/[us
 - AC-2. An anonymous visitor sees the full list and metadata. The read/collected filters stay operable and are honored; a hint on their group is announced when focus enters it; and while one is active, a notice says they use the visitor's tracking, with a sign-in link that returns to the same URL and a link that removes those filters. Every read/collected toggle offers a visible sign-in affordance (OQ-5). (FR-2, OQ-5)
 - AC-3. Setting category/source/skill/read/collected filters updates the visible list **without a full page reload** and is reflected in the URL query params; copying the URL reproduces the filtered view. Changing a filter resets to page 1. (FR-3)
 - AC-4. Toggling a book's `read` or `collected` flag updates the UI instantly, independently of the other flag; the `user_book` write goes through a Server Action that derives `user_id` from the session (upsert the changed flag(s), delete once both are `false`); on failure the UI rolls back and shows an error toast. Setting `collected` works regardless of the current `read` value, and vice versa. (FR-4)
-- AC-5. The progress bar shows independent collected and read counts over a dynamically computed total, and matches the DB after any change (verified by reload). (FR-5, MI1)
+- AC-5. The progress summary shows independent collected and read counts over a dynamically computed total, and matches the DB after any change (verified by reload). (FR-5, MI1)
 - AC-6. **No** Client Component performs a direct DB call; all writes route through a Server Action. Enforced rather than reviewed: every `src/features/*/data.ts` imports `server-only`, so a Client Component that pulls in server data logic fails the build instead of shipping. Scoped to app data — `src/lib/supabase/client.ts` legitimately runs client-side for the auth handshake. (NFR-3/4)
 - AC-7. RLS test: user B cannot read or write user A's `user_book` rows; `book`/`book_location` are publicly readable but not user-writable. (NFR-3)
 - AC-8. NFR-1: authenticated list first render `< 1s`; NFR-2: toggle server confirmation `< 500ms` p50 — both measured in the target environment.
@@ -379,121 +381,98 @@ Notes:
 - Because untouched = no row, `delete` must be owner-scoped too, hence the delete policy.
 - `auth.uid()` is wrapped in `(select ...)` in every policy — this lets Postgres cache it once per query (an `initPlan`) instead of re-evaluating it per row, per [Supabase's RLS performance guidance](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select-statement).
 
-### 12.3 Server Action
+### 12.3 Server Action and write path
 
-`src/features/collection/actions.ts`
+Shipped at Browse M3 as three layers. The split is forced, not stylistic: deciding between upsert and delete is a read-modify-write (clearing the last true flag must _delete_, since `user_book_touched` rejects an all-false row), PostgREST cannot hold a transaction across statements, and a toggle has to keep working with JavaScript disabled.
+
+**1. The database function** — `supabase/migrations/20260924205502_set_book_flags.sql`
+
+```sql
+set_book_flags(p_book_id uuid, p_is_read boolean default null, p_is_collected boolean default null)
+  returns table (is_read boolean, is_collected boolean)
+  -- plpgsql, security invoker, set search_path = ''
+```
+
+- The user is `auth.uid()`, never an argument (R5). Anonymous callers are refused twice: `EXECUTE` is revoked from `public`, `anon` and `authenticated` and granted back to `authenticated` alone, and the body raises `42501` without a session.
+- A **null argument leaves that flag as it is**, so toggling one never touches the other (FR-4); a call passing neither is rejected (`22023`).
+- An existing row is locked `for update` before anything is decided; if both flags end `false` the row is deleted, otherwise upserted. The upsert's `on conflict` branch writes only the flags passed, so two first toggles racing on an untouched book both stick instead of the second overwriting the first. `returning` reports what was stored.
+- Covered by `tests/db/set-book-flags.test.mts`, including that race, which was checked against a deliberately broken `on conflict` update.
+
+**2. The Server Action** — `src/features/collection/actions.ts`, abridged
 
 ```ts
 'use server';
 
-import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-
-const InputSchema = z.object({
-    bookId: z.string().uuid(),
-    isRead: z.boolean().optional(),
-    isCollected: z.boolean().optional(),
-});
-
-export type SetBookFlagsInput = z.infer<typeof InputSchema>;
-
-export type SetBookFlagsResult =
-    | { ok: true; isRead: boolean; isCollected: boolean }
-    | {
-          ok: false;
-          error: 'unauthenticated' | 'invalid_input' | 'write_failed';
-      };
-
-/**
- * Updates the current user's is_read/is_collected flags for a book,
- * independently — only the flags present in the input change; the other
- * keeps its current (or default false) value. Deletes the row once both
- * flags end up false, mirroring the `user_book_touched` check constraint,
- * rather than persisting an all-false row.
- * RLS guarantees a user can only affect their own rows; the explicit
- * user_id filter is belt-and-suspenders. Revalidates the list route so the
- * Server-Component progress bar and rows reflect true DB state (FR-5/NFR-6).
- */
 export async function setBookFlags(
-    input: SetBookFlagsInput,
-): Promise<SetBookFlagsResult> {
-    const parsed = InputSchema.safeParse(input);
-    if (!parsed.success) return { ok: false, error: 'invalid_input' };
-    const { bookId, isRead, isCollected } = parsed.data;
+    _previous: SetFlagResult,
+    form: FormData,
+): Promise<SetFlagResult> {
+    const input = parseSetFlagInput(form); // strict: a tampered write has no safe default
+    if (input === null)
+        return { status: 'error', bookId: null, error: 'invalid_input' };
 
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { ok: false, error: 'unauthenticated' };
-
-    const { data: existing } = await supabase
-        .from('user_book')
-        .select('is_read, is_collected')
-        .eq('user_id', user.id)
-        .eq('book_id', bookId)
-        .maybeSingle();
-
-    const nextIsRead = isRead ?? existing?.is_read ?? false;
-    const nextIsCollected = isCollected ?? existing?.is_collected ?? false;
-
-    if (!nextIsRead && !nextIsCollected) {
-        const { error } = await supabase
-            .from('user_book')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('book_id', bookId);
-        if (error) return { ok: false, error: 'write_failed' };
-    } else {
-        const { error } = await supabase.from('user_book').upsert(
-            {
-                user_id: user.id,
-                book_id: bookId,
-                is_read: nextIsRead,
-                is_collected: nextIsCollected,
-            },
-            { onConflict: 'user_id,book_id' },
-        );
-        if (error) return { ok: false, error: 'write_failed' };
+    const viewerId = await getViewerId(); // getClaims(), never the form (R5)
+    if (viewerId === null) {
+        return {
+            status: 'error',
+            bookId: input.bookId,
+            error: 'unauthenticated',
+        };
     }
 
-    // Both routes read user_book: /books renders the per-row flags, and
-    // /collection/[user] the progress summary and which books appear there
-    // at all (FR-8), so a toggle invalidates both. The collection path is
-    // dynamic, so a literal '/collection' would match nothing -- build the
-    // concrete path from the session's own id rather than revalidating
-    // every user's page.
-    revalidatePath('/books');
-    revalidatePath(`/collection/${user.id}`);
-    return { ok: true, isRead: nextIsRead, isCollected: nextIsCollected };
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .rpc('set_book_flags', rpcArgsFor(input)) // only the flag being changed
+        .single<{ is_read: boolean; is_collected: boolean }>();
+    if (error)
+        return { status: 'error', bookId: input.bookId, error: 'write_failed' };
+
+    revalidatePath(BOOKS_PATH);
+    revalidatePath(collectionPath(viewerId)); // the meters follow a toggle (R2)
+    return {
+        status: 'ok',
+        bookId: input.bookId,
+        isRead: data.is_read,
+        isCollected: data.is_collected,
+    };
 }
 ```
 
-**Companion read shape** (`src/features/books/data.ts`, Server Component side) for FR-1/FR-5, so the join contract is explicit:
+Shaped for `useActionState` — previous state, then the form. Parsing lives in `src/features/collection/flag-input.ts`, which is pure and unit-tested; a `'use server'` module can export only async functions. `unauthenticated` is its own result, rather than a permission error from the database, so the toggle can offer sign-in.
+
+**3. The toggles** — `src/features/collection/components/flag-toggles.tsx`
+
+- Each flag is its own `<form>` whose `action` is `useActionState`'s dispatch over `setBookFlags` itself. It must be the Server Action and not a client function wrapping it: React server-renders a client function as `javascript:throw`, so the form would do nothing without JavaScript.
+- **Optimistic display through `useFormStatus`**, not `useOptimistic`: while the form is pending the button shows the value being submitted, and once it settles it shows the server's value again — the new one on success, the unchanged one on failure. Rollback therefore needs no code of its own.
+- The form submits the opposite of the _server's_ value, and a click while pending is ignored (`aria-disabled`, which keeps focus where `disabled` would drop it — R8), so a double click cannot race itself.
+- A returned failure raises the toast (MI6). An action that _throws_ — a dropped connection — is rethrown by `useActionState` to the nearest error boundary, which would otherwise be the route's `error.tsx`; a small boundary per toggle catches it, raises the toast, remounts the toggle from server truth, and restores keyboard focus to it if it had focus.
+
+**Read shapes** (`src/features/books/types.ts`, `src/features/collection/progress.ts`):
 
 ```ts
-// One page of books with the current user's flags (absent row = both false).
-export type BookCategory =
-    'skill_book' | 'book' | 'journal' | 'note' | 'black_book' | 'treasure_map';
-export type BookSource =
-    'base' | 'dawnguard' | 'dragonborn' | 'hearthfire' | 'creation_club';
-
 export type BookRow = {
     id: string;
     title: string;
     category: BookCategory;
     source: BookSource;
     skill: string | null;
-    isRead: boolean; // coalesced: missing user_book -> false
-    isCollected: boolean; // coalesced: missing user_book -> false
+    uespTitle: string; // the outbound UESP link (FR-7)
+    isRead: boolean; // the viewer's own row, coalesced: absent -> false
+    isCollected: boolean;
+};
+
+export type ProgressScope = {
+    name: string; // "Default catalog"
+    categories: readonly BookCategory[];
+    sources: readonly BookSource[];
 };
 
 export type ProgressSummary = {
-    total: number; // count(book) within FR-3's default scope — dynamic (MI1)
-    collected: number; // count(user_book where is_collected)
-    read: number; // count(user_book where is_read)
+    scope: ProgressScope;
+    total: number; // books in scope -- dynamic (MI1)
+    collected: number; // in-scope books this user has collected
+    read: number; // in-scope books this user has read
 };
 ```
 
-**Client usage sketch** (`ReadToggle`/`CollectedToggle`, `"use client"`): each toggle wraps its own call in `useTransition` + `useOptimistic`, passing only the flag it owns (e.g. `{ bookId, isCollected }`); on a non-`ok` result (or a thrown error), revert that toggle's optimistic value and show a toast (FR-4/MI6); disable the specific control while its transition is pending (R8) — the other toggle stays interactive since the two flags are independent.
+Every query over `user_book` — the filters, the displayed flags, the marked list and the counts — names its user explicitly, and every embed of it carries an alias. Explicit, because RLS alone currently confines them to the viewer and FR-10's public-read policy will not. Aliased, because PostgREST lets an aliased embed still be addressed by its table name ([PostgREST#4075](https://github.com/PostgREST/postgrest/issues/4075)), so with the same table embedded twice a bare-named filter lands on both.
