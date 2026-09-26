@@ -84,6 +84,7 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
                 <BookList books={books.rows} signedIn={viewerId !== null} />
             )}
             <PaginationNav
+                basePath={BOOKS_PATH}
                 page={books.page}
                 pageCount={books.pageCount}
                 params={params}

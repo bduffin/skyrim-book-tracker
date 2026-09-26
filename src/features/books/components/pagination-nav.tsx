@@ -1,15 +1,10 @@
 import Link from 'next/link';
 
-import {
-    BOOKS_PATH,
-    pageQuery,
-    paginationItems,
-    type SearchParams,
-} from '../scope';
+import { pageQuery, paginationItems, type SearchParams } from '../scope';
 
-function hrefFor(page: number, params: SearchParams) {
+function hrefFor(basePath: string, page: number, params: SearchParams) {
     const query = pageQuery(page, params);
-    return query ? `${BOOKS_PATH}?${query}` : BOOKS_PATH;
+    return query ? `${basePath}?${query}` : basePath;
 }
 
 const SLOT =
@@ -27,12 +22,17 @@ const DISABLED = `${SLOT} border border-frost-200 text-frost-300`;
  *
  * Previous/Next render as spans at the ends rather than as disabled links,
  * so they are not focusable when there is nothing to activate.
+ *
+ * `basePath` is the route being paged, so `/books` and `/collection/[user]`
+ * (FR-8) can share this; every other param is carried through unchanged.
  */
 export function PaginationNav({
+    basePath,
     page,
     pageCount,
     params,
 }: {
+    basePath: string;
     page: number;
     pageCount: number;
     params: SearchParams;
@@ -46,7 +46,7 @@ export function PaginationNav({
         >
             {page > 1 ? (
                 <Link
-                    href={hrefFor(page - 1, params)}
+                    href={hrefFor(basePath, page - 1, params)}
                     rel="prev"
                     className={LINK}
                 >
@@ -72,7 +72,7 @@ export function PaginationNav({
                 ) : (
                     <Link
                         key={item}
-                        href={hrefFor(item, params)}
+                        href={hrefFor(basePath, item, params)}
                         aria-label={`Page ${item}`}
                         className={LINK}
                     >
@@ -83,7 +83,7 @@ export function PaginationNav({
 
             {page < pageCount ? (
                 <Link
-                    href={hrefFor(page + 1, params)}
+                    href={hrefFor(basePath, page + 1, params)}
                     rel="next"
                     className={LINK}
                 >
