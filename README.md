@@ -114,6 +114,25 @@ Three things worth knowing:
 - **No catalog import needed.** They insert their own book fixtures and assert against a measured baseline, so they pass on a stack that has only had `supabase start` run against it. The ~185 MB UESP dump is not a prerequisite.
 - **Local only.** They create a user and write rows using the secret key, which bypasses RLS, so they refuse to run against a non-localhost host — the same `isLocalHost` guard the importer uses. They clean up after themselves.
 
+## Troubleshooting
+
+### `tsc` rejects a route that exists
+
+Next generates the route types behind `PageProps<'/…'>` into `.next/`, and `tsc` reads whatever copy it finds there — including one left over from an older `next build`. After adding or removing a route you may see errors like these, naming routes that plainly do (or no longer) exist:
+
+```text
+Type '"/collection/[user]"' does not satisfy the constraint 'AppRoutes'.
+Cannot find module '../../src/app/collection/[user]/page.js' or its corresponding type declarations.
+```
+
+Regenerate the types:
+
+```bash
+yarn typegen
+```
+
+It rewrites them for the routes currently on disk without building anything, and leaves a running `yarn dev` alone. Don't hand-delete files inside `.next`: the generated files import each other, so removing one leaves the rest pointing at nothing.
+
 ## Further reading
 
 - [`docs/architecture.md`](docs/architecture.md) — stack, data model, security model
