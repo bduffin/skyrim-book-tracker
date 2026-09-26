@@ -48,6 +48,32 @@
  */
 
 import type { FlagFilter } from './scope';
+import type { BookCategory, BookRow, BookSource } from './types';
+
+/**
+ * Only the columns a book row renders (FR-1); the rest of `book` is not the
+ * list's. Shared by every list of books -- `/books` and the collection page --
+ * so a row looks the same wherever it appears.
+ */
+export const BOOK_COLUMNS = 'id, title, category, source, skill, uesp_title';
+
+/**
+ * What `BOOK_COLUMNS` selects.
+ *
+ * Stated rather than inferred: supabase-js shapes a result by parsing the
+ * select string, which only works when that string is a literal, and the
+ * embeds added to it make it computed. There are no generated database types
+ * in this project for it to fall back on, so the inferred row is
+ * `GenericStringError` -- a type error at every field, not a silent `any`.
+ */
+export type BookColumnsRow = {
+    id: string;
+    title: string;
+    category: BookCategory;
+    source: BookSource;
+    skill: string | null;
+    uesp_title: string;
+};
 
 /** `flagEmbed`'s alias, which every predicate below addresses it by. */
 const FLAG_FILTER = 'flag_filter';
@@ -223,5 +249,21 @@ export function readViewerFlags(embed: ViewerFlagsEmbed | undefined): {
     return {
         isRead: row?.is_read ?? false,
         isCollected: row?.is_collected ?? false,
+    };
+}
+
+/** A selected row as the list renders it, with its user's flags coalesced. */
+export function toBookRow(
+    row: BookColumnsRow,
+    flags: ViewerFlagsEmbed | undefined,
+): BookRow {
+    return {
+        id: row.id,
+        title: row.title,
+        category: row.category,
+        source: row.source,
+        skill: row.skill,
+        uespTitle: row.uesp_title,
+        ...readViewerFlags(flags),
     };
 }

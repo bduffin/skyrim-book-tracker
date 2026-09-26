@@ -22,6 +22,11 @@ import {
     flagCountQuery,
     totalCountQuery,
 } from '../../src/features/collection/progress.js';
+import { markedBooksQuery } from '../../src/features/collection/marked.js';
+import {
+    readViewerFlags,
+    type ViewerFlagsEmbed,
+} from '../../src/features/books/query.js';
 
 import { adminClient, createSignedInUser, localStack } from './lib/stack.mjs';
 
@@ -66,6 +71,8 @@ describe('progress counts (FR-5)', () => {
     let viewer: { userId: string; client: SupabaseClient };
     let other: { userId: string; client: SupabaseClient };
     let baselineTotal = 0;
+    /** Fixture book ids by key, for the marked-list tests. */
+    const bookIds = new Map<string, string>();
 
     before(async () => {
         const stack = localStack();
@@ -89,13 +96,11 @@ describe('progress counts (FR-5)', () => {
             )
             .select('id, uesp_page_id');
         if (bookError) throw bookError;
-        const id = (key: string) =>
-            books!.find(
-                (book) =>
-                    book.uesp_page_id ===
-                    FIXTURE_PAGE_ID_BASE +
-                        FIXTURES.findIndex((f) => f.key === key),
-            )!.id;
+        for (const book of books!) {
+            const fixture = FIXTURES[book.uesp_page_id - FIXTURE_PAGE_ID_BASE];
+            bookIds.set(fixture.key, book.id);
+        }
+        const id = (key: string) => bookIds.get(key)!;
 
         viewer = await createSignedInUser(
             stack,
@@ -208,5 +213,68 @@ describe('progress counts (FR-5)', () => {
             ),
             0,
         );
+    });
+
+    /**
+     * The marked list for `userId`, as fixture key -> displayed flags, over
+     * this file's fixtures only (the local stack may hold other test data).
+     */
+    async function markedFor(
+        supabase: SupabaseClient,
+        userId: string,
+    ): Promise<Map<string, { isRead: boolean; isCollected: boolean }>> {
+        const keyById = new Map([...bookIds].map(([key, id]) => [id, key]));
+        const { data, error } = await markedBooksQuery(supabase, userId).in(
+            'id',
+            [...bookIds.values()],
+        );
+        if (error) throw error;
+        const rows = data as unknown as {
+            id: string;
+            marked: ViewerFlagsEmbed;
+        }[];
+        return new Map(
+            rows.map((row) => [
+                keyById.get(row.id)!,
+                readViewerFlags(row.marked),
+            ]),
+        );
+    }
+
+    describe('the marked-books list (FR-8)', () => {
+        const both = { isRead: true, isCollected: true };
+        const expected = () =>
+            new Map([
+                ['read-and-collected', both],
+                ['read-only', { isRead: true, isCollected: false }],
+                ['collected-only', { isRead: false, isCollected: true }],
+                ['excluded-category', both],
+                ['excluded-source', both],
+                ['unobtainable', both],
+            ]);
+
+        // Unlike the meters, the list is every marked book: a marked note or
+        // Creation Club book is still the user's data, and hiding it would
+        // leave no way to unmark it from here.
+        test('holds every marked book, in or out of the default scope, with its flags', async () => {
+            assert.deepEqual(
+                await markedFor(viewer.client, viewer.userId),
+                expected(),
+            );
+        });
+
+        // Through the admin client, which sees the other user's rows the way
+        // FR-10's public-read policy will: the explicit user limit is all that
+        // keeps their book -- and their flags on the viewer's -- out.
+        test('never includes another user’s books or flags, even where RLS would admit them', async () => {
+            assert.deepEqual(await markedFor(admin, viewer.userId), expected());
+        });
+
+        test('a user who has marked nothing has an empty list', async () => {
+            assert.deepEqual(
+                await markedFor(admin, crypto.randomUUID()),
+                new Map(),
+            );
+        });
     });
 });

@@ -6,6 +6,7 @@ import { getViewerId } from '@/features/auth/get-viewer-id';
 import { BOOKS_PATH } from '@/features/books/scope';
 import { createClient } from '@/lib/supabase/server';
 
+import { collectionPath } from './route';
 import {
     parseSetFlagInput,
     rpcArgsFor,
@@ -62,10 +63,13 @@ export async function setBookFlags(
         };
     }
 
-    // Re-renders the list from the database, which is what lets the toggle's
-    // optimistic state give way to server truth (NFR-6, R2). The collection
-    // page will need the same once it exists.
+    // Re-renders both routes that show this flag from the database, which is
+    // what lets the toggle's optimistic state give way to server truth and
+    // keeps the progress meters honest (NFR-6, R2). The collection path is
+    // built from the session's own id: a toggle only ever changes the
+    // viewer's own collection, so every other user's page stays cached.
     revalidatePath(BOOKS_PATH);
+    revalidatePath(collectionPath(viewerId));
 
     return {
         status: 'ok',

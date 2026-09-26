@@ -16,27 +16,59 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { DEFAULT_CATEGORIES, DEFAULT_SOURCES } from '@/features/books/scope';
+import type { BookCategory, BookSource } from '@/features/books/types';
+
+/**
+ * What a set of meters counts over, as data rather than as constants baked
+ * into the queries, so the UI can show a scope as well as count it.
+ *
+ * Only the default scope exists today. The shape is what FR-5's possible
+ * custom meters would each carry: every meter a scope of its own, named and
+ * displayed the same way.
+ */
+export type ProgressScope = {
+    /** How the scope is headed in the UI: "Progress · Default catalog". */
+    name: string;
+    categories: readonly BookCategory[];
+    sources: readonly BookSource[];
+};
+
+/** FR-3's default scope, the 423-book catalog `/books` opens on. */
+export const DEFAULT_PROGRESS_SCOPE: ProgressScope = {
+    name: 'Default catalog',
+    categories: DEFAULT_CATEGORIES,
+    sources: DEFAULT_SOURCES,
+};
 
 export type ProgressSummary = {
-    /** Books in FR-3's default scope; computed, never hardcoded (MI1). */
+    /** What the counts below are over. */
+    scope: ProgressScope;
+    /** Books in `scope`; computed, never hardcoded (MI1). */
     total: number;
     collected: number;
     read: number;
 };
 
-/** A head request over the default scope: it returns a count and no rows. */
-function scopedCount(supabase: SupabaseClient, select: string) {
+/** A head request over `scope`: it returns a count and no rows. */
+function scopedCount(
+    supabase: SupabaseClient,
+    scope: ProgressScope,
+    select: string,
+) {
     return supabase
         .from('book')
         .select(select, { count: 'exact', head: true })
         .eq('is_obtainable', true)
-        .in('category', [...DEFAULT_CATEGORIES])
-        .in('source', [...DEFAULT_SOURCES]);
+        .in('category', [...scope.categories])
+        .in('source', [...scope.sources]);
 }
 
-/** Counts the default scope itself. */
-export function totalCountQuery(supabase: SupabaseClient) {
-    return scopedCount(supabase, 'id');
+/** Counts the books in `scope` itself. */
+export function totalCountQuery(
+    supabase: SupabaseClient,
+    scope: ProgressScope = DEFAULT_PROGRESS_SCOPE,
+) {
+    return scopedCount(supabase, scope, 'id');
 }
 
 const FLAG_COLUMNS = {
@@ -45,7 +77,7 @@ const FLAG_COLUMNS = {
 } as const;
 
 /**
- * Counts the books in the default scope that `userId` has collected, or read.
+ * Counts the books in `scope` that `userId` has collected, or read.
  *
  * The `user_book` embed is `!inner`, so a book with no matching row drops out
  * of the count, and it is aliased, so no filter addresses it by its table name
@@ -60,8 +92,9 @@ export function flagCountQuery(
     supabase: SupabaseClient,
     userId: string,
     flag: keyof typeof FLAG_COLUMNS,
+    scope: ProgressScope = DEFAULT_PROGRESS_SCOPE,
 ) {
-    return scopedCount(supabase, 'id, progress:user_book!inner(book_id)')
+    return scopedCount(supabase, scope, 'id, progress:user_book!inner(book_id)')
         .eq('progress.user_id', userId)
         .eq(`progress.${FLAG_COLUMNS[flag]}`, true);
 }

@@ -6,14 +6,16 @@ import { clampPage, pageCountFor, rangeFor } from '@/lib/pagination';
 import { escapeLike, type BookFilters } from './scope';
 import {
     applyFlagFilters,
+    BOOK_COLUMNS,
     flagEmbed,
-    readViewerFlags,
     resolveFlagFilters,
+    toBookRow,
     VIEWER_FLAGS_EMBED,
     withViewerFlags,
+    type BookColumnsRow,
     type ViewerFlagsEmbed,
 } from './query';
-import type { BookCategory, BookRow, BookSource } from './types';
+import type { BookRow } from './types';
 
 export type BooksPage = {
     rows: BookRow[];
@@ -24,25 +26,8 @@ export type BooksPage = {
     pageCount: number;
 };
 
-/** Only the columns FR-1 renders; the rest of `book` is not this feature's. */
-const COLUMNS = 'id, title, category, source, skill, uesp_title';
-
-/**
- * What `COLUMNS` selects.
- *
- * Stated rather than inferred: supabase-js shapes a result by parsing the
- * select string, which only works when that string is a literal, and the
- * embed below makes it computed. There are no generated database types in this
- * project for it to fall back on, so the inferred row is `GenericStringError`
- * -- a type error at every field, not a silent `any`.
- */
-type BookQueryRow = {
-    id: string;
-    title: string;
-    category: BookCategory;
-    source: BookSource;
-    skill: string | null;
-    uesp_title: string;
+/** What the list query selects: `BOOK_COLUMNS`, plus the viewer's flags. */
+type BookQueryRow = BookColumnsRow & {
     /** Absent when the viewer is signed out and the embed is not selected. */
     viewer_flags?: ViewerFlagsEmbed;
 };
@@ -74,7 +59,7 @@ export async function getBooksPage({
     if (flags === null) return { rows: [], total: 0, page: 1, pageCount: 1 };
 
     const { read, collected } = flags;
-    const filterSelect = `${COLUMNS}${flagEmbed(read, collected)}`;
+    const filterSelect = `${BOOK_COLUMNS}${flagEmbed(read, collected)}`;
 
     const scoped = (
         select: string,
@@ -139,15 +124,9 @@ export async function getBooksPage({
     }
 
     return {
-        rows: ((data ?? []) as unknown as BookQueryRow[]).map((row) => ({
-            id: row.id,
-            title: row.title,
-            category: row.category,
-            source: row.source,
-            skill: row.skill,
-            uespTitle: row.uesp_title,
-            ...readViewerFlags(row.viewer_flags),
-        })),
+        rows: ((data ?? []) as unknown as BookQueryRow[]).map((row) =>
+            toBookRow(row, row.viewer_flags),
+        ),
         total,
         page: clamped,
         pageCount,
