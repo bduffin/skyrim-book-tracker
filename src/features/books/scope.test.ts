@@ -18,13 +18,16 @@ import {
     SKILLS,
     SOURCES,
     escapeLike,
+    filtersHref,
     filtersQuery,
+    hasFlagFilter,
     isDefaultFilters,
     parseAllowlistParam,
     parseFilters,
     parseFlagParam,
     parseSearchParam,
     parseSkillParam,
+    withoutFlagFilters,
 } from './scope';
 
 describe('default scope (FR-3)', () => {
@@ -468,4 +471,70 @@ describe('filters round-trip (AC-3, AC-13: a copied URL reproduces the view)', (
             );
         });
     }
+});
+
+describe('the signed-out flag filter notice (FR-2)', () => {
+    test('hasFlagFilter is false for the default scope', () => {
+        assert.equal(hasFlagFilter(DEFAULT_FILTERS), false);
+    });
+
+    test('hasFlagFilter is true for either flag, set either way', () => {
+        assert.equal(hasFlagFilter({ ...DEFAULT_FILTERS, read: 'true' }), true);
+        assert.equal(
+            hasFlagFilter({ ...DEFAULT_FILTERS, read: 'false' }),
+            true,
+        );
+        assert.equal(
+            hasFlagFilter({ ...DEFAULT_FILTERS, collected: 'true' }),
+            true,
+        );
+        assert.equal(
+            hasFlagFilter({ ...DEFAULT_FILTERS, collected: 'false' }),
+            true,
+        );
+    });
+
+    test('hasFlagFilter ignores every other filter', () => {
+        assert.equal(
+            hasFlagFilter({
+                categories: ['note'],
+                sources: ['creation_club'],
+                skill: 'Alchemy',
+                read: 'any',
+                collected: 'any',
+                q: 'Dwemer',
+            }),
+            false,
+        );
+    });
+
+    test('removing the flags keeps every other filter', () => {
+        // Categories in allowlist order, as `parseFilters` hands them over.
+        assert.equal(
+            filtersHref(
+                withoutFlagFilters({
+                    categories: ['journal', 'note'],
+                    sources: ['creation_club'],
+                    skill: 'Alchemy',
+                    read: 'true',
+                    collected: 'false',
+                    q: 'Dwemer',
+                }),
+            ),
+            '/books?category=journal&category=note&source=creation_club&skill=Alchemy&q=Dwemer',
+        );
+    });
+
+    test('removing the only filters set returns to a bare /books', () => {
+        assert.equal(
+            filtersHref(
+                withoutFlagFilters({
+                    ...DEFAULT_FILTERS,
+                    read: 'false',
+                    collected: 'true',
+                }),
+            ),
+            '/books',
+        );
+    });
 });

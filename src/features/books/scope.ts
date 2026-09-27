@@ -247,6 +247,24 @@ export function isDefaultFilters(filters: BookFilters): boolean {
     );
 }
 
+/**
+ * Whether a read or collected filter is set -- the two that answer from the
+ * viewer's own tracking, and so the two a signed-out visitor needs told about
+ * (FR-2).
+ */
+export function hasFlagFilter(filters: BookFilters): boolean {
+    return filters.read !== 'any' || filters.collected !== 'any';
+}
+
+/**
+ * The same view with only the read and collected filters removed: the
+ * signed-out notice's way out (FR-2). Everything else the reader chose is
+ * kept, which is what separates it from "Reset filters".
+ */
+export function withoutFlagFilters(filters: BookFilters): BookFilters {
+    return { ...filters, read: 'any', collected: 'any' };
+}
+
 /** The catalogue route (FR-8). */
 export const BOOKS_PATH = '/books';
 

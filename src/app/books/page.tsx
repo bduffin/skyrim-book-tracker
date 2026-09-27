@@ -12,6 +12,7 @@ import {
 import { BookFilters } from '@/features/books/components/book-filters';
 import { BookList } from '@/features/books/components/book-list';
 import { EmptyState } from '@/features/books/components/empty-state';
+import { FlagFilterNotice } from '@/features/books/components/flag-filter-notice';
 import { PaginationNav } from '@/components/pagination-nav';
 import { PageTitle } from '@/components/page-title';
 
@@ -76,6 +77,8 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
                     </Link>
                 )}
             </div>
+
+            <FlagFilterNotice filters={filters} signedIn={viewerId !== null} />
 
             {books.rows.length === 0 ? (
                 <EmptyState filters={filters} />
