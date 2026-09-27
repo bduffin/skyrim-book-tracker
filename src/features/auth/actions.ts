@@ -33,8 +33,6 @@ export async function signInWithGitHub(): Promise<void> {
 
     const next = returnPathFrom(requestHeaders.get('referer'), origin);
 
-    // Per-request, never module scope: a cached client can leak one user's
-    // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
@@ -80,8 +78,6 @@ export async function signInWithGitHub(): Promise<void> {
  * project's JWT expiry, an hour by default).
  */
 export async function signOut(): Promise<void> {
-    // Per-request, never module scope: a cached client can leak one user's
-    // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
     const { error } = await supabase.auth.signOut({ scope: 'local' });
 

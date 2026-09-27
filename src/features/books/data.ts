@@ -49,8 +49,6 @@ export async function getBooksPage({
     /** From `getViewerId()`; `null` renders every row untouched (FR-2). */
     viewerId: string | null;
 }): Promise<BooksPage> {
-    // Per-request, never module scope: a cached client can leak one user's
-    // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
 
     const flags = resolveFlagFilters(filters.read, filters.collected, viewerId);

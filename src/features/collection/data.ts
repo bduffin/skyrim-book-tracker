@@ -29,8 +29,6 @@ export async function getProgress(
     userId: string,
     scope = DEFAULT_PROGRESS_SCOPE,
 ): Promise<ProgressSummary> {
-    // Per-request, never module scope: a cached client can leak one user's
-    // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
 
     const [total, collected, read] = await Promise.all([
@@ -70,8 +68,6 @@ export async function getMarkedBooksPage({
     userId: string;
     page: number;
 }): Promise<BooksPage> {
-    // Per-request, never module scope: a cached client can leak one user's
-    // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
 
     const { count, error: countError } = await markedBooksQuery(

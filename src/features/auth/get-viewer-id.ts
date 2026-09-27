@@ -16,8 +16,6 @@ import { createClient } from '@/lib/supabase/server';
  * itself.
  */
 export async function getViewerId(): Promise<string | null> {
-    // Per-request, never module scope: a cached client can leak one user's
-    // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
 
     try {

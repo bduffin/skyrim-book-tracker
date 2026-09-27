@@ -16,6 +16,36 @@ const eslintConfig = defineConfig([
             'react/no-danger': 'error',
         },
     },
+    {
+        // Supabase clients are created per request, never at module scope:
+        // Vercel's Fluid compute can share one running instance across
+        // concurrent requests from different users, so a module-level client
+        // can carry one user's session into another's request. Scoped to
+        // src/, which serves requests; scripts/ and tests/ are one process
+        // per run and legitimately build a client once.
+        //
+        // Matches any create*Client call -- `createClient`,
+        // `createServerClient`, `createBrowserClient`, bare or as a namespace
+        // member -- that is not inside a function. A client made inside a
+        // function defined at the top level is fine: it runs per call.
+        //
+        // Any further no-restricted-syntax selector for src/ has to go in this
+        // same list: flat config merges rules by name, so a second entry that
+        // also sets no-restricted-syntax replaces this one rather than adding
+        // to it, and this check would silently stop running.
+        files: ['src/**/*.{ts,tsx}'],
+        rules: {
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector:
+                        'CallExpression:matches([callee.name=/^create(Server|Browser)?Client$/], [callee.property.name=/^create(Server|Browser)?Client$/]):not(:function *)',
+                    message:
+                        'Create Supabase clients inside the function that uses them, per request. At module scope, Fluid compute can share one client across concurrent requests from different users and leak a session between them.',
+                },
+            ],
+        },
+    },
     // Override default ignores of eslint-config-next.
     globalIgnores([
         // Default ignores of eslint-config-next:

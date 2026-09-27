@@ -48,8 +48,6 @@ export async function setBookFlags(
         };
     }
 
-    // Per-request, never module scope: a cached client can leak one user's
-    // session into another request under Vercel's Fluid compute.
     const supabase = await createClient();
     const { data, error } = await supabase
         .rpc('set_book_flags', rpcArgsFor(input))
