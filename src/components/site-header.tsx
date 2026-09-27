@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getDisplayName } from '@/features/auth/get-display-name';
 import { GitHubLoginButton } from '@/features/auth/components/github-login-button';
 import { SignOutButton } from '@/features/auth/components/sign-out-button';
+import { UserBadge } from '@/features/auth/components/user-badge';
 import { SiteLogo } from '@/components/site-logo';
 import { SiteNav } from '@/components/site-nav';
 import { collectionPath } from '@/features/collection/route';
@@ -27,7 +28,10 @@ export async function SiteHeader() {
                 <SiteLogo />
                 {claims ? (
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <span>Welcome, {getDisplayName(claims)}</span>
+                        <UserBadge
+                            displayName={getDisplayName(claims)}
+                            metadata={claims.user_metadata}
+                        />
                         <SignOutButton />
                     </div>
                 ) : (
