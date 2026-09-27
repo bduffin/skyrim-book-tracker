@@ -15,7 +15,7 @@ export function BookList({
     signedIn,
 }: {
     books: Book[];
-    /** Whether rows get read/collected toggles (FR-4). */
+    /** Whether the toggles track (FR-4) or offer sign-in (FR-2). */
     signedIn: boolean;
 }) {
     return (
