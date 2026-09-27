@@ -15,6 +15,8 @@ import {
     AUTH_ERROR_COPY,
     authErrorKind,
     authErrorMessage,
+    authErrorTitle,
+    SIGN_OUT_FAILED_CODE,
     type AuthErrorKind,
 } from './auth-error-message';
 
@@ -211,5 +213,38 @@ describe('authErrorMessage', () => {
                 hostile,
             );
         }
+    });
+});
+
+describe('sign-out failures', () => {
+    test('the app’s own code maps to the sign-out kind', () => {
+        assert.equal(
+            authErrorKind({ errorCode: SIGN_OUT_FAILED_CODE }),
+            'signOutIncomplete',
+        );
+    });
+
+    // Written to be true in both failure modes: signed out here but not on
+    // the server, or still signed in because nothing was deleted.
+    test('the copy covers both ways sign-out can fail', () => {
+        const message = authErrorMessage({ errorCode: SIGN_OUT_FAILED_CODE });
+        assert.match(message, /close your browser/);
+        assert.match(message, /sign out again/);
+    });
+
+    test('the title says sign-out, and every other kind still says sign-in', () => {
+        assert.equal(
+            authErrorTitle({ errorCode: SIGN_OUT_FAILED_CODE }),
+            "Sign-out didn't finish",
+        );
+        assert.equal(
+            authErrorTitle({ error: 'access_denied' }),
+            'Sign-in failed',
+        );
+        assert.equal(authErrorTitle({}), 'Sign-in failed');
+    });
+
+    test('the app code is namespaced away from Supabase’s', () => {
+        assert.ok(SIGN_OUT_FAILED_CODE.startsWith('app_'));
     });
 });

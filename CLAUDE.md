@@ -117,6 +117,5 @@ Full approach in `docs/architecture.md` §11; the conventions that bite are:
 ## Not yet set up
 
 - shadcn/ui is planned (`docs/architecture.md` §3) but not installed yet — Tailwind CSS itself is now set up (see "Tooling" above).
-- No sign-out UI yet — `src/components/site-header.tsx` shows a "Welcome, {name}" greeting (via `getDisplayName`) for authenticated users, with no way to sign out.
 - `/auth/auth-error` doesn't receive real error detail from the callback route yet (it redirects there bare). When that gets wired up, forward Supabase's `error` and `error_code` — the page maps them to fixed, app-written messages (`src/features/auth/auth-error-message.ts`). It deliberately **never renders `error_description`**, only logs it: the page is reachable by any link, so displaying a query param would let anyone make the app show arbitrary text on its own domain, and RFC 6749 meant that field for developers anyway.
 - License is GPL-3.0-or-later (`package.json`, `LICENSE`).

@@ -1,5 +1,5 @@
 /**
- * The message the sign-in error page shows, chosen from a fixed set of
+ * The message the auth error page shows, chosen from a fixed set of
  * app-written copy by the error *codes* on the redirect -- never from its
  * free text.
  *
@@ -33,6 +33,7 @@ export type AuthErrorKind =
     | 'signupDisabled'
     | 'accountBlocked'
     | 'misconfigured'
+    | 'signOutIncomplete'
     | 'unknown';
 
 export const AUTH_ERROR_COPY: Record<AuthErrorKind, string> = {
@@ -47,8 +48,24 @@ export const AUTH_ERROR_COPY: Record<AuthErrorKind, string> = {
     accountBlocked: "This account can't sign in right now.",
     misconfigured:
         "Sign-in isn't set up correctly on our side, so it couldn't finish. This isn't something you did.",
+    // Worded to be true whichever way sign-out failed: usually this browser
+    // is signed out and only the server-side session survived, but if the
+    // session could not be read at all, the reader is still signed in.
+    signOutIncomplete:
+        "Signing out didn't fully finish. To be sure, close your browser — or, if your name still shows at the top of the page, sign out again.",
     unknown: 'Something went wrong while signing you in. Please try again.',
 };
+
+/**
+ * The app's own codes, for failures no provider reports -- sent as
+ * `error_code` like Supabase's, and prefixed `app_` so a code Supabase adds
+ * later can never collide with one of these.
+ */
+export const SIGN_OUT_FAILED_CODE = 'app_sign_out_failed';
+
+const BY_APP_CODE = new Map<string, AuthErrorKind>([
+    [SIGN_OUT_FAILED_CODE, 'signOutIncomplete'],
+]);
 
 /*
  * Supabase Auth's own codes, which it sends as `error_code` on the redirect
@@ -120,6 +137,7 @@ export function authErrorKind({
     errorCode?: string;
 }): AuthErrorKind {
     return (
+        (errorCode !== undefined && BY_APP_CODE.get(errorCode)) ||
         (errorCode !== undefined && BY_SUPABASE_CODE.get(errorCode)) ||
         (error !== undefined && BY_OAUTH_ERROR.get(error)) ||
         'unknown'
@@ -135,4 +153,18 @@ export function authErrorMessage(codes: {
     errorCode?: string;
 }): string {
     return AUTH_ERROR_COPY[authErrorKind(codes)];
+}
+
+/**
+ * The page's heading and title. Every kind is a failed sign-in except the one
+ * that is not: a reader who was signing *out* should not be told sign-in
+ * failed.
+ */
+export function authErrorTitle(codes: {
+    error?: string;
+    errorCode?: string;
+}): string {
+    return authErrorKind(codes) === 'signOutIncomplete'
+        ? "Sign-out didn't finish"
+        : 'Sign-in failed';
 }

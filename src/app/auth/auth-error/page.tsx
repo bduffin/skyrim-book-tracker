@@ -2,11 +2,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { PageTitle } from '@/components/page-title';
-import { authErrorMessage } from '@/features/auth/auth-error-message';
-
-export const metadata: Metadata = {
-    title: 'Sign-in failed',
-};
+import {
+    authErrorMessage,
+    authErrorTitle,
+} from '@/features/auth/auth-error-message';
 
 /**
  * One usable value from a query param, or `undefined`.
@@ -21,6 +20,22 @@ export const metadata: Metadata = {
  */
 function single(value: string | string[] | undefined): string | undefined {
     return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+/**
+ * The tab title follows the heading: "Sign-in failed" for every provider
+ * error, "Sign-out didn't finish" for the one failure that is not a sign-in.
+ */
+export async function generateMetadata({
+    searchParams,
+}: PageProps<'/auth/auth-error'>): Promise<Metadata> {
+    const params = await searchParams;
+    return {
+        title: authErrorTitle({
+            error: single(params.error),
+            errorCode: single(params.error_code),
+        }),
+    };
 }
 
 /** Enough of a logged value to diagnose from, without letting one flood logs. */
@@ -43,7 +58,7 @@ export default async function AuthErrorPage({
         // bare strings because the values are attacker-controlled, and Node
         // quotes and escapes strings inside an object -- a description with
         // embedded newlines logged bare would forge whole extra log lines.
-        console.warn('Sign-in failed', {
+        console.warn('Auth error page reached', {
             error: error?.slice(0, LOG_LIMIT),
             errorCode: errorCode?.slice(0, LOG_LIMIT),
             errorDescription: errorDescription?.slice(0, LOG_LIMIT),
@@ -52,7 +67,7 @@ export default async function AuthErrorPage({
 
     return (
         <main className="mx-auto max-w-3xl py-6">
-            <PageTitle>Sign-in failed</PageTitle>
+            <PageTitle>{authErrorTitle({ error, errorCode })}</PageTitle>
             <div className="flex flex-col items-center gap-4 px-4 py-6 text-center">
                 <p className="max-w-md text-iron-500">
                     {authErrorMessage({ error, errorCode })}

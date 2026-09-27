@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { getDisplayName } from '@/features/auth/get-display-name';
 import { GitHubLoginButton } from '@/features/auth/components/github-login-button';
+import { SignOutButton } from '@/features/auth/components/sign-out-button';
 import { SiteLogo } from '@/components/site-logo';
 import { SiteNav } from '@/components/site-nav';
 import { collectionPath } from '@/features/collection/route';
@@ -22,16 +23,13 @@ export async function SiteHeader() {
 
     return (
         <>
-            {/*
-             * `flex-wrap`: when the logo and the controls do not fit side by
-             * side, the controls move to a line of their own rather than the
-             * name being cut -- below 428px signed out, measured with the
-             * sign-in button.
-             */}
             <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 bg-iron-900 px-4 py-3 text-frost-50">
                 <SiteLogo />
                 {claims ? (
-                    <span>Welcome, {getDisplayName(claims)}</span>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <span>Welcome, {getDisplayName(claims)}</span>
+                        <SignOutButton />
+                    </div>
                 ) : (
                     <GitHubLoginButton />
                 )}

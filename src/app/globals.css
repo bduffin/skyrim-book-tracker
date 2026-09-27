@@ -85,12 +85,14 @@
     }
 
     /*
-     * Tailwind v4's preflight dropped v3's `cursor: pointer` on buttons, so
-     * every button in the app showed the default arrow. Restored here once,
-     * as Tailwind's upgrade guide suggests, rather than per component, where
-     * the next new button would forget it. A `disabled` button keeps the
-     * default; utilities still win, so a toggle's `aria-disabled:cursor-progress`
-     * shows while a save is in flight.
+     * A pointer cursor on buttons. Browsers default buttons to the plain
+     * arrow, and Tailwind v4's preflight leaves it that way -- v3's set
+     * `cursor: pointer`, which is why v4's upgrade guide offers this rule.
+     * This project has only ever used v4, so no button here had the pointer
+     * until now. Set once rather than per component, where the next new
+     * button would forget it. A `disabled` button keeps the arrow; utilities
+     * still win, so a toggle's `aria-disabled:cursor-progress` shows while a
+     * save is in flight.
      */
     button:not(:disabled),
     [role='button']:not(:disabled) {

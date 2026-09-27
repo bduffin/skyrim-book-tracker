@@ -1,10 +1,13 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { BOOKS_PATH } from '@/features/books/scope';
 import { createClient } from '@/lib/supabase/server';
 
+import { SIGN_OUT_FAILED_CODE } from './auth-error-message';
 import { returnPathFrom } from './return-path';
 
 /**
@@ -52,4 +55,45 @@ export async function signInWithGitHub(): Promise<void> {
 
     // Outside any try/catch: redirect() works by throwing.
     redirect(data.url);
+}
+
+/**
+ * Signs the reader out of this browser only, from a `<form>`, so it works
+ * with JavaScript disabled.
+ *
+ * `scope: 'local'` is deliberate. Supabase's default is `'global'`, which
+ * revokes the user's sessions across all devices. A "sign out everywhere"
+ * control, if needed, should be separate.
+ *
+ * A failure is not hidden, because it can leave either side signed in. From
+ * `_signOut` in @supabase/auth-js: when the logout API call fails, the library
+ * still deletes this browser's session cookies, but the server-side session
+ * -- and its refresh token -- survives, so a copy of the cookies taken
+ * earlier could keep minting access tokens. And when the session cannot be
+ * read at all, nothing is deleted and the reader is still signed in. Either
+ * way the reader goes to the auth error page, which says so in fixed wording,
+ * rather than to /books as if all were well.
+ *
+ * Even a successful sign-out does not cut short an access token already
+ * issued: `getClaims()` verifies the JWT locally, without asking whether its
+ * session still exists, so a copied token works until it expires (the
+ * project's JWT expiry, an hour by default).
+ */
+export async function signOut(): Promise<void> {
+    // Per-request, never module scope: a cached client can leak one user's
+    // session into another request under Vercel's Fluid compute.
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+
+    // Every cached render was built for a signed-in reader -- the header, the
+    // row toggles, their collection -- so drop them all, not just one path.
+    revalidatePath('/', 'layout');
+
+    if (error) {
+        console.error('Sign-out did not complete:', error);
+        redirect(`/auth/auth-error?error_code=${SIGN_OUT_FAILED_CODE}`);
+    }
+    // Straight to the catalog: the collection page would bounce a signed-out
+    // reader there anyway.
+    redirect(BOOKS_PATH);
 }
