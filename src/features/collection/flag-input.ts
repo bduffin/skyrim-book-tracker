@@ -12,6 +12,8 @@
  * member of a two- or three-item allowlist.
  */
 
+import { returnPathFrom } from '@/features/auth/return-path';
+
 /** The form field names a toggle submits. One source, so they cannot drift. */
 export const FLAG_FIELDS = {
     bookId: 'bookId',
@@ -107,6 +109,33 @@ export function rpcArgsFor(input: SetFlagInput): {
     return input.flag === 'read'
         ? { p_book_id: input.bookId, p_is_read: input.value }
         : { p_book_id: input.bookId, p_is_collected: input.value };
+}
+
+/**
+ * The id on a toggle's form, which a no-JavaScript write redirects back to.
+ * One per toggle, so the page lands on the control that was pressed.
+ */
+export function flagAnchor(flag: FlagName, bookId: string): string {
+    return `${flag}-${bookId}`;
+}
+
+/**
+ * Where a successful no-JavaScript write redirects: the page the toggle was
+ * on, taken from the form's `Referer` by the same rule sign-in uses, plus the
+ * toggle's own fragment.
+ *
+ * Redirecting turns the native form POST into a GET, so refreshing or going
+ * back afterwards does not ask to resubmit the form, and the fragment brings
+ * the page back scrolled to the toggle rather than to the top. A browser
+ * never sends a fragment in `Referer`, which is why it is rebuilt here.
+ */
+export function writeReturnTarget(
+    referer: string | null,
+    origin: string,
+    input: SetFlagInput,
+): string {
+    const path = returnPathFrom(referer, origin);
+    return `${path}#${flagAnchor(input.flag, input.bookId)}`;
 }
 
 /**

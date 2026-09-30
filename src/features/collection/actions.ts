@@ -1,15 +1,19 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 import { getViewerId } from '@/features/auth/get-viewer-id';
 import { BOOKS_PATH } from '@/features/books/scope';
+import { isNativeFormPost } from '@/lib/server-action';
 import { createClient } from '@/lib/supabase/server';
 
 import { collectionPath } from './route';
 import {
     parseSetFlagInput,
     rpcArgsFor,
+    writeReturnTarget,
     type SetFlagResult,
 } from './flag-input';
 
@@ -68,6 +72,25 @@ export async function setBookFlags(
     // viewer's own collection, so every other user's page stays cached.
     revalidatePath(BOOKS_PATH);
     revalidatePath(collectionPath(viewerId));
+
+    // Without JavaScript the form posted natively, and answering with the
+    // re-rendered page would leave that POST in the history: refreshing or
+    // going back to it asks to resubmit the form. So a successful native
+    // write redirects to a GET of the same page, at the toggle. A call from
+    // Next's client never redirects, and keeps its optimistic update.
+    //
+    // Only on success. A failure is re-rendered in place, because the
+    // result *is* what the page shows -- for `unauthenticated`, the sign-in
+    // prompt -- and a redirect would discard it.
+    const requestHeaders = await headers();
+    const origin = requestHeaders.get('origin');
+    // No `Origin`, no way to build the redirect target: render in place.
+    if (isNativeFormPost(requestHeaders) && origin !== null) {
+        // Outside any try/catch: redirect() works by throwing.
+        redirect(
+            writeReturnTarget(requestHeaders.get('referer'), origin, input),
+        );
+    }
 
     return {
         status: 'ok',

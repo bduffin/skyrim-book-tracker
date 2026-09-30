@@ -6,6 +6,7 @@ import {
     flagFailureMessage,
     parseSetFlagInput,
     rpcArgsFor,
+    writeReturnTarget,
 } from './flag-input';
 
 const BOOK = '3f6c2a1e-8b4d-4e2f-9a7c-1d5e6f7a8b9c';
@@ -172,5 +173,51 @@ describe('flagFailureMessage (FR-4, MI6)', () => {
 
     test('points a connection failure at the connection', () => {
         assert.match(flagFailureMessage('unreachable', TITLE), /connection/);
+    });
+});
+
+describe('writeReturnTarget (FR-4)', () => {
+    const ORIGIN = 'http://localhost:3000';
+
+    test('returns to the same page, query included, at the toggle', () => {
+        assert.equal(
+            writeReturnTarget(
+                `${ORIGIN}/books?source=base&read=false&page=3`,
+                ORIGIN,
+                { bookId: BOOK, flag: 'collected', value: true },
+            ),
+            `/books?source=base&read=false&page=3#collected-${BOOK}`,
+        );
+    });
+
+    test('names the toggle, not just the book', () => {
+        assert.equal(
+            writeReturnTarget(`${ORIGIN}/collection/abc`, ORIGIN, {
+                bookId: BOOK,
+                flag: 'read',
+                value: false,
+            }),
+            `/collection/abc#read-${BOOK}`,
+        );
+    });
+
+    test('drops a fragment the referer somehow carried', () => {
+        assert.equal(
+            writeReturnTarget(`${ORIGIN}/books#collected-${BOOK}`, ORIGIN, {
+                bookId: BOOK,
+                flag: 'read',
+                value: true,
+            }),
+            `/books#read-${BOOK}`,
+        );
+    });
+
+    test('falls back to the root for a missing or foreign referer', () => {
+        const input = { bookId: BOOK, flag: 'read', value: true } as const;
+        assert.equal(writeReturnTarget(null, ORIGIN, input), `/#read-${BOOK}`);
+        assert.equal(
+            writeReturnTarget('https://evil.example/books', ORIGIN, input),
+            `/#read-${BOOK}`,
+        );
     });
 });

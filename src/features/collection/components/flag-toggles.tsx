@@ -21,6 +21,7 @@ import { useToast } from '@/components/toast';
 import { setBookFlags } from '../actions';
 import {
     FLAG_FIELDS,
+    flagAnchor,
     flagFailureMessage,
     IDLE,
     type FlagName,
@@ -272,7 +273,17 @@ function FlagToggle({
                 if (event.key === 'Escape' && shown) close(true);
             }}
         >
-            <form action={submit}>
+            {/*
+             * The target a successful no-JavaScript write redirects back to
+             * (`writeReturnTarget`). The margin keeps the row's title in view
+             * above it: on a narrow screen the toggles sit on the line below
+             * the title, which a flush scroll would cut off.
+             */}
+            <form
+                action={submit}
+                id={flagAnchor(flag, bookId)}
+                className="scroll-mt-16"
+            >
                 <input type="hidden" name={FLAG_FIELDS.bookId} value={bookId} />
                 <input type="hidden" name={FLAG_FIELDS.flag} value={flag} />
                 <input
