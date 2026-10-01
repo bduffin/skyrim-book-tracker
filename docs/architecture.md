@@ -195,7 +195,7 @@ Future flows:
 Client Components handle interactivity via **Server Actions** plus React's own hooks — no separate client-side data-fetching library:
 
 - For **optimistic updates** (e.g., marking a book as read/collected without a full reload), pass the Server Action to a `<form>` through `useActionState`, and read the submitted value from `useFormStatus` while it is pending. Once the submission settles the control shows the server's value again, so a failure rolls back on its own. `useOptimistic` would need a client function wrapping the action, which costs the JS-free path (below); the filters, which are URL state rather than writes, still use it.
-- For **filter changes**, push new URL query params and let Next.js soft navigation re-render the Server Component — no client-side refetching needed.
+- For **filter changes**, push new URL query params and let Next.js soft navigation re-render the Server Component — no client-side refetching needed. While a navigation is pending, dim the results rather than the controls: the form sets `aria-busy` from `useTransition`, and the page styles the results off it through `:has()`, so the server-rendered list needs no client state of its own. The title search box is the one control that keeps local state, because it navigates on a debounce and a URL-driven value would lag the keyboard; it takes the URL's term only when the URL changes for a reason other than its own search, such as a reset or the back button.
 
 Everywhere else, rely on Server Components fetching data directly from Supabase (via server‑side helpers).
 

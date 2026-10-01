@@ -9,6 +9,7 @@ import {
     CATEGORIES,
     SKILLS,
     SOURCES,
+    adoptsUrlTerm,
     filtersHref,
     type BookFilters,
     type FlagFilter,
@@ -217,19 +218,24 @@ export function BookFilters({ filters }: { filters: BookFilters }) {
     // the keyboard by 300ms and read as dropped keystrokes.
     const urlTerm = filters.q ?? '';
     const [term, setTerm] = useState(urlTerm);
+    const [seenUrlTerm, setSeenUrlTerm] = useState(urlTerm);
     const [sent, setSent] = useState(urlTerm);
 
     // Adopt the URL's term when it changed for a reason that was not this box
-    // -- a reset, the back button, a hand-edited address. Comparing against
-    // what was last *sent* rather than against `term` is what keeps a slow
-    // round-trip from clobbering characters typed while it was in flight.
+    // -- a reset, the back button, a hand-edited address. A filter change is a
+    // soft navigation that keeps this component mounted, so the initial
+    // `useState` alone would leave the box showing a term the list no longer
+    // applies.
     //
     // Adjusting state during render rather than in an effect is React's own
     // recommendation for deriving from a changed prop: it re-renders before
     // anything paints, where an effect would show one frame of the stale term.
-    if (sent !== urlTerm) {
-        setSent(urlTerm);
-        setTerm(urlTerm);
+    if (urlTerm !== seenUrlTerm) {
+        setSeenUrlTerm(urlTerm);
+        if (adoptsUrlTerm(urlTerm, seenUrlTerm, sent)) {
+            setSent(urlTerm);
+            setTerm(urlTerm);
+        }
     }
 
     function apply(next: BookFilters) {
@@ -280,12 +286,14 @@ export function BookFilters({ filters }: { filters: BookFilters }) {
                     event.preventDefault();
                     apply({ ...shown, q: term.trim() || null });
                 }}
+                // Also what dims the results while a filter change is in
+                // flight: the page styles them off this attribute, so the
+                // form itself -- and the search box being typed in -- stays
+                // at full strength.
                 aria-busy={pending}
                 // White on the frost page, which lifts the controls off the
                 // list below them.
-                className={`flex flex-col gap-4 rounded-lg border border-frost-300 bg-white p-4 transition-opacity ${
-                    pending ? 'opacity-60' : ''
-                }`}
+                className="flex flex-col gap-4 rounded-lg border border-frost-300 bg-white p-4"
             >
                 <div className="flex flex-wrap items-end gap-4">
                     <label className="flex min-w-48 flex-1 flex-col gap-1.5">

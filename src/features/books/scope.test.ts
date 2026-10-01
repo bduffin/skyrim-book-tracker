@@ -17,6 +17,7 @@ import {
     MAX_SEARCH_LENGTH,
     SKILLS,
     SOURCES,
+    adoptsUrlTerm,
     escapeLike,
     filtersHref,
     filtersQuery,
@@ -536,5 +537,34 @@ describe('the signed-out flag filter notice (FR-2)', () => {
             ),
             '/books',
         );
+    });
+});
+
+describe('adoptsUrlTerm (FR-9, AC-13)', () => {
+    test('ignores the URL while this box’s navigation is in flight', () => {
+        // Typed "dwe" and sent it; the URL still says "" until it commits.
+        // This is the render that used to empty the box.
+        assert.equal(adoptsUrlTerm('', '', 'dwe'), false);
+    });
+
+    test('ignores the URL catching up with what this box sent', () => {
+        // The box may hold "dwem" by now; the echo of "dwe" must not undo it.
+        assert.equal(adoptsUrlTerm('dwe', '', 'dwe'), false);
+    });
+
+    test('takes a reset that cleared the term', () => {
+        assert.equal(adoptsUrlTerm('', 'dwe', 'dwe'), true);
+    });
+
+    test('takes the back button returning to an earlier term', () => {
+        assert.equal(adoptsUrlTerm('dw', 'dwe', 'dwe'), true);
+    });
+
+    test('takes a hand-edited address with a different term', () => {
+        assert.equal(adoptsUrlTerm('falmer', 'dwe', 'dwe'), true);
+    });
+
+    test('ignores another filter changing, which leaves the term alone', () => {
+        assert.equal(adoptsUrlTerm('dwe', 'dwe', 'dwe'), false);
     });
 });

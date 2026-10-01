@@ -37,60 +37,72 @@ export default async function BooksPage({ searchParams }: PageProps<'/books'>) {
     const last = Math.min(books.page * PAGE_SIZE, books.total);
 
     return (
-        <main className="mx-auto max-w-3xl py-6">
+        <main className="group/books mx-auto max-w-3xl py-6">
             <PageTitle>Books</PageTitle>
 
             <BookFilters filters={filters} />
 
             {/*
-             * Below the controls rather than under the heading: this line is a
-             * result of the filters, so above them it described something the
-             * reader had not set yet.
-             *
-             * "Reset filters" lives here rather than in the form so that
-             * everything in this bar -- the count, the link and the list below
-             * it -- reflects server state together. Inside the form it would
-             * have tracked the optimistic value and disagreed with the count
-             * beside it for the length of a round trip.
+             * Everything below the form is a result of it, so this is what
+             * dims while a filter change is in flight -- keyed off the form's
+             * aria-busy through :has(), so the server-rendered results need no
+             * client state of their own. The delay applies only on the way in,
+             * so a fast round trip never flickers, and clearing is immediate.
              */}
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-5 pb-2 text-sm text-iron-500">
-                {/* A filter that matches nothing is reachable now that the
+            <div className="transition-opacity group-has-aria-busy/books:opacity-60 group-has-aria-busy/books:delay-150">
+                {/*
+                 * Below the controls rather than under the heading: this line is a
+                 * result of the filters, so above them it described something the
+                 * reader had not set yet.
+                 *
+                 * "Reset filters" lives here rather than in the form so that
+                 * everything in this bar -- the count, the link and the list below
+                 * it -- reflects server state together. Inside the form it would
+                 * have tracked the optimistic value and disagreed with the count
+                 * beside it for the length of a round trip.
+                 */}
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-5 pb-2 text-sm text-iron-500">
+                    {/* A filter that matches nothing is reachable now that the
                     query honors them, and the range arithmetic reads "1-0 of
                     0" there. The designed empty state is the next step; this
                     only keeps the bar from printing nonsense meanwhile. */}
-                <p>
-                    {books.total === 0 ? (
-                        'No matching books'
-                    ) : (
-                        <>
-                            Showing {first}–{last} of {books.total} · page{' '}
-                            {books.page} of {books.pageCount}
-                        </>
+                    <p>
+                        {books.total === 0 ? (
+                            'No matching books'
+                        ) : (
+                            <>
+                                Showing {first}–{last} of {books.total} · page{' '}
+                                {books.page} of {books.pageCount}
+                            </>
+                        )}
+                    </p>
+                    {!isDefaultFilters(filters) && (
+                        <Link
+                            href={BOOKS_PATH}
+                            className="underline underline-offset-2 transition-colors hover:text-iron-900"
+                        >
+                            Reset filters
+                        </Link>
                     )}
-                </p>
-                {!isDefaultFilters(filters) && (
-                    <Link
-                        href={BOOKS_PATH}
-                        className="underline underline-offset-2 transition-colors hover:text-iron-900"
-                    >
-                        Reset filters
-                    </Link>
+                </div>
+
+                <FlagFilterNotice
+                    filters={filters}
+                    signedIn={viewerId !== null}
+                />
+
+                {books.rows.length === 0 ? (
+                    <EmptyState filters={filters} />
+                ) : (
+                    <BookList books={books.rows} signedIn={viewerId !== null} />
                 )}
+                <PaginationNav
+                    basePath={BOOKS_PATH}
+                    page={books.page}
+                    pageCount={books.pageCount}
+                    params={params}
+                />
             </div>
-
-            <FlagFilterNotice filters={filters} signedIn={viewerId !== null} />
-
-            {books.rows.length === 0 ? (
-                <EmptyState filters={filters} />
-            ) : (
-                <BookList books={books.rows} signedIn={viewerId !== null} />
-            )}
-            <PaginationNav
-                basePath={BOOKS_PATH}
-                page={books.page}
-                pageCount={books.pageCount}
-                params={params}
-            />
         </main>
     );
 }

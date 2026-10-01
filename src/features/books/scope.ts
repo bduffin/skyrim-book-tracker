@@ -208,6 +208,25 @@ export function parseSearchParam(
     return trimmed === '' ? null : trimmed;
 }
 
+/**
+ * Whether the search box should take the URL's term (FR-9, AC-13).
+ *
+ * Only when the URL itself changed since the last render, and not to the term
+ * this box last sent: a reset, the back button or a hand-edited address.
+ * Comparing against `sent` alone, without asking whether the URL moved, made
+ * the box empty itself while typing -- `sent` updates at once, the URL only
+ * when the navigation commits, and every render in between took the stale URL
+ * term. Ignoring the box's own echo is what keeps characters typed during the
+ * round trip.
+ */
+export function adoptsUrlTerm(
+    urlTerm: string,
+    seenUrlTerm: string,
+    sent: string,
+): boolean {
+    return urlTerm !== seenUrlTerm && urlTerm !== sent;
+}
+
 /** Resolves a page's whole query string into validated filter state (R4). */
 export function parseFilters(params: SearchParams): BookFilters {
     return {
