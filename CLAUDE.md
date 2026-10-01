@@ -5,7 +5,7 @@ Project-specific context for AI agents working in this repo. For product and arc
 ## Tooling
 
 - Package manager: Yarn 4.17.1, pinned via `packageManager` in `package.json` (Corepack-based — there's no vendored `.yarn/releases/*.cjs` binary). Run `corepack enable` once, then `yarn install`.
-- Node version: see `.nvmrc`.
+- Node version: `.nvmrc` for local tooling, and `engines.node` in `package.json` for Vercel, which does not read `.nvmrc`. Change both together.
 - `.yarnrc.yml` sets `nodeLinker: node-modules` deliberately, instead of Yarn Berry's PnP default, for broader tooling compatibility.
 - Prettier is installed and configured via `.prettierrc`: 4-space indent, semicolons required (`semi: true`), single quotes (`singleQuote: true`). Template literals are unaffected (Prettier never converts them). Run `node_modules/.bin/prettier --write .` (or `yarn format`) to format, `yarn format:check` to verify without writing. `.prettierignore` excludes the vendored `.agents/`/`.claude/skills` docs, `LICENSE`, and lockfiles from formatting.
 - PascalCase for component identifiers (see "Naming conventions" below) is a documented convention only, not ESLint-enforced — Prettier can't check naming, and a naming-convention lint rule can't reliably tell a component function from any other exported function without false positives, so we're relying on code review here instead.

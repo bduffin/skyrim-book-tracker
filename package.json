@@ -4,6 +4,9 @@
     "private": true,
     "license": "GPL-3.0-or-later",
     "packageManager": "yarn@4.17.1",
+    "engines": {
+        "node": "24.x"
+    },
     "dependencies": {
         "@supabase/ssr": "^0.12.4",
         "@supabase/supabase-js": "^2.112.2",
