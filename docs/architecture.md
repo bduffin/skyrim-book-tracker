@@ -360,7 +360,7 @@ That direction is the point. Moving production to a new project instead would gi
 
 Steps:
 
-1. Create the dev project, with Supabase's automatic-RLS option **off**, so it is built purely from `supabase/migrations/` (the option creates a `SECURITY DEFINER` function and event trigger no migration knows about).
+1. Create the dev project. Whether Supabase's option to auto-enable RLS is on does not matter: `20261001223138_enforce_rls_on_new_tables.sql` replaces whatever that option creates with the migrations' own `ensure_rls` event trigger, so every project ends up the same.
 2. Push the migrations with `supabase db push --db-url <dev connection string>`, so the CLI's link to production does not change.
 3. Run `yarn import:uesp` against it with `--allow-remote`, and read the whole run report.
 4. Create a second GitHub OAuth App whose callback is the dev project's `https://<dev-ref>.supabase.co/auth/v1/callback`, and enable GitHub, and only GitHub, in the dev project's Auth providers.
