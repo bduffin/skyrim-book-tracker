@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import {
     AUTH_ERROR_COPY,
     authErrorKind,
+    authErrorPath,
     authErrorMessage,
     authErrorTitle,
     SIGN_OUT_FAILED_CODE,
@@ -246,5 +247,49 @@ describe('sign-out failures', () => {
 
     test('the app code is namespaced away from Supabase’s', () => {
         assert.ok(SIGN_OUT_FAILED_CODE.startsWith('app_'));
+    });
+});
+
+describe('authErrorPath', () => {
+    test('carries the provider’s error and code as the page reads them', () => {
+        assert.equal(
+            authErrorPath({
+                error: 'access_denied',
+                errorCode: 'access_denied',
+            }),
+            '/auth/auth-error?error=access_denied&error_code=access_denied',
+        );
+    });
+
+    test('carries either one alone', () => {
+        assert.equal(
+            authErrorPath({ error: 'server_error' }),
+            '/auth/auth-error?error=server_error',
+        );
+        assert.equal(
+            authErrorPath({ errorCode: 'flow_state_expired' }),
+            '/auth/auth-error?error_code=flow_state_expired',
+        );
+    });
+
+    test('is the bare page when there is nothing to carry', () => {
+        assert.equal(authErrorPath({}), '/auth/auth-error');
+        assert.equal(
+            authErrorPath({ error: null, errorCode: null }),
+            '/auth/auth-error',
+        );
+        assert.equal(
+            authErrorPath({ error: '', errorCode: '  ' }),
+            '/auth/auth-error',
+        );
+    });
+
+    // The values come from a URL anyone can write, so they must stay inside
+    // their own parameter rather than add new ones.
+    test('encodes a value that tries to add a parameter of its own', () => {
+        assert.equal(
+            authErrorPath({ error: 'x&error_description=Account locked' }),
+            '/auth/auth-error?error=x%26error_description%3DAccount+locked',
+        );
     });
 });

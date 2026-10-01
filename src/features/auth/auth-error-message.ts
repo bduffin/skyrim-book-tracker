@@ -10,7 +10,8 @@
  * not XSS, but it is content injection. It also misreads the parameter:
  * RFC 6749 section 4.1.2.1 describes `error_description` as text "used to
  * assist the client developer in understanding the error", not as something
- * for the person signing in. The page logs it server-side instead.
+ * for the person signing in. The callback logs it server-side instead, and
+ * never forwards it (`authErrorPath`).
  *
  * A crafted link can still choose *which* of the messages below appears, by
  * passing a known code -- which is harmless, since every one of them is ours.
@@ -37,7 +38,7 @@ export type AuthErrorKind =
     | 'unknown';
 
 export const AUTH_ERROR_COPY: Record<AuthErrorKind, string> = {
-    cancelled: "Sign-in was cancelled, so you're not signed in.",
+    cancelled: 'Sign-in was cancelled. Please try again.',
     expired:
         'Your sign-in took too long to finish and expired. Please sign in again.',
     unavailable:
@@ -55,6 +56,25 @@ export const AUTH_ERROR_COPY: Record<AuthErrorKind, string> = {
         "Signing out didn't fully finish. To be sure, close your browser — or, if your name still shows at the top of the page, sign out again.",
     unknown: 'Something went wrong while signing you in. Please try again.',
 };
+
+export const AUTH_ERROR_PATH = '/auth/auth-error';
+
+/**
+ * The error page's URL for a failure, carrying only the two codes the page
+ * reads. There is deliberately no parameter for a description, for the same
+ * reason the page never renders one (above): whoever redirects here logs it
+ * instead. A blank code reads as absent, as it does on the page.
+ */
+export function authErrorPath(codes: {
+    error?: string | null;
+    errorCode?: string | null;
+}): string {
+    const params = new URLSearchParams();
+    if (codes.error?.trim()) params.set('error', codes.error);
+    if (codes.errorCode?.trim()) params.set('error_code', codes.errorCode);
+    const query = params.toString();
+    return query === '' ? AUTH_ERROR_PATH : `${AUTH_ERROR_PATH}?${query}`;
+}
 
 /**
  * The app's own codes, for failures no provider reports -- sent as

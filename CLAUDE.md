@@ -61,6 +61,7 @@ Project-specific context for AI agents working in this repo. For product and arc
 - **Sign-in is a Server Action in a `<form>`, so it works without JavaScript** (`signInWithGitHub` in `src/features/auth/actions.ts`). It was a Client Component calling the browser client's `signInWithOAuth`, which rendered as a dead button with JS off. The server client's `signInWithOAuth` navigates nowhere: it sets the PKCE code-verifier cookie and returns the Supabase project's `/auth/v1/authorize` URL (Supabase is what forwards to GitHub), and the action `redirect()`s to it. Two details:
     - **The origin comes from the request's `Origin` header**, not `window.location` or an env var. It is trustworthy there because Next rejects a Server Action whose `Origin` does not match its host, and Supabase checks `redirectTo` against its allow-list regardless.
     - **The return path comes from the form's `Referer`**, which is how the header -- rendered from the root layout, which never learns the current URL -- sends a reader back to the page they signed in from. `returnPathFrom` keeps it same-origin, and `isSafeReturnPath` (both in `src/features/auth/return-path.ts`) is the one rule for what `next` may be -- relative, never `//` or `/\`, never `/auth/`. The callback applies it again itself, since anyone can write a callback URL.
+- **The callback forwards only `error` and `error_code` to `/auth/auth-error`** (`authErrorPath`), and logs `error_description` itself. The page maps codes to fixed, app-written copy (`src/features/auth/auth-error-message.ts`) and never reads the description: it is reachable by any link, so displaying a query param would let anyone make the app show arbitrary text on its own domain.
 
 ## Spec documents (`docs/specs/`)
 
@@ -118,5 +119,4 @@ Full approach in `docs/architecture.md` §11; the conventions that bite are:
 ## Not yet set up
 
 - shadcn/ui is planned (`docs/architecture.md` §3) but not installed yet — Tailwind CSS itself is now set up (see "Tooling" above).
-- `/auth/auth-error` doesn't receive real error detail from the callback route yet (it redirects there bare). When that gets wired up, forward Supabase's `error` and `error_code` — the page maps them to fixed, app-written messages (`src/features/auth/auth-error-message.ts`). It deliberately **never renders `error_description`**, only logs it: the page is reachable by any link, so displaying a query param would let anyone make the app show arbitrary text on its own domain, and RFC 6749 meant that field for developers anyway.
 - License is GPL-3.0-or-later (`package.json`, `LICENSE`).

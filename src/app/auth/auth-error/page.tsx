@@ -38,32 +38,17 @@ export async function generateMetadata({
     };
 }
 
-/** Enough of a logged value to diagnose from, without letting one flood logs. */
-const LOG_LIMIT = 500;
-
 export default async function AuthErrorPage({
     searchParams,
 }: PageProps<'/auth/auth-error'>) {
     const params = await searchParams;
-    // Supabase's redirect carries three params -- the standard OAuth `error`,
-    // its own more specific `error_code`, and free-text `error_description`
-    // -- which are the three @supabase/auth-js reads from a redirect URL.
+    // Only the two codes, which choose among app-written messages (see
+    // auth-error-message.ts). Nothing is logged here: everything that
+    // redirects to this page -- the callback and the sign-in and sign-out
+    // actions -- has already logged the failure, the callback including
+    // Supabase's `error_description`, which never reaches this page.
     const error = single(params.error);
     const errorCode = single(params.error_code);
-    const errorDescription = single(params.error_description);
-
-    if (error || errorCode || errorDescription) {
-        // Logged, never rendered: see auth-error-message.ts for why the page
-        // shows only app-written copy. Passed as an object rather than as
-        // bare strings because the values are attacker-controlled, and Node
-        // quotes and escapes strings inside an object -- a description with
-        // embedded newlines logged bare would forge whole extra log lines.
-        console.warn('Auth error page reached', {
-            error: error?.slice(0, LOG_LIMIT),
-            errorCode: errorCode?.slice(0, LOG_LIMIT),
-            errorDescription: errorDescription?.slice(0, LOG_LIMIT),
-        });
-    }
 
     return (
         <main className="mx-auto max-w-3xl py-6">

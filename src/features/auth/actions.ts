@@ -7,7 +7,11 @@ import { redirect } from 'next/navigation';
 import { BOOKS_PATH } from '@/features/books/scope';
 import { createClient } from '@/lib/supabase/server';
 
-import { SIGN_OUT_FAILED_CODE } from './auth-error-message';
+import {
+    AUTH_ERROR_PATH,
+    authErrorPath,
+    SIGN_OUT_FAILED_CODE,
+} from './auth-error-message';
 import { returnPathFrom } from './return-path';
 
 /**
@@ -29,7 +33,7 @@ import { returnPathFrom } from './return-path';
 export async function signInWithGitHub(): Promise<void> {
     const requestHeaders = await headers();
     const origin = requestHeaders.get('origin');
-    if (origin === null) redirect('/auth/auth-error');
+    if (origin === null) redirect(AUTH_ERROR_PATH);
 
     const next = returnPathFrom(requestHeaders.get('referer'), origin);
 
@@ -45,10 +49,7 @@ export async function signInWithGitHub(): Promise<void> {
         console.error('Failed to start GitHub sign-in:', error);
         // Only the code travels: the error page maps it to fixed,
         // app-written copy and never renders free text from its URL.
-        const code = error?.code
-            ? `?error_code=${encodeURIComponent(error.code)}`
-            : '';
-        redirect(`/auth/auth-error${code}`);
+        redirect(authErrorPath({ errorCode: error?.code }));
     }
 
     // Outside any try/catch: redirect() works by throwing.
@@ -87,7 +88,7 @@ export async function signOut(): Promise<void> {
 
     if (error) {
         console.error('Sign-out did not complete:', error);
-        redirect(`/auth/auth-error?error_code=${SIGN_OUT_FAILED_CODE}`);
+        redirect(authErrorPath({ errorCode: SIGN_OUT_FAILED_CODE }));
     }
     // Straight to the catalog: the collection page would bounce a signed-out
     // reader there anyway.
