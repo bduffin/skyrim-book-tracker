@@ -4,15 +4,18 @@ A web app for tracking your library in _The Elder Scrolls V: Skyrim_ — which b
 
 ## Status
 
-Early. You can browse, filter and search the catalog, but not yet track what you have read or collected.
+You can browse, filter and search the catalog, and once signed in, mark books read and collected and follow your progress on your own collection page. Not yet deployed; see [Deployment](#deployment).
 
-| Part                                   | State                                  |
-| -------------------------------------- | -------------------------------------- |
-| GitHub sign-in                         | Works                                  |
-| Database schema and row-level security | Works                                  |
-| UESP catalog import                    | Works — 1,207 books, 2,327 locations   |
-| Browsing, filtering and title search   | Works — 423 books in the default scope |
-| Marking books read/collected           | Not built                              |
+| Part                                   | State                                                   |
+| -------------------------------------- | ------------------------------------------------------- |
+| GitHub sign-in                         | Works                                                   |
+| Database schema and row-level security | Works                                                   |
+| UESP catalog import                    | Works — 1,207 books, 2,327 locations                    |
+| Browsing, filtering and title search   | Works — 423 books in the default scope                  |
+| Marking books read/collected           | Works                                                   |
+| Your collection and progress           | Works — visible to you only                             |
+| Public collections, usernames          | Specified (`docs/specs/prd-profiles.md`), not yet built |
+| Personal notes on books                | Table exists, no UI yet                                 |
 
 ## Attribution and licensing
 
@@ -113,6 +116,17 @@ Three things worth knowing:
 - **No `.env.local` needed.** The tests read the stack's URL and keys from `supabase status`, deliberately, rather than from `.env.local` — which points wherever you last pointed it.
 - **No catalog import needed.** They insert their own book fixtures and assert against a measured baseline, so they pass on a stack that has only had `supabase start` run against it. The ~185 MB UESP dump is not a prerequisite.
 - **Local only.** They create a user and write rows using the secret key, which bypasses RLS, so they refuse to run against a non-localhost host — the same `isLocalHost` guard the importer uses. They clean up after themselves.
+
+## Deployment
+
+The app is built for [Vercel](https://vercel.com) against a hosted Supabase project. Which Supabase project serves production and which serves development, and the plan for separating them, is in [`docs/architecture.md`](docs/architecture.md) §13.
+
+Settings the repository cannot carry for you:
+
+- **Vercel environment variables:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `ENABLE_EXPERIMENTAL_COREPACK=1`. Without the last, Vercel installs with Yarn 1 whatever `packageManager` says. **Never add the Supabase secret key**: only the importer uses it, and it bypasses row-level security.
+- **Node** is pinned to 24.x by `engines.node` in `package.json`. Vercel does not read `.nvmrc`, so change both together.
+- **Supabase Auth URL configuration** (dashboard → Authentication → URL Configuration): Site URL is the production domain, and Redirect URLs list `https://<production domain>/**` alongside `http://localhost:3000/**`. Sign-in returns to whichever origin started it, and Supabase refuses any not on that list.
+- **GitHub OAuth App:** its callback URL is the Supabase project's `https://<project-ref>.supabase.co/auth/v1/callback`, not this app's.
 
 ## Troubleshooting
 
