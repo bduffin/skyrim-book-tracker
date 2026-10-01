@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { PageTitle } from '@/components/page-title';
+import { MESSAGE_ACTION_CLASS, MessagePage } from '@/components/message-page';
 import {
     authErrorMessage,
     authErrorTitle,
@@ -51,19 +51,14 @@ export default async function AuthErrorPage({
     const errorCode = single(params.error_code);
 
     return (
-        <main className="mx-auto max-w-3xl py-6">
-            <PageTitle>{authErrorTitle({ error, errorCode })}</PageTitle>
-            <div className="flex flex-col items-center gap-4 px-4 py-6 text-center">
-                <p className="max-w-md text-iron-500">
-                    {authErrorMessage({ error, errorCode })}
-                </p>
-                <Link
-                    href="/"
-                    className="rounded border border-frost-300 bg-white px-4 py-2 text-iron-900 transition-colors hover:bg-frost-100"
-                >
+        <MessagePage
+            title={authErrorTitle({ error, errorCode })}
+            message={authErrorMessage({ error, errorCode })}
+            action={
+                <Link href="/" className={MESSAGE_ACTION_CLASS}>
                     Back to home
                 </Link>
-            </div>
-        </main>
+            }
+        />
     );
 }
