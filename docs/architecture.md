@@ -233,9 +233,9 @@ Layout adapts through media and container queries, never user-agent sniffing. Ta
 - **Breakpoint variants** (`sm:`, `md:`, `lg:`) compile to media queries. Use these for page-level layout, such as how many columns the book list shows.
 - **Container queries** (`@container` with `@sm:` variants) are **core in Tailwind v4**, having been a plugin in v3. Use these when a component must adapt to the width of its slot rather than the viewport — which is what happens as soon as a book row is reused inside a narrower panel.
 
-**The browser floor is set by the toolchain, not chosen independently — and two parts of it set their halves separately.** Tailwind v4's core depends on `@property`, `color-mix()` and cascade layers, and its targets are compiled in: it does not read a `browserslist` config at all. Next resolves its own targets through `getSupportedBrowsers`, which _does_ read `browserslist` and otherwise falls back to a built-in modern default. As of the installed **Tailwind 4.3.3** and **Next 16.3.0**:
+**The browser floor is set by the toolchain, not chosen independently — and two parts of it set their halves separately.** Tailwind v4's core depends on `@property`, `color-mix()` and cascade layers, and its targets are compiled in: it does not read a `browserslist` config at all. Next resolves its own targets through `getSupportedBrowsers`, which _does_ read `browserslist` and otherwise falls back to a built-in modern default. As of the installed **Tailwind 4.3.3** and **Next 16.3.8**:
 
-| Browser | Tailwind 4.3.3 | Next 16.3.0 default | Effective floor |
+| Browser | Tailwind 4.3.3 | Next 16.3.8 default | Effective floor |
 | ------- | -------------- | ------------------- | --------------- |
 | Chrome  | 111            | 111                 | 111             |
 | Edge    | —              | 111                 | 111             |
