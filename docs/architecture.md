@@ -321,3 +321,52 @@ Layers arrive with the milestone that needs them — enforcement at Browse M1, P
 - Complex real‑time features (live collaboration, websockets) beyond what is needed for a single user’s collection.
 
 The architecture is intentionally simple but **realistic**: it matches patterns used in production while remaining approachable for a focused side project and flexible for future experimentation.
+
+## 13. Deployment and Environments
+
+The app runs on Vercel against one hosted Supabase project (`Skyrim Book Tracker`, us-east-1, the same region as Vercel's default function region, which matters for Browse NFR-1 and NFR-2).
+
+### 13.1 Current setup: one shared project
+
+**The hosted project is production, and local development talks to it too.** There is no separate dev database and no separate auth user pool.
+
+This is a deliberate, temporary choice. Until there are real users, the only data a development mistake can damage is the developer's own, so a second project protects nothing. It also keeps that one project active, which matters on Supabase's free plan, where a project with too little database activity over 7 days is paused ([Project Pausing](https://supabase.com/docs/guides/platform/free-project-pausing)).
+
+Consequences while this holds:
+
+- Vercel preview deployments use the production database. Previews stay behind Vercel's Deployment Protection, and the preview wildcard is **not** in the project's Redirect URLs, so a preview cannot sign in a production user. Sign-in is tested locally or on production.
+- The project's Site URL is the production domain. `http://localhost:3000/**` stays in the Redirect URLs, which is what keeps local sign-in working: `signInWithGitHub` builds `redirectTo` from the request's `Origin`, and Supabase checks it against that list. Site URL is only the fallback.
+- `supabase db query --linked`, `yarn import:uesp --allow-remote` and every migration push act on production. Treat them that way.
+
+**Leave this setup when the first real user signs up**, or sooner if a development mistake could cost someone data. From then on, development against production risks real users' data for no benefit.
+
+### 13.2 Prerequisite: keeping projects active
+
+Any setup with a project that real users depend on needs that project kept active automatically; a second project (§13.3) needs it for both. Supabase counts "a few user requests to the database each day" as enough and does not say whether `pg_cron` or dashboard visits count, so neither is relied on here. Supabase emails a warning about a week before pausing, and a paused project can be resumed from the dashboard.
+
+**Open — not yet decided.** The candidates:
+
+- **An external uptime monitor** fetching `/books` every few minutes — preferred, pending research into services. `/books` queries the database through PostgREST, so each check is real database activity, it exercises the whole stack, and it doubles as uptime alerting.
+- **Vercel Cron**, the fallback. On the Hobby plan a job runs at most once a day, within the hour, but a project may have many jobs, so three or four daily entries at different hours meet "a few a day". It lives in the repository and needs no extra service, but only keeps alive the project the production deployment talks to.
+- **A paid Supabase plan**, which does not pause at all, at a per-project compute cost.
+
+A scheduled GitHub Actions workflow was considered and not preferred: GitHub disables scheduled workflows in a public repository after 60 days without repository activity, so it can stop without anyone noticing.
+
+### 13.3 Target: a separate dev project
+
+Once §13.2 is solved, development moves to a **new** hosted project, and **the current project stays production**.
+
+That direction is the point. Moving production to a new project instead would give every user a new `auth.users` id when they next signed in with GitHub, breaking the permanent `/collection/[user]` URLs Browse FR-8 promises and requiring every `user_book` row to be remapped. Creating the dev project instead moves nothing: it is built from the migrations and the import, which is exactly what a dev database needs.
+
+Steps:
+
+1. Create the dev project, with Supabase's automatic-RLS option **off**, so it is built purely from `supabase/migrations/` (the option creates a `SECURITY DEFINER` function and event trigger no migration knows about).
+2. Push the migrations with `supabase db push --db-url <dev connection string>`, so the CLI's link to production does not change.
+3. Run `yarn import:uesp` against it with `--allow-remote`, and read the whole run report.
+4. Create a second GitHub OAuth App whose callback is the dev project's `https://<dev-ref>.supabase.co/auth/v1/callback`, and enable GitHub, and only GitHub, in the dev project's Auth providers.
+5. Set the dev project's Site URL to `http://localhost:3000`, and add `http://localhost:3000/**` and the Vercel preview wildcard to its Redirect URLs.
+6. Point Vercel's **Preview** environment variables at the dev project; **Production** keeps the current one. Remove the localhost entry from production's Redirect URLs.
+7. Point `.env.local` at the dev project.
+8. Give the dev project its own keep-alive. A check of `/books` reaches only the project behind the deployment it hits, and previews sit behind Deployment Protection, so the dev project's keep-alive should query Supabase directly.
+
+**Fallback:** if a second hosted project is never worth keeping alive, develop against the local stack (`supabase start`) instead. That needs its own GitHub OAuth App configured in `supabase/config.toml`, and a local import run, since the app — unlike `yarn test:db` — needs the catalog.
