@@ -140,7 +140,7 @@ Future optional entities:
 - `collection_view` (saved filters or custom lists).
 - `tag` / `user_tag` (user‑defined tags on books).
 - `session`/`character` if tracking multiple in‑game characters per user.
-- `profile` (user-chosen username, avatar, a public/private flag, and whatever else first-time-login collects). The username becomes the canonical form of `/collection/[user]` once it exists, alongside the user id, which keeps working permanently (`prd-browse-and-track.md` FR-11), and the flag is what `prd-browse-and-track.md` FR-10 reads to decide whether a collection page is visible at all — see NG10.
+- `profile` (a public/private flag and an optional user-chosen username, set at first-time login; no avatar, which stays the viewer's own from GitHub). The username becomes the canonical form of `/collection/[user]` once it exists, alongside the user id, which keeps working permanently (Profiles FR-6), and the flag is what `prd-browse-and-track.md` FR-10 reads to decide whether a collection page is visible at all — see `prd-profiles.md`.
 
 ## 7. Supabase & Security
 

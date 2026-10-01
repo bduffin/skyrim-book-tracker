@@ -6,8 +6,8 @@
 
 /**
  * A user's collection page. The segment is the Supabase user id, and that
- * form is permanent: FR-11's usernames will be an alternative to it, never a
- * replacement, so links built from this keep working.
+ * form is permanent: Profiles FR-6's usernames will be an alternative to it,
+ * never a replacement, so links built from this keep working.
  */
 export function collectionPath(userId: string): string {
     return `/collection/${userId}`;
