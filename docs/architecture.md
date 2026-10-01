@@ -326,6 +326,8 @@ The architecture is intentionally simple but **realistic**: it matches patterns 
 
 The app runs on Vercel against one hosted Supabase project (`Skyrim Book Tracker`, us-east-1, the same region as Vercel's default function region, which matters for Browse NFR-1 and NFR-2).
 
+**GitHub is the only Auth provider enabled.** Email is turned off in the dashboard: the app offers no email sign-in, and left on, it let anyone holding the publishable key create a password account through `/auth/v1/signup`. "Allow new users to sign up" stays on, or first-time GitHub users could not create an account. Supabase Advisors still reports `auth_leaked_password_protection` after that, and it is expected: the lint reads the setting, not whether anything uses passwords, and nothing does.
+
 ### 13.1 Current setup: one shared project
 
 **The hosted project is production, and local development talks to it too.** There is no separate dev database and no separate auth user pool.
