@@ -6,10 +6,10 @@ import { MESSAGE_ACTION_CLASS, MessagePage } from '@/components/message-page';
 
 export default function ErrorPage({
     error,
-    reset,
+    retry,
 }: {
     error: Error & { digest?: string };
-    reset: () => void;
+    retry: () => void;
 }) {
     useEffect(() => {
         console.error(error);
@@ -21,7 +21,7 @@ export default function ErrorPage({
             message="Something went wrong loading this page."
             action={
                 <button
-                    onClick={() => reset()}
+                    onClick={() => retry()}
                     className={MESSAGE_ACTION_CLASS}
                 >
                     Try again

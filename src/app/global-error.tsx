@@ -14,10 +14,10 @@ import { MESSAGE_ACTION_CLASS, MessagePage } from '@/components/message-page';
 // document.
 export default function GlobalError({
     error,
-    reset,
+    retry,
 }: {
     error: Error & { digest?: string };
-    reset: () => void;
+    retry: () => void;
 }) {
     useEffect(() => {
         console.error(error);
@@ -31,7 +31,7 @@ export default function GlobalError({
                     message="The app hit an unexpected error and couldn't render."
                     action={
                         <button
-                            onClick={() => reset()}
+                            onClick={() => retry()}
                             className={MESSAGE_ACTION_CLASS}
                         >
                             Try again
