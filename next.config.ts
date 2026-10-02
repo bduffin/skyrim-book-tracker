@@ -31,8 +31,9 @@ const nextConfig: NextConfig = {
                     // per-request nonce, so src/proxy.ts sends it.
                     //
                     // The CSP's frame-ancestors does this job in current
-                    // browsers, but they ignore it while the policy is
-                    // report-only, and older ones never read it.
+                    // browsers. Kept for older ones that never read it, and
+                    // for any time the CSP goes back to report-only, which
+                    // browsers ignore frame-ancestors in.
                     { key: 'X-Frame-Options', value: 'DENY' },
                     { key: 'X-Content-Type-Options', value: 'nosniff' },
                     // Must keep the full URL on same-origin requests:

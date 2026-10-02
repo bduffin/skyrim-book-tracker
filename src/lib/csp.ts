@@ -5,13 +5,12 @@
  */
 
 /**
- * Report-only while the nonce-based policy is checked against real pages:
- * violations are logged in the browser console and nothing is blocked.
- * Switching to `Content-Security-Policy` is what enforces it. Next reads the
- * nonce from either name on the request (`app-render.js`), so the proxy sends
- * this one header both ways.
+ * Enforced. To trial a change to the policy without blocking anything, switch
+ * this to `Content-Security-Policy-Report-Only`, which logs violations in the
+ * browser console instead. Next reads the nonce from either name on the
+ * request (`app-render.js`), so the proxy sends this one header both ways.
  */
-export const CSP_HEADER = 'Content-Security-Policy-Report-Only';
+export const CSP_HEADER = 'Content-Security-Policy';
 
 /** A fresh, unguessable nonce, as Next's CSP guide makes one. */
 export function createNonce(): string {
