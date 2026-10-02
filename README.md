@@ -1,4 +1,4 @@
-# Skyrim Book Tracker
+# Arcanaeum: Skyrim Book Tracker
 
 A web app for tracking your library in _The Elder Scrolls V: Skyrim_ — which books you have **read** and which you have **collected**, tracked separately, since neither implies the other in game. Plus where to find each one and which skill it raises.
 

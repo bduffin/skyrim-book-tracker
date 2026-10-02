@@ -1,13 +1,15 @@
 /**
- * Renders the PNG favicons from `src/app/icon.svg`, which is the single source
- * for all three browser icons:
+ * Renders the PNG images from `src/app/icon.svg`, which is the single source
+ * for the browser icons and the link-preview image:
  *
- *   src/app/icon.svg        the favicon itself, for browsers that take SVG
- *   src/app/icon.png        32x32, for browsers that do not
- *   src/app/apple-icon.png  180x180, for iOS "Add to Home Screen"
+ *   src/app/icon.svg              the favicon itself, for browsers that take SVG
+ *   src/app/icon.png              32x32, for browsers that do not
+ *   src/app/apple-icon.png        180x180, for iOS "Add to Home Screen"
+ *   src/app/opengraph-image.png   1200x630, shown when a link is shared
  *
- * Next.js picks all three up by filename and emits their <link> tags; nothing
- * else refers to them. Run this after any change to `icon.svg`:
+ * Next.js picks all of them up by filename and emits their tags -- <link> for
+ * the icons, og:image for the preview, made absolute by the root layout's
+ * metadataBase; nothing else refers to them. Run this after any change to `icon.svg`:
  *
  *   node scripts/render-icons.mjs
  *
@@ -75,7 +77,23 @@ await sharp(Buffer.from(apple), { density: 288 })
     .png()
     .toFile(`${app}apple-icon.png`);
 
-for (const file of ['icon.png', 'apple-icon.png']) {
+/*
+ * 1200x630 for link previews (Open Graph's recommended size): the drawing
+ * alone, centered on the header's iron-900. No text -- a preview shows the
+ * page's title and description beside the image, and the site's web fonts are
+ * not available to sharp. The drawing is about 300px tall, under half the
+ * height, so it survives the square crops some apps apply.
+ */
+const preview = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#1c2833"/>
+  <g fill="none" transform="translate(600 315) scale(11.6) translate(-16.5 -16)">${drawing}</g>
+</svg>`;
+await sharp(Buffer.from(preview))
+    .flatten({ background: '#1c2833' })
+    .png()
+    .toFile(`${app}opengraph-image.png`);
+
+for (const file of ['icon.png', 'apple-icon.png', 'opengraph-image.png']) {
     const { width, height, hasAlpha } = await sharp(`${app}${file}`).metadata();
     console.log(`src/app/${file}: ${width}x${height}, alpha: ${hasAlpha}`);
 }

@@ -50,10 +50,16 @@ export function BookCheckMark({ className }: { className?: string }) {
  * The header's logo, linking home: `/` takes a signed-in reader to their
  * collection and anyone else to the catalog (FR-8).
  *
- * The full name at every width, never shortened; its accessible name is that
- * text. `whitespace-nowrap` keeps it on one line, so on a narrow screen it is
- * the header's other controls that give way, wrapping onto a second line
- * (see `SiteHeader`).
+ * The name, Arcanaeum, over what the site is, in the small spaced capitals
+ * the app's other labels use. Stacked rather than on one line so the whole
+ * thing fits a 320px phone without shrinking: the full name shows at every
+ * width, and on a narrow screen it is the header's other controls that give
+ * way, wrapping onto a second line (see `SiteHeader`). "Skyrim" stays in the
+ * description, never the name, which is what keeps the site's own name clear
+ * of Bethesda's trademark.
+ *
+ * Its accessible name is the visible text, joined by a colon screen readers
+ * hear and sighted readers do not need: "Arcanaeum: Skyrim Book Tracker".
  */
 export function SiteLogo() {
     return (
@@ -63,8 +69,15 @@ export function SiteLogo() {
         >
             {/* 21 by 26: the cropped drawing at the size it was drawn at. */}
             <BookCheckMark className="h-[26px] w-[21px] shrink-0" />
-            <span className="font-serif text-xl leading-none font-medium whitespace-nowrap">
-                Skyrim Book Tracker
+            <span className="flex flex-col gap-1 whitespace-nowrap">
+                <span className="font-serif text-xl leading-none font-medium">
+                    Arcanaeum
+                </span>
+                <span className="sr-only">: </span>
+                {/* frost-300 on iron-900: 9.79:1. */}
+                <span className="text-xs leading-none font-medium tracking-[0.18em] text-frost-300 uppercase">
+                    Skyrim Book Tracker
+                </span>
             </span>
         </Link>
     );
