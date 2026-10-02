@@ -1,0 +1,3 @@
+# The Vercel CLI uploads from the working tree and does not read .gitignore.
+/data/
+.env*.local

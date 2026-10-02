@@ -18,3 +18,4 @@ tsconfig.tsbuildinfo
 # Local-only UESP XML dump for the book import script (~176MB, never committed).
 # See docs/specs/prd-import-uesp-books.md §12.6.
 /data/
+.vercel
