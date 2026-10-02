@@ -4,7 +4,7 @@ A web app for tracking your library in _The Elder Scrolls V: Skyrim_ — which b
 
 ## Status
 
-You can browse, filter and search the catalog, and once signed in, mark books read and collected and follow your progress on your own collection page. Not yet deployed; see [Deployment](#deployment).
+You can browse, filter and search the catalog, and once signed in, mark books read and collected and follow your progress on your own collection page. It runs at **[skyrim-book-tracker.vercel.app](https://skyrim-book-tracker.vercel.app)**; see [Deployment](#deployment).
 
 | Part                                   | State                                                   |
 | -------------------------------------- | ------------------------------------------------------- |
@@ -119,7 +119,7 @@ Three things worth knowing:
 
 ## Deployment
 
-The app is built for [Vercel](https://vercel.com) against a hosted Supabase project. Which Supabase project serves production and which serves development, and the plan for separating them, is in [`docs/architecture.md`](docs/architecture.md) §13.
+Production is [skyrim-book-tracker.vercel.app](https://skyrim-book-tracker.vercel.app), on [Vercel](https://vercel.com) against a hosted Supabase project. Every push to `main` deploys it, and there is no CI in between, so run the [checks](#checks) first. Which Supabase project serves production and which serves development, and the plan for separating them, is in [`docs/architecture.md`](docs/architecture.md) §13.
 
 Settings the repository cannot carry for you:
 
