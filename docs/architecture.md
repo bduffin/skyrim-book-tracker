@@ -328,6 +328,8 @@ The app runs on Vercel against one hosted Supabase project (`Skyrim Book Tracker
 
 **GitHub is the only Auth provider enabled.** Email is turned off in the dashboard: the app offers no email sign-in, and left on, it let anyone holding the publishable key create a password account through `/auth/v1/signup`. "Allow new users to sign up" stays on, or first-time GitHub users could not create an account. Supabase Advisors still reports `auth_leaked_password_protection` after that, and it is expected: the lint reads the setting, not whether anything uses passwords, and nothing does.
 
+**Before anyone else is invited, the app needs a privacy notice and a way to delete one's data.** Signing in stores the GitHub account's email address and profile (name, username, avatar URL) in `auth.users`. Deleting a user there cascades to their `user_book` and `user_book_note` rows, but nothing offers that to the user, so today deletion would be done by hand in the Supabase dashboard. Deferred deliberately while the only user is the developer. The site is publicly reachable, so what holds this back is not sharing the URL, not anything that enforces it.
+
 ### 13.1 Current setup: one shared project
 
 **The hosted project is production, and local development talks to it too.** There is no separate dev database and no separate auth user pool.
