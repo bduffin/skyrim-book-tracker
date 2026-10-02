@@ -344,17 +344,17 @@ Consequences while this holds:
 
 **Leave this setup when the first real user signs up**, or sooner if a development mistake could cost someone data. From then on, development against production risks real users' data for no benefit.
 
-### 13.2 Prerequisite: keeping projects active
+### 13.2 Keeping projects active
 
-Any setup with a project that real users depend on needs that project kept active automatically; a second project (§13.3) needs it for both. Supabase counts "a few user requests to the database each day" as enough and does not say whether `pg_cron` or dashboard visits count, so neither is relied on here. Supabase emails a warning about a week before pausing, and a paused project can be resumed from the dashboard.
+Supabase pauses a free project after 7 days without enough database activity, counting "a few user requests to the database each day" as enough ([Project Pausing](https://supabase.com/docs/guides/platform/free-project-pausing)). `pg_cron` and dashboard visits are not relied on, since Supabase does not say whether they count. Supabase emails a warning about a week before pausing, and a paused project can be resumed from the dashboard.
 
-**Open — not yet decided.** The candidates:
+**An UptimeRobot keyword monitor keeps production active.** Every 5 minutes it fetches `https://skyrim-book-tracker.vercel.app/books?q=Oghma%20Infinium` and alerts by email if the page lacks `Showing`. Each check is a real database query through PostgREST, so it is activity Supabase counts. It also checks the whole stack and doubles as uptime alerting. The keyword is what catches a failed render: the count line that holds it is rendered only when the query succeeds, where the error page could still come back as a normal-looking response. The search term itself is not the keyword, because the search box echoes it back.
 
-- **An external uptime monitor** fetching `/books` every few minutes — preferred, pending research into services. `/books` queries the database through PostgREST, so each check is real database activity, it exercises the whole stack, and it doubles as uptime alerting.
-- **Vercel Cron**, the fallback. On the Hobby plan a job runs at most once a day, within the hour, but a project may have many jobs, so three or four daily entries at different hours meet "a few a day". It lives in the repository and needs no extra service, but only keeps alive the project the production deployment talks to.
-- **A paid Supabase plan**, which does not pause at all, at a per-project compute cost.
+**Why the one-book search, not plain `/books`:** plain `/books` is 367 KB uncompressed, against 44 KB for the one-book search. At 5 minutes (about 8,600 requests a month), plain `/books` could use roughly a third of Vercel Hobby's 10 GB Fast Origin Transfer if the monitor does not ask for compression; the search uses about 4%. Every other allowance stays at a few percent or less: function invocations, Fast Data Transfer, and Supabase's 5 GB egress, while Supabase API requests are unlimited. Active CPU cannot be measured from the logs, so check Vercel's Usage page after the first week.
 
-A scheduled GitHub Actions workflow was considered and not preferred: GitHub disables scheduled workflows in a public repository after 60 days without repository activity, so it can stop without anyone noticing.
+UptimeRobot's free plan is for hobby and non-profit projects, so revisit this if the project ever becomes commercial. The fallback is Vercel Cron: several daily jobs at different hours, since Hobby allows each job once a day. A scheduled GitHub Actions workflow was considered and not chosen: GitHub disables scheduled workflows in a public repository after 60 days without repository activity, so it can stop without anyone noticing.
+
+A separate dev project (§13.3) needs its own keep-alive, querying Supabase directly, since previews sit behind Deployment Protection.
 
 ### 13.3 Target: a separate dev project
 
