@@ -4,7 +4,7 @@ A web app for tracking your library in _The Elder Scrolls V: Skyrim_ — which b
 
 ## Status
 
-You can browse, filter and search the catalog, and once signed in, mark books read and collected and follow your progress on your own collection page. It runs at **[skyrim-book-tracker.vercel.app](https://skyrim-book-tracker.vercel.app)**; see [Deployment](#deployment).
+You can browse, filter and search the catalog, and once signed in, mark books read and collected and follow your progress on your own collection page. It runs at **[arcanaeum.app](https://arcanaeum.app)**; see [Deployment](#deployment).
 
 | Part                                   | State                                                   |
 | -------------------------------------- | ------------------------------------------------------- |
@@ -119,13 +119,14 @@ Three things worth knowing:
 
 ## Deployment
 
-Production is [skyrim-book-tracker.vercel.app](https://skyrim-book-tracker.vercel.app), on [Vercel](https://vercel.com) against a hosted Supabase project. Every push to `main` deploys it, and there is no CI in between, so run the [checks](#checks) first. Which Supabase project serves production and which serves development, and the plan for separating them, is in [`docs/architecture.md`](docs/architecture.md) §13.
+Production is [arcanaeum.app](https://arcanaeum.app), on [Vercel](https://vercel.com) against a hosted Supabase project; the old `skyrim-book-tracker.vercel.app` address redirects there. Every push to `main` deploys it, and there is no CI in between, so run the [checks](#checks) first. Which Supabase project serves production and which serves development, and the plan for separating them, is in [`docs/architecture.md`](docs/architecture.md) §13.
 
 Settings the repository cannot carry for you:
 
 - **Vercel environment variables:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `ENABLE_EXPERIMENTAL_COREPACK=1`. Without the last, Vercel installs with Yarn 1 whatever `packageManager` says. **Never add the Supabase secret key**: only the importer uses it, and it bypasses row-level security.
 - **Node** is pinned to 24.x by `engines.node` in `package.json`. Vercel does not read `.nvmrc`, so change both together.
 - **Supabase Auth URL configuration** (dashboard → Authentication → URL Configuration): Site URL is the production domain, and Redirect URLs list `https://<production domain>/**` alongside `http://localhost:3000/**`. Sign-in returns to whichever origin started it, and Supabase refuses any not on that list.
+- **Domain and DNS:** `arcanaeum.app` is registered at Cloudflare, and its DNS is there too. The site's two records, CNAMEs for `@` and `www` pointing at the target Vercel shows under Settings → Domains, must stay **DNS only** (grey cloud): Cloudflare's proxy in front of Vercel interferes with its certificates. `www` and the old `vercel.app` address 308-redirect to `arcanaeum.app`, configured in Vercel's Domains settings.
 - **GitHub OAuth App:** its callback URL is the Supabase project's `https://<project-ref>.supabase.co/auth/v1/callback`, not this app's.
 
 ## Troubleshooting
