@@ -11,7 +11,7 @@
 
 ## 1. Problem Statement
 
-`architecture.md` §13 deferred a privacy notice and a way to delete one's data until anyone besides the developer was invited, because the site is publicly reachable and kept private only by not sharing the URL. This PRD lifts that deferral: a notice at `/privacy` linked from every page, written procedures for answering deletion and copy requests sent to `privacy@arcanaeum.app`, a scheduled cleanup of the sign-in records Supabase leaves behind, and a rule that keeps the notice true as features change what the app collects or publishes — Profiles first among them.
+`architecture.md` §13 deferred a privacy notice and a way to delete one's data until anyone besides the developer was invited, because the site is publicly reachable and kept private only by not sharing the URL. This PRD lifts that deferral: a notice at `/privacy` linked from every page, written procedures for answering deletion and copy requests sent to `privacy@arcanaeum.app`, a scheduled cleanup of the sign-in records Supabase leaves behind and of sessions left unused for months, and a rule that keeps the notice true as features change what the app collects or publishes — Profiles first among them.
 
 ## 2. Goals and Non-Goals
 
@@ -20,7 +20,7 @@
 - G1. Tell any visitor, before they sign in, what the app stores about them, why, where, for how long, and how to ask for a copy or deletion.
 - G2. Make deletion and copy requests answerable within a month, by a procedure that confirms the requester controls the account before acting and checks its own result.
 - G3. Keep the notice accurate as the app changes, with the update ordered before the change ships.
-- G4. Keep nothing about a sign-in longer than the sign-in needs it.
+- G4. Keep nothing about a sign-in longer than the sign-in needs it, and no session record indefinitely.
 
 ### Non-Goals
 
@@ -46,8 +46,8 @@ The data inventory, checked against the hosted project on 2026-10-02, is in the 
 
 1. **`/privacy`** — a Server Component rendering the notice (FR-1, FR-2), titled "Privacy · Arcanaeum" through the root layout's template, with a visible "Last updated" date.
 2. **A footer link** to it, beside the existing attribution (FR-3).
-3. **`docs/privacy-requests.md`** — the procedures for deletion (FR-4) and copy requests (FR-6) — and **`scripts/privacy-request.mjs`**, which runs their SQL for a user id it has validated, the only value that reaches a query (§12.2).
-4. **A scheduled cleanup** of stale `auth.flow_state` rows (FR-7), one migration enabling `pg_cron` and scheduling a daily delete (§12.3).
+3. **`docs/privacy-requests.md`** — the procedures for deletion (FR-4) and copy requests (FR-6) — and **`scripts/privacy-request.mts`**, which runs their SQL for a user id it has validated, the only value that reaches a query (§12.2).
+4. **A scheduled cleanup** of stale `auth.flow_state` rows and idle `auth.sessions` rows (FR-7), one migration enabling `pg_cron` and scheduling a daily delete (§12.3).
 5. **The keep-it-true rule** (FR-5), written into `CLAUDE.md`'s Privacy section and into the milestones it applies to in the profiles and browse PRDs.
 
 No new dependency and no environment variable.
@@ -59,17 +59,17 @@ No new dependency and no environment variable.
 - **FR-1 — The `/privacy` page.** A Server Component at `src/app/privacy/page.tsx`. Its content is the same for everyone, but the page is **rendered per request**, because the root layout's header reads the session; it must never be forced static or cached (`export const dynamic = 'force-static'`, `'use cache'`, a `revalidate` export, or a public `Cache-Control`), since a cached copy would serve one reader's header to the next. It is indexable — unlike collection pages it has no privacy dimension of its own — and its `metadata` is typed as `Metadata` with the title "Privacy". It shows a **"Last updated"** date, set by hand in the page whenever the content changes, never computed at build time, because a build date would claim changes that did not happen.
 - **FR-2 — What the notice says.** Plain language, in this order, each part true of the hosted project on the date shown:
     - **Who runs the site:** Arcanaeum is an unofficial fan project run by **bduffin** (linked to `https://github.com/bduffin`), reachable at `privacy@arcanaeum.app` (Privacy Decisions 2 and 3).
-    - **What is collected, and only when someone signs in:** from GitHub, the account's email address, name, username, profile picture URL and GitHub account id; when the account was created and last signed in; for each session, an IP address and browser or device details; a short-lived record of each sign-in while it completes, which can hold the access GitHub grants for sign-in, removed within a day (FR-7); and the books marked read or collected. Browsing without signing in stores nothing about the visitor in the database. Notes are not mentioned until notes have a UI (FR-5).
+    - **What is collected, and only when someone signs in:** from GitHub, the account's email address, name, username, profile picture URL and GitHub account id; when the account was created and last signed in; for each session, an IP address and browser or device details; a short-lived record of each sign-in while it completes, which can hold the access GitHub grants for sign-in, deleted within two days (FR-7); and the books marked read or collected. Browsing without signing in stores nothing about the visitor in the database. Notes are not mentioned until notes have a UI (FR-5).
     - **What is not:** no analytics, advertising or tracking; no payment details; nothing sold, rented or shared for marketing.
     - **Why:** to sign the user in and to keep their read and collected marks — nothing else.
     - **Who processes it, and where:** Supabase (database and sign-in, United States), Vercel (hosting, United States and its global network), GitHub (sign-in), Cloudflare (domain, and forwarding mail sent to the site's addresses), and Google, whose Gmail holds correspondence in two mailboxes: the project's own and the developer's personal inbox, which receives a forwarded copy of every message sent to the site. Data is stored in the United States.
     - **Cookies:** only the ones sign-in needs — the session cookies, and a short-lived cookie during sign-in itself.
-    - **How long it is kept:** account data until the user asks for deletion, when it is removed from the database at once; session records until the session ends (OQ-1 fixes the wording); sign-in records for at most a day (FR-7); request logs for at most 1 day (Supabase) or 1 hour (Vercel), which expire on their own rather than being deleted with the account; no backups. Correspondence about a request is kept as OQ-2 settles, in both mailboxes.
+    - **How long it is kept:** account data until the user asks for deletion, when it is removed from the database at once; session records until the user signs out on that device, or until it has gone about 90 days unused, when it is deleted and that device is signed out (FR-7); sign-in records for at most two days (FR-7); request logs for at most 1 day (Supabase) or 1 hour (Vercel), which expire on their own rather than being deleted with the account; no backups. Correspondence about a request is kept for 12 months after the request is answered, as the record that it was handled, in the project mailbox only; the forwarded copy in the developer's personal inbox is deleted when the request is answered (FR-4 step 7). Deleted mail stays in Gmail's trash for 30 days before Gmail removes it.
     - **What is public:** nothing. A collection is visible only to its owner. (Profiles M1 and Browse M6 change this; FR-5.)
     - **The user's choices:** ask for a copy of their data, or for its deletion, by emailing `privacy@arcanaeum.app`; the reply goes to **the email address on their GitHub account**, to confirm the request came from them before anything is done, and the request is answered within one month (FR-4, FR-6). Sign out at any time; revoke the app's access to their GitHub account in GitHub's settings (Settings → Applications → Authorized OAuth Apps).
     - **Changes:** the notice is updated before any change to what is collected or published, and the date above says when it last changed.
 - **FR-3 — Linked from every page.** A "Privacy" link in the site-wide footer, rendered from the root layout, so every page that has the footer has the link. **`global-error.tsx` is the one exception**: it replaces the whole layout when the layout itself has failed, and stays minimal. The link is a plain `Link`, so it works without JavaScript.
-- **FR-4 — Deletion procedure** (`docs/privacy-requests.md`, run through `scripts/privacy-request.mjs`, §12.2). Nothing is deleted until step 2 succeeds.
+- **FR-4 — Deletion procedure** (`docs/privacy-requests.md`, run through `scripts/privacy-request.mts`, §12.2). Nothing is deleted until step 2 succeeds.
     1. **Find the account in the Supabase dashboard** (Authentication → Users), searching for the email the requester names or writes from, and copy its **user id**. The address is typed only into the dashboard's search box, never into SQL (§12.2). Run `show` for that id to see the stored email and GitHub id the next step needs. **Go on only if the email `show` prints is exactly the address searched for**, ignoring letter case: the dashboard's search also returns partial matches, and the confirmation in step 2 goes to whatever `show` prints, so a near-miss would send the code to a stranger. If nothing matches exactly, or more than one account does, stop and ask the requester for the email on their GitHub account. The `From:` header proves nothing on its own: it is trivially forged, and a request is never acted on because of it.
     2. **Confirm control of the account** (Privacy Decision 4), by one of:
         - **Email confirmation, the default.** Write a new message from `arcanaeumapp@gmail.com` **to the stored address**, not to the `From:` of the request, with a **one-time code** — random, at least eight characters, generated for this request — and ask the account holder to reply with it. Act only on a reply that **contains that code**. Gmail groups messages into threads by subject, so a forged message with the same subject can land in the thread; being in the thread and matching `From:` prove nothing, but only someone who received the message at the stored address knows the code.
@@ -78,7 +78,7 @@ No new dependency and no environment variable.
     4. **Delete the sign-in records** that do not cascade: `auth.flow_state` rows for that user id (§12.2).
     5. **Check the result** with the verification query (§12.2): zero rows for that user id in every table that holds one. A non-zero count stops the procedure until it is explained.
     6. **Reply** in the confirmation thread that deletion is done, and that they can also revoke the app's GitHub authorization, which only they can do.
-    7. **Clean up after the request** as OQ-2 settles: the correspondence in both mailboxes.
+    7. **Clean up after the request.** Delete the forwarded copy in the developer's personal inbox as soon as the reply is sent; it only duplicates the project mailbox. In `arcanaeumapp@gmail.com`, keep the thread — request, confirmation, reply, and any export attached to it — for 12 months after the request is answered, then delete it. A copy request's export carries IP addresses, which is why the Sent copy is held to the same 12 months rather than kept indefinitely.
     8. **Within one month** of the request.
 - **FR-5 — Keeping the notice true.** Before any change ships that alters what is collected, who processes it, what is public, or which cookies are set, `/privacy` and its "Last updated" date are updated in the same change. Known instances, recorded here so they are not missed:
     - **Profiles M1** — profile rows become readable to anyone for public accounts: user id, username and the public/private flag (Profiles §12.2). The notice must stop saying nothing is public, and say what a public profile shows, that public is the preselected choice, and where to change it.
@@ -87,8 +87,11 @@ No new dependency and no environment variable.
     - **A second sign-in provider** — what it supplies joins the inventory.
     - **Any analytics, error reporting or third-party script** — a new processor, and possibly a cookie (NG3).
     - **Where the rule is recorded:** at Privacy M1 the rule is written into `CLAUDE.md`'s Privacy section, and the notice update is added to the exit criteria of **Profiles M1** in `prd-profiles.md` and **Browse M6** in `prd-browse-and-track.md`, where the milestone that changes what is public will meet it.
-- **FR-6 — Copy (access) procedure** (`docs/privacy-requests.md`, run through `scripts/privacy-request.mjs`, §12.2): find the account and confirm control exactly as FR-4 steps 1 and 2, run the export query for that user id, and send its output as a JSON attachment in the confirmation thread, within one month. The query returns every stored item in §3 for that user and nothing about any other; for sign-in records it gives dates and method only, never the GitHub tokens, which are credentials rather than information about the user. The export is written to a temporary file to attach it, and that file is deleted once the reply is sent.
-- **FR-7 — Scheduled cleanup of sign-in records.** A daily `pg_cron` job deletes `auth.flow_state` rows created more than a day ago (§12.3). A row is needed only while its sign-in completes, minutes at most, so anything a day old belongs to a sign-in that finished or was abandoned. `auth.flow_state` is in Supabase's own `auth` schema and owned by its auth role; the job only deletes expired rows, never alters the table, and if Supabase adds a cleanup of its own the job simply finds nothing to delete. Created by a migration, so every environment built from `supabase/migrations/` has it.
+- **FR-6 — Copy (access) procedure** (`docs/privacy-requests.md`, run through `scripts/privacy-request.mts`, §12.2): find the account and confirm control exactly as FR-4 steps 1 and 2, run the export query for that user id, and send its output as a JSON attachment in the confirmation thread, within one month. The query returns every stored item in §3 for that user and nothing about any other; for sign-in records it gives dates and method only, never the GitHub tokens, which are credentials rather than information about the user. The export is written to a temporary file to attach it, and that file is deleted once the reply is sent; the correspondence is then cleaned up as FR-4 step 7.
+- **FR-7 — Scheduled cleanup of sign-in and session records.** A daily `pg_cron` job (§12.3) deletes:
+    - **`auth.flow_state` rows created more than a day ago.** A row is needed only while its sign-in completes, minutes at most, so anything a day old belongs to a sign-in that finished or was abandoned. Run daily, a row lives at most about two days, which is what the notice says.
+    - **`auth.sessions` rows unused for more than 90 days**, measured from the latest of `refreshed_at`, `updated_at` and `created_at`. On the Free plan a session otherwise lasts until sign-out: Supabase's time-boxed sessions and inactivity timeout are Pro-plan settings, and a device that never signs out would keep its IP address and user agent indefinitely. Deleting the row is what signing out does — its refresh tokens and MFA claims cascade with it — so that device is simply signed out and signs in again next time. 90 days allows for long gaps between playthroughs.
+    - Both tables are in Supabase's own `auth` schema and owned by its auth role; the job only deletes rows, never alters a table, and if Supabase adds a cleanup of its own the job simply finds nothing to delete. Created by a migration, so every environment built from `supabase/migrations/` has it.
 
 ### Non-Functional (NFR)
 
@@ -113,18 +116,18 @@ No new dependency and no environment variable.
 
 ## 7. Risks and Mitigations
 
-| ID  | Risk                                                                                                                              | Likelihood | Impact | Mitigation                                                                                                                                                                                                |
-| --- | --------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | The notice drifts from what the app actually collects.                                                                            | Med        | Med    | FR-5's rule, written where the changes will meet it; the inventory re-checked against the database when the page is built (NFR-3, AC-4).                                                                  |
-| R2  | Profiles M1 or Browse M6 makes something public before the notice says so.                                                        | Med        | High   | FR-5 names each separately, and Privacy M1 adds the notice update to both milestones' exit criteria in their own PRDs.                                                                                    |
-| R3  | Someone requests deletion of an account that is not theirs.                                                                       | Low        | High   | Nothing is acted on until the account holder confirms through the stored address or the GitHub account itself (FR-4 step 2); a forged `From:` gets no further than a question sent to someone else.       |
-| R4  | A request is missed, or answered after the month.                                                                                 | Low        | Med    | The project mailbox forwards a copy to the developer's own inbox (`architecture.md` §13); a Gmail filter on `to:privacy@arcanaeum.app` labels and stars it.                                               |
-| R5  | The notice falls short of a law that applies to some visitor.                                                                     | Low        | Med    | Accepted as NG4; the notice is accurate and offers the rights most laws require — access and deletion — so the gap, if any, is in wording rather than in what is offered.                                 |
-| R6  | A Supabase upgrade changes `auth.flow_state` and the cleanup job fails, or an `auth` table gains a user id that does not cascade. | Low        | Low    | A failed run is recorded in `cron.job_run_details`; FR-4 step 5's verification query is the backstop for any single deletion. The `auth` user-id check in §3 is repeated when Privacy M1 is built (AC-4). |
+| ID  | Risk                                                                                                                                                 | Likelihood | Impact | Mitigation                                                                                                                                                                                                |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | The notice drifts from what the app actually collects.                                                                                               | Med        | Med    | FR-5's rule, written where the changes will meet it; the inventory re-checked against the database when the page is built (NFR-3, AC-4).                                                                  |
+| R2  | Profiles M1 or Browse M6 makes something public before the notice says so.                                                                           | Med        | High   | FR-5 names each separately, and Privacy M1 adds the notice update to both milestones' exit criteria in their own PRDs.                                                                                    |
+| R3  | Someone requests deletion of an account that is not theirs.                                                                                          | Low        | High   | Nothing is acted on until the account holder confirms through the stored address or the GitHub account itself (FR-4 step 2); a forged `From:` gets no further than a question sent to someone else.       |
+| R4  | A request is missed, or answered after the month.                                                                                                    | Low        | Med    | The project mailbox forwards a copy to the developer's own inbox (`architecture.md` §13); a Gmail filter on `to:privacy@arcanaeum.app` labels and stars it.                                               |
+| R5  | The notice falls short of a law that applies to some visitor.                                                                                        | Low        | Med    | Accepted as NG4; the notice is accurate and offers the rights most laws require — access and deletion — so the gap, if any, is in wording rather than in what is offered.                                 |
+| R6  | A Supabase upgrade changes `auth.flow_state` or `auth.sessions` and the cleanup job fails, or an `auth` table gains a user id that does not cascade. | Low        | Low    | A failed run is recorded in `cron.job_run_details`; FR-4 step 5's verification query is the backstop for any single deletion. The `auth` user-id check in §3 is repeated when Privacy M1 is built (AC-4). |
 
 ## 8. Milestones
 
-- **M1 — Notice, procedures and cleanup.** FR-1 to FR-7: the page, the footer link, `docs/privacy-requests.md` and `scripts/privacy-request.mjs` with its queries tested on the local stack, the `flow_state` cleanup migration, and the FR-5 rule recorded in `CLAUDE.md` and in the exit criteria of Profiles M1 and Browse M6. OQ-1 and OQ-2 settled first, since FR-2's retention wording depends on them. Exit: AC-1 to AC-9 green.
+- **M1 — Notice, procedures and cleanup.** FR-1 to FR-7: the page, the footer link, `docs/privacy-requests.md` and `scripts/privacy-request.mts` with its queries tested on the local stack, the cleanup migration, and the FR-5 rule recorded in `CLAUDE.md` and in the exit criteria of Profiles M1 and Browse M6. Exit: AC-1 to AC-9 green.
 
 ## 9. Acceptance Criteria
 
@@ -135,19 +138,18 @@ No new dependency and no environment variable.
 - AC-5. On the local stack, a throwaway user with `user_book`, `user_book_note` and `auth.flow_state` rows is deleted by following FR-4 steps 3 to 5, and the verification query then reports zero rows for that id in every table it checks. (FR-4)
 - AC-6. On the local stack, the export query for one of two throwaway users returns that user's account, identity, sessions, sign-in record dates, marks and notes, contains no GitHub token, and nothing belonging to the other. (FR-6)
 - AC-7. The production build lists `/privacy` as dynamic (`ƒ`), and its response carries `Cache-Control: private, no-cache, no-store`. (FR-1)
-- AC-8. On the local stack, the cleanup job exists in `cron.job`, and running its command deletes an `auth.flow_state` row created two days ago while keeping one created a minute ago. (FR-7)
-- AC-9. `scripts/lib/privacy-sql.mjs`'s tests show that a canonical UUID, in either case, is accepted and lowercased, and that anything else is refused before any SQL is built — including an id with a quote, an appended SQL fragment, surrounding whitespace, braces, a missing hyphen, or an extra character. They also check the **statement the script builds**, not only the gate: for each command, every `{{user_id}}` becomes exactly `'<lowercased uuid>'::uuid`, quotes included, no placeholder is left, and the input appears nowhere else in the text. (§12.2)
+- AC-8. On the local stack, the cleanup job exists in `cron.job`, and running its command deletes an `auth.flow_state` row created two days ago while keeping one created a minute ago, and deletes a session last used 91 days ago, with its refresh tokens, while keeping one used yesterday. (FR-7)
+- AC-9. `scripts/lib/privacy-sql.mts`'s tests show that a canonical UUID, in either case, is accepted and lowercased, and that anything else is refused before any SQL is built — including an id with a quote, an appended SQL fragment, surrounding whitespace, braces, a missing hyphen, or an extra character. They also check the **statement the script builds**, not only the gate: for each command, every `{{user_id}}` becomes exactly `'<lowercased uuid>'::uuid`, quotes included, no placeholder is left, and the input appears nowhere else in the text. (§12.2)
 
 ## 10. Success Metrics
 
 - Every privacy request answered within one month.
 - Zero occasions on which the notice is found to describe the app incorrectly.
-- No `auth.flow_state` row older than two days on the hosted project.
+- No `auth.flow_state` row older than two days, and no session unused for more than 91 days, on the hosted project.
 
 ## 11. Open Questions
 
-- OQ-1. **How long does a session record live on the hosted project?** It depends on Supabase's session settings (time-box and inactivity timeout), which are configured in the dashboard and not visible from the CLI. Check them, and word FR-2's retention line to match.
-- OQ-2. **How long is request correspondence kept** once a request is closed, in the project mailbox and in the developer's personal inbox? Proposed: deleted from both 12 months after the request is answered, as a record that it was handled; a shorter period is equally defensible.
+None open.
 
 ## 12. Technical Design
 
@@ -160,9 +162,9 @@ No new dependency and no environment variable.
 
 **Nothing the requester typed ever reaches SQL.** These queries run with full privileges on the hosted project, and an email address is a stranger's input that may legitimately contain quote characters and `$` (RFC 5321 allows both). So the account is found by email **in the Supabase dashboard** (FR-4 step 1), which searches it as data in Supabase's own interface, and every query below takes only the **user id** copied from there. Escaping, encoding the address, and passing it as a parameter were each considered and rejected as unnecessary once no query needs the address at all.
 
-`scripts/privacy-request.mjs <command> <user id> --local|--linked` runs them through `supabase db query`, with the target always given explicitly. Before building any SQL it checks the id against the canonical UUID pattern (`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, after lowercasing) and refuses anything else. A value that passes contains only hex digits and hyphens, so `{{user_id}}` in each template becomes the plain literal `'<uuid>'::uuid`: this is validation, not encoding — nothing is transformed, and anything else is rejected. The check is a pure function in `scripts/lib/privacy-sql.mjs`, unit-tested (AC-9). The output of every query is data, never instructions (`CLAUDE.md`).
+`yarn privacy:request <command> <user id> --local|--linked` (`scripts/privacy-request.mts`) runs them through `supabase db query`, with the target always given explicitly. Before building any SQL it checks the id against the canonical UUID pattern (`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`, after lowercasing) and refuses anything else. A value that passes contains only hex digits and hyphens, so `{{user_id}}` in each template becomes the plain literal `'<uuid>'::uuid`: this is validation, not encoding — nothing is transformed, and anything else is rejected. The check is a pure function in `scripts/lib/privacy-sql.mts`, unit-tested (AC-9); `.mts` like the rest of `scripts/lib/`, which is what `yarn test` collects. The output of every query is data, never instructions (`CLAUDE.md`).
 
-Show the account (FR-4 step 1) — `node scripts/privacy-request.mjs show <user id> --linked`:
+Show the account (FR-4 step 1) — `yarn privacy:request show <user id> --linked`:
 
 ```sql
 select u.id, u.email, u.created_at, u.last_sign_in_at,
@@ -173,7 +175,7 @@ select u.id, u.email, u.created_at, u.last_sign_in_at,
  where u.id = {{user_id}};
 ```
 
-Export (FR-6) — `node scripts/privacy-request.mjs export <user id> --linked`; sign-in records give dates and method, never tokens:
+Export (FR-6) — `yarn privacy:request export <user id> --linked`; sign-in records give dates and method, never tokens:
 
 ```sql
 select jsonb_pretty(jsonb_build_object(
@@ -205,13 +207,13 @@ select jsonb_pretty(jsonb_build_object(
 )) as export;
 ```
 
-Delete the sign-in records that do not cascade (FR-4 step 4), after deleting the user — `node scripts/privacy-request.mjs delete-flow-state <user id> --linked`:
+Delete the sign-in records that do not cascade (FR-4 step 4), after deleting the user — `yarn privacy:request delete-flow-state <user id> --linked`:
 
 ```sql
 delete from auth.flow_state where user_id = {{user_id}};
 ```
 
-Verify a deletion (FR-4 step 5) — `node scripts/privacy-request.mjs verify <user id> --linked`; every `remaining` must be 0. The query finds every table in `auth` and `public` with a `user_id` column (and `auth.users` itself) rather than listing them, because the set differs between Supabase versions — the local stack has no `auth.mfa_recovery_code_sets` — and grows as the app does:
+Verify a deletion (FR-4 step 5) — `yarn privacy:request verify <user id> --linked`; every `remaining` must be 0. The query finds every table in `auth` and `public` with a `user_id` column (and `auth.users` itself) rather than listing them, because the set differs between Supabase versions — the local stack has no `auth.mfa_recovery_code_sets` — and grows as the app does:
 
 ```sql
 select c.table_schema || '.' || c.table_name as table_name,
@@ -231,18 +233,28 @@ select c.table_schema || '.' || c.table_name as table_name,
 
 Any table added later that holds a user id — `profile` at Profiles M1 first — is picked up by the verification query on its own, provided the column is named `user_id`; it joins the export by hand, in the same change (FR-5).
 
-### 12.3 Sign-in record cleanup (FR-7)
+### 12.3 Sign-in and session record cleanup (FR-7)
 
-One migration, created with `supabase migration new`:
+One migration, created with `supabase migration new`. The extension goes in `pg_catalog`, with the grants that follow it, as Supabase's own install instructions give it ([Install Supabase Cron](https://supabase.com/docs/guides/cron/install)):
 
 ```sql
-create extension if not exists pg_cron;
+create extension if not exists pg_cron with schema pg_catalog;
+
+grant usage on schema cron to postgres;
+grant all privileges on all tables in schema cron to postgres;
 
 select cron.schedule(
-  'delete-expired-auth-flow-state',
+  'delete-expired-auth-records',
   '17 3 * * *',  -- daily, 03:17 UTC
-  $$delete from auth.flow_state where created_at < now() - interval '1 day'$$
+  $$
+    delete from auth.flow_state where created_at < now() - interval '1 day';
+    delete from auth.sessions
+     where greatest(refreshed_at at time zone 'UTC', updated_at, created_at)
+           < now() - interval '90 days';
+  $$
 );
 ```
 
-To confirm at build time, so the migration is right rather than assumed: the schema Supabase expects `pg_cron` in, and that the job runs as `postgres`, which holds `DELETE` on `auth.flow_state` on both the local stack and the hosted project (checked 2026-10-02). `cron.schedule` with the same job name replaces the existing job, so the migration is safe to replay.
+`refreshed_at` is a `timestamp` without a time zone where the other two carry one, so it is read as UTC before comparing — Supabase writes it in UTC, matching `updated_at` to within a millisecond on the hosted project; `greatest` ignores nulls, so a session that was never refreshed is measured from its other columns.
+
+Rehearsed on the local stack in a rolled-back transaction (2026-10-02): the extension lands in `pg_catalog`, the job is recorded under `postgres` in database `postgres`, and scheduling the same name twice leaves one job with the same id, so the migration is safe to replay. `postgres` holds `DELETE` on `auth.flow_state` and `auth.sessions` on both the local stack and the hosted project, and a session's `auth.refresh_tokens` and `auth.mfa_amr_claims` rows cascade from it. The CLI pushes migrations through a temporary login role, so after the hosted push, confirm `cron.job.username` is `postgres` there too.
