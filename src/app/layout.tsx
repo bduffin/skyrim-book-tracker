@@ -3,8 +3,8 @@ import React from 'react';
 import './globals.css';
 import { fontVariables } from './fonts';
 import { SiteHeader } from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
 import { ToastProvider } from '@/components/toast';
-import { UespAttribution } from '@/components/uesp-attribution';
 
 const NAME = 'Arcanaeum';
 const FULL_NAME = 'Arcanaeum: Skyrim Book Tracker';
@@ -52,7 +52,7 @@ export default function RootLayout({
                 <ToastProvider>
                     <SiteHeader />
                     {children}
-                    <UespAttribution />
+                    <SiteFooter />
                 </ToastProvider>
             </body>
         </html>

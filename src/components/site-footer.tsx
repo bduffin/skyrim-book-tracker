@@ -1,14 +1,25 @@
+import Link from 'next/link';
+
 /**
- * UESP attribution (FR-7, architecture.md section 2.2).
+ * The site-wide footer: the privacy notice link and the UESP attribution.
  *
- * Rendered from the root layout rather than from the book list, so it cannot
- * be lost when another route starts showing the same data -- `/collection/[user]`
- * will. CC BY-SA is a condition of using the data at all, not a footnote on one
- * page, and the README carries the matching notice.
+ * Rendered once from the root layout, so every page that has the layout has
+ * both -- every page but `global-error.tsx`, which replaces the layout when
+ * the layout itself has failed (Privacy FR-3).
+ *
+ * The attribution is here rather than on the book list so it cannot be lost
+ * when another route shows the same data, as `/collection/[user]` does (FR-7,
+ * architecture.md section 2.2). CC BY-SA is a condition of using the data at
+ * all, not a footnote on one page, and the README carries the matching notice.
  */
-export function UespAttribution() {
+export function SiteFooter() {
     return (
         <footer className="mx-auto max-w-3xl px-4 py-8 text-xs leading-relaxed text-iron-500">
+            <p className="pb-2">
+                <Link href="/privacy" className="underline hover:text-iron-900">
+                    Privacy
+                </Link>
+            </p>
             <p>
                 Book data from the{' '}
                 <a
