@@ -26,7 +26,8 @@
         "format:check": "prettier --check .",
         "test": "tsx --test \"scripts/**/*.test.mts\" \"src/**/*.test.ts\"",
         "test:db": "tsx --test --test-concurrency=1 \"tests/db/**/*.test.mts\"",
-        "import:uesp": "node --env-file-if-exists=.env.local --import tsx scripts/import-uesp.mts"
+        "import:uesp": "node --env-file-if-exists=.env.local --import tsx scripts/import-uesp.mts",
+        "privacy:request": "node --import tsx scripts/privacy-request.mts"
     },
     "devDependencies": {
         "@tailwindcss/postcss": "^4.3.3",
