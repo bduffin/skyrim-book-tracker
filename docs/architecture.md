@@ -341,7 +341,7 @@ This is a deliberate, temporary choice. Until there are real users, the only dat
 Consequences while this holds:
 
 - Vercel preview deployments use the production database. Previews stay behind Vercel's Deployment Protection, and the preview wildcard is **not** in the project's Redirect URLs, so a preview cannot sign in a production user. Sign-in is tested locally or on production.
-- The project's Site URL is the production domain. `http://localhost:3000/**` stays in the Redirect URLs, which is what keeps local sign-in working: `signInWithGitHub` builds `redirectTo` from the request's `Origin`, and Supabase checks it against that list. Site URL is only the fallback.
+- The project's Site URL is the production domain. `http://localhost:3000/**` stays in the Redirect URLs, which is what keeps local sign-in working: `signInWithGitHub` builds `redirectTo` from the request's `Origin`, and Supabase checks it against that list. Site URL is only the fallback. The entry needs the `/**`: Supabase matches the list against the whole return address, query string included, so an exact `http://localhost:3000/auth/callback` never matches the `?next=` that `signInWithGitHub` appends, and sign-in silently falls back to the Site URL (production) — which is what an exact entry did until 2026-10-04. Production passes regardless, because Supabase also accepts any address on the Site URL's own scheme and host.
 - `supabase db query --linked`, `yarn import:uesp --allow-remote` and every migration push act on production. Treat them that way.
 
 **Leave this setup when the first real user signs up**, or sooner if a development mistake could cost someone data. From then on, development against production risks real users' data for no benefit.
