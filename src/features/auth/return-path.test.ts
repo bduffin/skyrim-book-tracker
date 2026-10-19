@@ -43,6 +43,14 @@ describe('returnPathFrom', () => {
         assert.equal(returnPathFrom(`${ORIGIN}//evil.test/x`, ORIGIN), '/');
     });
 
+    test('does not return to the sign-in page', () => {
+        assert.equal(returnPathFrom(`${ORIGIN}/login`, ORIGIN), '/');
+        assert.equal(
+            returnPathFrom(`${ORIGIN}/login?next=/books`, ORIGIN),
+            '/',
+        );
+    });
+
     test('does not return to the auth pages', () => {
         assert.equal(returnPathFrom(`${ORIGIN}/auth/auth-error`, ORIGIN), '/');
         assert.equal(
@@ -84,5 +92,39 @@ describe('isSafeReturnPath', () => {
     test('refuses the auth pages', () => {
         assert.equal(isSafeReturnPath('/auth/auth-error'), false);
         assert.equal(isSafeReturnPath('/auth/callback?code=x'), false);
+    });
+
+    test('refuses the sign-in page and anything under it', () => {
+        for (const path of [
+            '/login',
+            '/login?next=/books',
+            '/login/',
+            '/login/send-code',
+        ]) {
+            assert.equal(isSafeReturnPath(path), false, path);
+        }
+    });
+
+    test('accepts a page whose name only starts with login', () => {
+        assert.equal(isSafeReturnPath('/loginhelp'), true);
+    });
+
+    // A browser resolves these before requesting them, so a prefix check on
+    // the raw string would judge a different path from the one visited.
+    test('refuses dot segments, plain or encoded', () => {
+        for (const path of [
+            '/books/../auth/callback',
+            '/books/%2e%2e/auth/callback',
+            '/books/%2E%2E/login',
+            '/books/./x',
+            '/books/..',
+        ]) {
+            assert.equal(isSafeReturnPath(path), false, path);
+        }
+    });
+
+    test('accepts a query string carrying its own encoded characters', () => {
+        assert.equal(isSafeReturnPath('/books?q=Oghma%20Infinium'), true);
+        assert.equal(isSafeReturnPath('/books?q=Oghma+Infinium&page=2'), true);
     });
 });
