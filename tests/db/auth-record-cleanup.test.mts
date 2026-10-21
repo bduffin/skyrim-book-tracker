@@ -1,8 +1,11 @@
 /**
- * Tests for the daily auth-record cleanup
- * (`20261003201942_schedule_auth_record_cleanup.sql`, Privacy FR-7, AC-8):
- * the job is scheduled, and its command deletes sign-in records over a day old
- * and sessions unused for 90 days while keeping recent ones.
+ * Tests for the two daily auth-record cleanups: `delete-expired-auth-records`
+ * (`20261003201942_schedule_auth_record_cleanup.sql`, Privacy FR-7, AC-8),
+ * deleting sign-in records over a day old and sessions unused for 90 days,
+ * and `delete-abandoned-email-sign-ups`
+ * (`20261021061807_delete_abandoned_email_sign_ups.sql`, Email FR-7, AC-3),
+ * deleting email sign-ups nobody confirmed. Each is scheduled, and each
+ * deletes what it should while keeping recent rows.
  *
  * The rows live in `auth`, which PostgREST does not expose, so these go
  * through `supabase db query --local`, like `rls-auto-enable.test.mts` and for
@@ -21,8 +24,11 @@ import { localStack } from './lib/stack.mjs';
 import { probe } from './lib/local-query.mjs';
 
 const JOB = 'delete-expired-auth-records';
+const SIGN_UP_JOB = 'delete-abandoned-email-sign-ups';
 
-const runJob = `execute (select command from cron.job where jobname = '${JOB}');`;
+const run = (job: string) =>
+    `execute (select command from cron.job where jobname = '${job}');`;
+const runJob = run(JOB);
 
 describe('auth record cleanup (Privacy FR-7)', () => {
     before(() => {
@@ -96,6 +102,126 @@ describe('auth record cleanup (Privacy FR-7)', () => {
             idleToken: false,
             recentToken: true,
             user: true,
+        });
+    });
+
+    // The expired-records job must not touch accounts: that is the sign-up
+    // job's alone, so a failure in one never rolls back the other.
+    test('the expired-records job deletes no account', () => {
+        const id = randomUUID();
+        const result = probe(
+            `insert into auth.users (id, confirmation_sent_at) values ('${id}', now() - interval '2 days');
+             insert into auth.identities (provider_id, user_id, identity_data, provider)
+             values ('${id}', '${id}', '{}'::jsonb, 'email');
+             ${runJob}`,
+            `jsonb_build_object('kept', exists (select 1 from auth.users where id = '${id}'))`,
+        );
+        assert.deepEqual(result, { kept: true });
+    });
+});
+
+describe('abandoned email sign-up cleanup (Email FR-7)', () => {
+    before(() => {
+        localStack(); // throws unless the stack is local
+    });
+
+    test('the job is scheduled daily, as postgres, after the other', () => {
+        const result = probe(
+            'perform 1;',
+            `(select jsonb_build_object('schedule', schedule, 'username', username, 'active', active)
+                from cron.job where jobname = '${SIGN_UP_JOB}')`,
+        );
+        assert.deepEqual(result, {
+            schedule: '27 3 * * *',
+            username: 'postgres',
+            active: true,
+        });
+    });
+
+    // Email AC-3. Each kept account differs from a deleted one in exactly one
+    // condition, so each shows that condition matters.
+    test('deletes abandoned email sign-ups, and only those', () => {
+        const ids = {
+            abandoned: randomUUID(),
+            abandonedReset: randomUUID(),
+            recentCode: randomUUID(),
+            recentReset: randomUUID(),
+            neverSent: randomUUID(),
+            noIdentity: randomUUID(),
+            alsoGitHub: randomUUID(),
+            confirmed: randomUUID(),
+        };
+        const ago = (interval: string) => `now() - interval '${interval}'`;
+        const user = (
+            id: string,
+            confirmed: string,
+            sent: string,
+            reset = 'null',
+        ) => `('${id}', ${confirmed}, ${sent}, ${reset}, ${ago('30 days')})`;
+        const identity = (id: string, provider: string) =>
+            `('${id}-${provider}', '${id}', '{}'::jsonb, '${provider}')`;
+
+        const result = probe(
+            `insert into auth.users (id, email_confirmed_at, confirmation_sent_at, recovery_sent_at, created_at)
+             values ${user(ids.abandoned, 'null', ago('2 days'))},
+                    ${user(ids.abandonedReset, 'null', 'null', ago('2 days'))},
+                    ${user(ids.recentCode, 'null', ago('1 hour'))},
+                    ${user(ids.recentReset, 'null', ago('2 days'), ago('1 minute'))},
+                    ${user(ids.neverSent, 'null', 'null')},
+                    ${user(ids.noIdentity, 'null', ago('2 days'))},
+                    ${user(ids.alsoGitHub, 'null', ago('2 days'))},
+                    ${user(ids.confirmed, ago('2 days'), ago('2 days'))};
+             insert into auth.identities (provider_id, user_id, identity_data, provider)
+             values ${identity(ids.abandoned, 'email')},
+                    ${identity(ids.abandonedReset, 'email')},
+                    ${identity(ids.recentCode, 'email')},
+                    ${identity(ids.recentReset, 'email')},
+                    ${identity(ids.neverSent, 'email')},
+                    ${identity(ids.alsoGitHub, 'email')},
+                    ${identity(ids.alsoGitHub, 'github')},
+                    ${identity(ids.confirmed, 'email')};
+             ${run(SIGN_UP_JOB)}`,
+            `jsonb_build_object(${Object.entries(ids)
+                .map(
+                    ([name, id]) =>
+                        `'${name}', exists (select 1 from auth.users where id = '${id}')`,
+                )
+                .join(', ')})`,
+        );
+        assert.deepEqual(result, {
+            abandoned: false,
+            abandonedReset: false,
+            recentCode: true,
+            recentReset: true,
+            neverSent: true,
+            noIdentity: true,
+            alsoGitHub: true,
+            confirmed: true,
+        });
+    });
+
+    // What PRD section 12.2 says goes with the account: its identity, its
+    // sessions, and its one-time tokens, which hold its address.
+    test('takes the account’s identity, sessions and one-time tokens with it', () => {
+        const id = randomUUID();
+        const session = randomUUID();
+        const result = probe(
+            `insert into auth.users (id, confirmation_sent_at) values ('${id}', now() - interval '2 days');
+             insert into auth.identities (provider_id, user_id, identity_data, provider)
+             values ('${id}', '${id}', '{}'::jsonb, 'email');
+             insert into auth.sessions (id, user_id) values ('${session}', '${id}');
+             insert into auth.one_time_tokens (id, user_id, token_type, token_hash, relates_to)
+             values (gen_random_uuid(), '${id}', 'confirmation_token', 'cleanup-probe', 'abandoned@example.test');
+             ${run(SIGN_UP_JOB)}`,
+            `jsonb_build_object(
+                'identity', exists (select 1 from auth.identities where user_id = '${id}'),
+                'session', exists (select 1 from auth.sessions where id = '${session}'),
+                'token', exists (select 1 from auth.one_time_tokens where user_id = '${id}'))`,
+        );
+        assert.deepEqual(result, {
+            identity: false,
+            session: false,
+            token: false,
         });
     });
 });

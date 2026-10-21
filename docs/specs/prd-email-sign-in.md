@@ -51,7 +51,7 @@ The spec's Current State is the inventory, including what was verified in Supaba
 1. **`/login`** — a Server Component offering GitHub sign-in (the existing Server Action) and an email form, then a code form once a code is on its way (FR-1, FR-2).
 2. **Two Route Handlers**, `POST /login/send-code` and `POST /login/verify-code`, posted by plain forms and answering with 303 redirects (FR-4, FR-5).
 3. **A "Sign in" link** replacing `GitHubLoginButton` everywhere it appears outside `/login` (FR-3).
-4. **Two migrations**: a trigger clearing every password (FR-6), and the daily job rescheduled to also delete abandoned email sign-ups (FR-7).
+4. **Two migrations**: a trigger clearing every password (FR-6), and a daily job deleting abandoned email sign-ups (FR-7).
 5. **Header name rule** (FR-8) and **Sign out everywhere** (FR-10).
 6. **Local configuration** matching the hosted target: confirmation on, 8-digit codes for 10 minutes, code-only templates (FR-11).
 7. **A server-side switch**, `EMAIL_SIGN_IN_ENABLED`, so the code can ship before the Email provider is on (FR-12).
@@ -114,7 +114,7 @@ POST /login/verify-code  {code, next}       or {reset=1, next}
     - **Use a different address**: `POST /login/verify-code` with `reset=1` clears the cookie and redirects 303 to `/login?next=…`, after the same Origin check.
     - **The cookie**: name `email-sign-in`, value the address, `HttpOnly`, `SameSite=Lax`, `Secure` outside development, `Path=/login`, `Max-Age=600` (the code's lifetime, FR-11). Strictly necessary for signing in, and named in the privacy notice (FR-14).
 - **FR-6 — No passwords.** A migration creating `private.clear_password()` and a `before insert or update` trigger on `auth.users` that sets `new.encrypted_password := null` and does nothing else (Email Decision 3; §12.1). `security invoker`, `set search_path = ''`, `EXECUTE` revoked from `public`, `anon` and `authenticated` and granted to `supabase_auth_admin`, with `USAGE` on `private` granted to `supabase_auth_admin` for it — that role has none today (§3). No `security definer`. **It clears a password when Auth next writes the row, not before:** a row that already holds one keeps it until then — a sign-in or a confirmation is enough — and no migration clears existing rows. Accepted, because a stored password can only be used while the Email provider is on, and §12.7 step 1 counts production's rows that hold one before it is: any found are cleared by a sign-in or dealt with there, before step 6.
-- **FR-7 — Abandoned email sign-ups.** A migration rescheduling `delete-expired-auth-records` under the same name, keeping its two existing deletes and adding a third: users that are unconfirmed, have an email identity, have no other identity, and whose `confirmation_sent_at` is set and more than a day old (Email Decision 14; §12.2). The applied migration is not edited.
+- **FR-7 — Abandoned email sign-ups.** A migration scheduling a daily job of its own, `delete-abandoned-email-sign-ups`, that deletes users that are unconfirmed, have an email identity, have no other identity, and whose latest code — the later of `confirmation_sent_at` and `recovery_sent_at` — went out more than a day ago (Email Decision 14; §12.2). `delete-expired-auth-records` and its applied migration are unchanged.
 - **FR-8 — Header name.** A pure `headerNameFor(claims)` in `src/features/auth/header-name.ts` replaces `getDisplayName`: GitHub's `user_name` when `app_metadata.providers` includes `github` and the value is a non-empty string, otherwise `"Signed in"`. No other `user_metadata` key and never the email address (Email Decision 8). `UserBadge` shows a generic person icon rather than a letter for `"Signed in"`, since its initial would read as a name, and an empty circle as something that failed to load. The avatar follows the same rule, inside `avatarUrlFor` so that no caller can skip it, since a sign-up can plant an `avatar_url` in GitHub's exact shape as easily as a name. Profiles FR-7 puts the username ahead of both; this PRD amends it to this rule.
 - **FR-9 — Leftover sign-up metadata, disclosed.** Nothing strips it (NG2). The privacy notice says an export can include profile data sent when an account was first registered (FR-14), and the export query is unchanged: it already returns `user_metadata` and every identity's `identity_data`, and never `auth.one_time_tokens`.
 - **FR-10 — Sign out everywhere.** `signOutEverywhere`, a Server Action in `src/features/auth/actions.ts` calling `signOut({ scope: 'global' })`, posted from a form beside **Sign out** in the header. Failure handling and `revalidatePath('/', 'layout')` as `signOut`; a failure goes to `/auth/auth-error` with its own app code and wording (Email Decision 16).
@@ -135,7 +135,7 @@ POST /login/verify-code  {code, next}       or {reset=1, next}
 Supabase reports a wrong code and an expired one with the same `otp_expired`, so one message covers both. Supabase reports the project-wide email cap and the per-address resend limit alike, as 429 with `over_email_send_rate_limit`, differing only in their message text ("email rate limit exceeded" against "you can only request this after 59 seconds", measured 2026-10-18). Telling them apart would mean parsing Supabase's wording, so `app_send_too_soon` covers both, worded to be true of either. A send refused this way still opens the code step: the usual cause is a second press of **Send code**, whose first press did send a code, and whose response the browser abandoned along with the cookie it set. **Send a new code** succeeding is not an error, so it is carried as `sent=1`, which, like `/settings`'s `saved=1`, carries no text of its own, and the page says a new code went out and that only the newest one works.
 
 - **FR-14 — Privacy notice and procedure** (Privacy FR-5), published at rollout step 5 (§12.7), before the Email provider is turned on and not behind the switch, so it is already true when the public API can first create an email account:
-    - `/privacy` and `LAST_UPDATED`: what email sign-in stores (the address, its confirmation and sign-in times); Resend as a processor, with where it processes data as Resend states it when the domain is set up, receiving the address and the code, keeping its logs 30 days, which deleting an account does not remove; open and click tracking off; an address typed into the form is stored before it is confirmed and deleted about a day after its last code if never confirmed; the `email-sign-in` cookie; sessions last until signed out, here or everywhere, or about 90 days unused; the existing "sign-in records, kept at most two days" covers email sign-ins too, each of which leaves one; an export can include profile data sent when the account was first registered; one-time codes are never exported.
+    - `/privacy` and `LAST_UPDATED`: what email sign-in stores (the address, its confirmation and sign-in times); Resend as a processor, with where it processes data as Resend states it when the domain is set up, receiving the address and the code, keeping its logs 30 days, which deleting an account does not remove; open and click tracking off; an address typed into the form is stored before it is confirmed and deleted between one and two days after its last code if never confirmed; the `email-sign-in` cookie; sessions last until signed out, here or everywhere, or about 90 days unused; the existing "sign-in records, kept at most two days" covers email sign-ins too, each of which leaves one; an export can include profile data sent when the account was first registered; one-time codes are never exported.
     - `docs/privacy-requests.md`: an email-only account is confirmed through its mailbox alone, with no GitHub fallback, and a requester who has lost that mailbox cannot be confirmed, so nothing is deleted on an unconfirmed request; `show` prints no GitHub id for such an account.
     - Privacy spec A2 and Privacy PRD A2 repointed to this PRD.
 - **FR-15 — Hosted configuration** (rollout step 3): Resend domain `auth.arcanaeum.app` verified; SPF and DKIM records for it and DMARC on the root domain published at Cloudflare (§12.6); SMTP set to Resend, sender `sign-in@auth.arcanaeum.app`; the four templates of FR-11; email OTP length 8 and expiry 600 seconds; the minimum interval between emails to one address 60 seconds; "Confirm email" on; Auth's email rate limit lowered (§12.6), with Resend's 100 a day as the daily backstop; Resend's open and click tracking off.
@@ -190,7 +190,7 @@ How each is checked: AC-2 and AC-3 by `yarn test:db` on the local stack; AC-4 to
 
 - AC-1. With JavaScript disabled, on the local stack: from a `/books` page with filters, **Sign in** → `/login` → email → code from Mailpit → profile setup on a first sign-in, or straight back to that `/books` URL on a later one. Refreshing or going back on the code step neither resends a code nor puts the address in the URL. The same from the GitHub button returns to that `/books` URL too, query string intact. (FR-1, FR-2, FR-4, FR-5, FR-18, NFR-1)
 - AC-2. Database tests, signing up through Supabase Auth on the local stack: a sign-up with a password stores none; a password sign-in, with that password or a blank one, is refused, before the address is confirmed and after; a password set later through `PUT /auth/v1/user` is cleared; the takeover — sign-up with a chosen password, then the owner's code — leaves no password that works: the attacker's password sign-in after the owner's code fails with `invalid_credentials`. The test fails if `encrypted_password` is missing. (FR-6)
-- AC-3. Database tests running the stored job command in a rolled-back transaction: it deletes an unconfirmed email-only user whose last code was sent over a day ago; it keeps one sent an hour ago, one with a null `confirmation_sent_at`, one with no identities, one with a `github` identity, and every confirmed user; the two existing deletes still behave as Privacy AC-8. (FR-7)
+- AC-3. Database tests running the stored job command in a rolled-back transaction: it deletes an unconfirmed email-only user whose last code, sign-in or password reset, was sent over a day ago, along with its identity, sessions and one-time tokens; it keeps one whose last code went an hour ago, one whose reset code went a minute ago, one never sent a code, one with no identities, one with a `github` identity, and every confirmed user; `delete-expired-auth-records` deletes no account and still behaves as Privacy AC-8. (FR-7)
 - AC-4. Each FR-13 code is produced by its condition — a malformed address, a malformed code, a wrong code, a second send within a minute, a missing cookie — and shows its fixed message; an unknown `error` value shows nothing. (FR-13, NFR-3)
 - AC-5. A POST to either handler with no `Origin`, `Origin: null` or another site's origin gets 403 and changes nothing; with the switch off, both answer 404 and `/login` shows only GitHub. (FR-4, FR-12)
 - AC-6. Unit tests: `headerNameFor` returns `user_name` only with `github` in `providers`, `"Signed in"` otherwise, including for a session whose `user_metadata` carries `full_name` or `name`; the email's local part never appears. (FR-8)
@@ -247,21 +247,17 @@ create trigger users_no_password
 
 ### 12.2 Cleanup job (FR-7)
 
-Created with `supabase migration new delete_abandoned_email_sign_ups`, rescheduling the existing name, which replaces the job:
+Created with `supabase migration new delete_abandoned_email_sign_ups`, a job of its own beside `delete-expired-auth-records`:
 
 ```sql
 select cron.schedule(
-  'delete-expired-auth-records',
-  '17 3 * * *',
+  'delete-abandoned-email-sign-ups',
+  '27 3 * * *',
   $$
-    delete from auth.flow_state where created_at < now() - interval '1 day';
-    delete from auth.sessions
-     where greatest(refreshed_at at time zone 'UTC', updated_at, created_at)
-           < now() - interval '90 days';
     delete from auth.users u
      where u.email_confirmed_at is null
-       and u.confirmation_sent_at is not null
-       and u.confirmation_sent_at < now() - interval '1 day'
+       and greatest(u.confirmation_sent_at, u.recovery_sent_at)
+           < now() - interval '1 day'
        and exists (select 1 from auth.identities i
                     where i.user_id = u.id and i.provider = 'email')
        and not exists (select 1 from auth.identities i
@@ -270,7 +266,7 @@ select cron.schedule(
 );
 ```
 
-The first two statements are copied from `20261003201942_schedule_auth_record_cleanup.sql` unchanged. Deleting the user cascades to its identity and one-time tokens as Privacy §3 lists; its `auth.flow_state` rows, which do not cascade, go by the first statement within a day.
+A separate job, not a third statement in `delete-expired-auth-records`: pg_cron runs a job's command as one transaction, so an error in this delete would roll that job's deletes back every night, and Privacy FR-7 depends on them. "The latest code" is the later of `confirmation_sent_at` and `recovery_sent_at`, since a password-reset email is a way to receive a sign-in code (Email Decision 12); `greatest` ignores nulls, and with neither set the account is kept. Deleting the user cascades to its identity, sessions and one-time tokens; its `auth.flow_state` rows, which do not cascade, go by `delete-expired-auth-records` within a day. The job runs once a day, so an account goes between one and two days after its last code.
 
 ### 12.3 Handlers and page (FR-1 to FR-5, FR-13)
 
@@ -308,7 +304,7 @@ At Cloudflare DNS, the records Resend's dashboard lists for `auth.arcanaeum.app`
 Each step is confirmed in chat before it is done, and checked before the next.
 
 1. **Readiness.** Confirm production has no users but the developer (otherwise §13.3 first, A2) and that "Confirm email" is on; count `auth.users` rows whose `encrypted_password` is neither null nor empty, since the trigger clears a password only when its row is next written (FR-6); have a migration dropping the trigger written and ready.
-2. **Production migrations.** Push both; confirm `users_no_password` exists on `auth.users` and the job's command includes the third delete, since the CLI pushes through a temporary login role; then at once the developer's GitHub sign-in, refresh and sign-out, and a first-time sign-up with a throwaway GitHub account, which keeps its profile and is deleted afterwards (AC-10).
+2. **Production migrations.** Push both; confirm `users_no_password` exists on `auth.users` and `delete-abandoned-email-sign-ups` is scheduled beside an unchanged `delete-expired-auth-records`, since the CLI pushes through a temporary login role; then at once the developer's GitHub sign-in, refresh and sign-out, and a first-time sign-up with a throwaway GitHub account, which keeps its profile and is deleted afterwards (AC-10).
 3. **Sending.** FR-15: Resend domain and DNS, SMTP, templates, OTP length and expiry, email cap, tracking off.
 4. **Firewall.** FR-16.
 5. **Notice and procedure.** FR-14 deployed and live, with its email sections, before the provider.
