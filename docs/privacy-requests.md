@@ -47,7 +47,7 @@ Compare the **id** with the one `show` printed, never the username: usernames ca
 
 ### Step 3: delete the user
 
-In the dashboard: **Authentication → Users →** the user **→ Delete user**. This removes the account and cascades to its identity, sessions and refresh tokens, its marks and notes, and the other `auth` tables that reference users.
+In the dashboard: **Authentication → Users →** the user **→ Delete user**. This removes the account and cascades to its identity, sessions and refresh tokens, its marks, notes and profile, and the other `auth` tables that reference users.
 
 The user's browser can still look signed in for up to an hour, until its access token expires, since the app verifies tokens without asking Supabase. Nothing it tries to save will succeed.
 
@@ -85,10 +85,10 @@ Find the account and confirm the requester controls it exactly as in steps 1 and
 yarn privacy:request export <user id> --linked > "$TMPDIR/arcanaeum-data.json"
 ```
 
-It holds the account, the GitHub identity, sessions, the dates and method of each sign-in record (never the GitHub tokens, which are credentials rather than information about the user), marks and notes. Open it before sending, and check it names the right account.
+It holds the account, the GitHub identity, sessions, the dates and method of each sign-in record (never the GitHub tokens, which are credentials rather than information about the user), marks, notes, and the profile: the public or private choice, and a username once usernames exist (`null` before setup). Open it before sending, and check it names the right account.
 
 Reply in the confirmation thread with the file attached, then delete the file. Clean up the correspondence as in step 7: the Sent copy carries the export, so it is held to the same 12 months.
 
 ## Keeping this current
 
-A new table holding a user id is found by `verify` on its own if its column is named `user_id`, but must be added to the export in `scripts/lib/privacy-sql.mts` by hand, in the same change. `profile` (Profiles M1) is the first. Anything that changes what is collected also changes `/privacy` first (Privacy FR-5).
+A new table holding a user id is found by `verify` on its own if its column is named `user_id`, but must be added to the export in `scripts/lib/privacy-sql.mts` by hand, in the same change, as `profile` was (Profiles M1). Anything that changes what is collected also changes `/privacy` first (Privacy FR-5).

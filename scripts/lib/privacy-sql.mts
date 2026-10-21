@@ -118,6 +118,9 @@ select jsonb_pretty(jsonb_build_object(
       'created_at', f.created_at, 'provider', f.provider_type,
       'method', f.authentication_method) order by f.created_at), '[]'::jsonb)
     from auth.flow_state f where f.user_id = {{user_id}}),
+  'profile', (select jsonb_build_object(
+      'is_public', p.is_public, 'username', p.username)
+    from public.profile p where p.user_id = {{user_id}}),
   'books', (select coalesce(jsonb_agg(jsonb_build_object(
       'title', b.title, 'is_read', ub.is_read, 'is_collected', ub.is_collected,
       'updated_at', ub.updated_at) order by b.title), '[]'::jsonb)

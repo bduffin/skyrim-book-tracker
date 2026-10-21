@@ -10,7 +10,8 @@
  *
  * Two users throughout, because the failure that matters is a query that
  * reaches past its user: each has a session from a real password sign-in, a
- * GitHub identity, a sign-in record holding tokens, a mark and a note.
+ * GitHub identity, a sign-in record holding tokens, a mark, a note and a
+ * profile.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -36,6 +37,8 @@ type Fixture = {
     token: string;
     note: string;
     bookTitle: string;
+    isPublic: boolean;
+    username: string;
 };
 
 /** One statement against the local stack; fixture values only, never input. */
@@ -51,7 +54,11 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
     const bookIds: string[] = [];
     const users: Fixture[] = [];
 
-    async function seedUser(tag: string, pageId: number): Promise<Fixture> {
+    async function seedUser(
+        tag: string,
+        pageId: number,
+        isPublic: boolean,
+    ): Promise<Fixture> {
         const email = `privacy-request-${tag}@example.test`;
         const { userId } = await createSignedInUser(stack, admin, email);
         const fixture: Fixture = {
@@ -61,6 +68,8 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
             token: `gho_privacy_fixture_${tag}`,
             note: `Privacy fixture note ${tag}`,
             bookTitle: `Privacy fixture ${pageId}`,
+            isPublic,
+            username: `privacy-fixture-${tag}`,
         };
         users.push(fixture);
 
@@ -107,6 +116,12 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
             .from('user_book_note')
             .insert({ user_id: userId, book_id: book.id, notes: fixture.note });
         if (noteError) throw noteError;
+        const { error: profileError } = await admin.from('profile').insert({
+            user_id: userId,
+            is_public: fixture.isPublic,
+            username: fixture.username,
+        });
+        if (profileError) throw profileError;
 
         return fixture;
     }
@@ -114,8 +129,10 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
     before(async () => {
         stack = localStack();
         admin = adminClient(stack);
-        await seedUser('a', FIXTURE_PAGE_ID_BASE);
-        await seedUser('b', FIXTURE_PAGE_ID_BASE + 1);
+        // One public profile and one private, so the export is shown to carry
+        // whichever the user chose.
+        await seedUser('a', FIXTURE_PAGE_ID_BASE, true);
+        await seedUser('b', FIXTURE_PAGE_ID_BASE + 1, false);
     });
 
     after(async () => {
@@ -172,6 +189,10 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
             data.notes.map((x: { notes: string }) => x.notes),
             [a.note],
         );
+        assert.deepEqual(data.profile, {
+            is_public: a.isPublic,
+            username: a.username,
+        });
 
         // No credential, and nothing of the other user's, anywhere in the text.
         for (const absent of [
@@ -182,6 +203,7 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
             b.githubId,
             b.note,
             b.bookTitle,
+            b.username,
         ]) {
             assert.ok(!(text as string).includes(absent), `contains ${absent}`);
         }
@@ -203,6 +225,7 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
             'auth.flow_state',
             'public.user_book',
             'public.user_book_note',
+            'public.profile',
         ]) {
             assert.ok(
                 held.includes(table),
@@ -245,5 +268,28 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
         assert.ok(otherHeld.includes('auth.users'));
         assert.ok(otherHeld.includes('auth.flow_state'));
         assert.ok(otherHeld.includes('public.user_book_note'));
+        assert.ok(otherHeld.includes('public.profile'));
+    });
+
+    test('export reads a user with no profile row as null, not an error', async () => {
+        const [, b] = users;
+        const { error } = await admin
+            .from('profile')
+            .delete()
+            .eq('user_id', b.userId);
+        if (error) throw error;
+
+        // Put back afterwards, so no other test depends on running first.
+        try {
+            const [{ export: text }] = runRequest('export', b.userId, 'local');
+            assert.equal(JSON.parse(text as string).profile, null);
+        } finally {
+            const { error: restoreError } = await admin.from('profile').insert({
+                user_id: b.userId,
+                is_public: b.isPublic,
+                username: b.username,
+            });
+            if (restoreError) throw restoreError;
+        }
     });
 });

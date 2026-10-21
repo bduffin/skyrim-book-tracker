@@ -11,7 +11,7 @@ export const metadata: Metadata = {
  * Set by hand whenever the notice's content changes, never computed: a build
  * date would claim changes that did not happen (Privacy FR-1).
  */
-const LAST_UPDATED = { iso: '2026-10-04', display: 'October 4, 2026' };
+const LAST_UPDATED = { iso: '2026-10-20', display: 'October 20, 2026' };
 
 const CONTACT = 'privacy@arcanaeum.app';
 
@@ -108,6 +108,10 @@ export default function PrivacyPage() {
                             days.
                         </li>
                         <li>The books you mark as read or collected.</li>
+                        <li>
+                            Your choice of whether your collection is public or
+                            private, once you make it.
+                        </li>
                     </ul>
                 </Section>
 
@@ -196,7 +200,33 @@ export default function PrivacyPage() {
                 </Section>
 
                 <Section title="What is public">
-                    <p>Nothing. Your collection is visible only to you.</p>
+                    <p>
+                        When you first sign in, you are asked whether your
+                        collection should be public or private. Public is
+                        selected to start with, and you can change your choice
+                        at any time in Settings, in the menu under your name at
+                        the top of the page. Until you choose, your account is
+                        treated as private.
+                    </p>
+                    <ul className="list-disc space-y-2 pl-6">
+                        <li>
+                            <strong>Private:</strong> nothing. No one else can
+                            see your collection, or even that your account
+                            exists.
+                        </li>
+                        <li>
+                            <strong>Public:</strong> anyone can see that your
+                            account exists and that it is public, identified by
+                            a random number the site gives your account, not by
+                            anything from GitHub, along with its username if it
+                            has one. Anyone can also list the public accounts.
+                        </li>
+                    </ul>
+                    <p>
+                        Either way, your collection itself is visible only to
+                        you for now. Public collections are planned, and this
+                        notice will say what they show before they appear.
+                    </p>
                 </Section>
 
                 <Section title="Your choices">
@@ -207,6 +237,10 @@ export default function PrivacyPage() {
                             address on your GitHub account, to confirm the
                             request came from you before anything is done, and
                             the request is answered within one month.
+                        </li>
+                        <li>
+                            Make your collection public or private at any time,
+                            in Settings.
                         </li>
                         <li>Sign out at any time.</li>
                         <li>
