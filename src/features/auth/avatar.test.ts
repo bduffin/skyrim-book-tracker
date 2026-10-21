@@ -109,7 +109,7 @@ describe('initialFor', () => {
         assert.equal(initialFor('𝔅en'), '𝔅');
     });
 
-    test('is nothing without a name, so the circle stays blank', () => {
+    test('is nothing without a name', () => {
         assert.equal(initialFor(null), null);
     });
 });

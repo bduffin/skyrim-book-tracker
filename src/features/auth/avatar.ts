@@ -69,8 +69,8 @@ export function avatarUrlFor(claims: AccountClaims): string | null {
  * By code point, not by UTF-16 unit, so a name starting with an emoji or an
  * astral-plane letter is not cut in half.
  *
- * `null` with no name (`headerNameFor`), for a blank circle: the initial of
- * the "Signed in" shown in its place would read as a name.
+ * `null` with no name (`headerNameFor`), for the badge's person icon: the
+ * initial of the "Signed in" shown in its place would read as a name.
  */
 export function initialFor(name: string | null): string | null {
     if (name === null) return null;

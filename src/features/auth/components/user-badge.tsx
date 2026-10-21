@@ -9,13 +9,14 @@ import Image from 'next/image';
  * The avatar goes through `next/image`, which fetches it via this app's own
  * server rather than the reader's browser, so viewing a page makes no request
  * to GitHub. Without one, a circle of the same size stands in, lettered with
- * `initial`, or blank without one.
+ * `initial`, or without one holding a generic person icon, so it still reads
+ * as "your account" rather than as something that failed to load.
  *
  * A picture that fails to load is deliberately *not* covered by a fallback:
  * the browser's broken-image icon makes the failure visible, so it gets
  * reported and fixed rather than silently papered over.
  *
- * The picture and the letter are decorative (`alt=""`, `aria-hidden`): the
+ * The picture, letter and icon are decorative (`alt=""`, `aria-hidden`): the
  * text beside them already says who is signed in.
  */
 export function UserBadge({
@@ -42,10 +43,19 @@ export function UserBadge({
             ) : (
                 <span
                     aria-hidden="true"
-                    // frost-50 text on iron-600: 8.33:1, well clear of AA.
+                    // frost-50 on iron-600: 8.33:1, well clear of AA for the
+                    // letter (4.5:1) and the icon (3:1 for graphics).
                     className="flex size-7 shrink-0 items-center justify-center rounded-full border border-frost-300 bg-iron-600 text-xs font-medium text-frost-50"
                 >
-                    {initial}
+                    {initial ?? (
+                        <svg
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            className="size-4"
+                        >
+                            <path d="M10 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm-6 7a6 6 0 0 1 12 0 1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />
+                        </svg>
+                    )}
                 </span>
             )}
             <span>{label}</span>
