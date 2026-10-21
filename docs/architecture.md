@@ -344,7 +344,7 @@ Consequences while this holds:
 - The project's Site URL is the production domain. `http://localhost:3000/**` stays in the Redirect URLs, which is what keeps local sign-in working: `signInWithGitHub` builds `redirectTo` from the request's `Origin`, and Supabase checks it against that list. Site URL is only the fallback. The entry needs the `/**`: Supabase matches the list against the whole return address, query string included, so an exact `http://localhost:3000/auth/callback` never matches the `?next=` that `signInWithGitHub` appends, and sign-in silently falls back to the Site URL (production) — which is what an exact entry did until 2026-10-04. Production passes regardless, because Supabase also accepts any address on the Site URL's own scheme and host.
 - `supabase db query --linked`, `yarn import:uesp --allow-remote` and every migration push act on production. Treat them that way.
 
-**Leave this setup when the first real user signs up**, or sooner if a development mistake could cost someone data. From then on, development against production risks real users' data for no benefit.
+**Leave this setup when the first real user signs up**, or sooner if a development mistake could cost someone data. From then on, development against production risks real users' data for no benefit. In practice that is the email sign-in rollout (Email M2), which is what lets friends sign up: its last checks run on production while the developer is still its only user, and §13.3 follows it, before the next change to the database.
 
 ### 13.2 Keeping projects active
 
