@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 
 import { PageTitle } from '@/components/page-title';
+import { SECONDARY_ACTION_CLASS } from '@/components/secondary-action';
 
 /**
  * The class for a message page's action, whether it is a link (`Back to
  * home`) or a button (`Try again`), so both look the same.
  */
-export const MESSAGE_ACTION_CLASS =
-    'rounded border border-frost-300 bg-white px-4 py-2 text-iron-900 transition-colors hover:bg-frost-100';
+export const MESSAGE_ACTION_CLASS = SECONDARY_ACTION_CLASS;
 
 /**
  * A page that is only a title, a sentence and one action: the 404, the auth

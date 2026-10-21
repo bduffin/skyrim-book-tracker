@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
     AUTH_ERROR_PATH,
     authErrorPath,
+    SIGN_OUT_EVERYWHERE_FAILED_CODE,
     SIGN_OUT_FAILED_CODE,
 } from './auth-error-message';
 import { signInNext } from './return-path';
@@ -65,8 +66,8 @@ export async function signInWithGitHub(formData: FormData): Promise<void> {
  * with JavaScript disabled.
  *
  * `scope: 'local'` is deliberate. Supabase's default is `'global'`, which
- * revokes the user's sessions across all devices. A "sign out everywhere"
- * control, if needed, should be separate.
+ * revokes the user's sessions across all devices; that is
+ * `signOutEverywhere`, a control of its own.
  *
  * A failure is not hidden, because it can leave either side signed in. From
  * `_signOut` in @supabase/auth-js: when the logout API call fails, the library
@@ -83,16 +84,39 @@ export async function signInWithGitHub(formData: FormData): Promise<void> {
  * project's JWT expiry, an hour by default).
  */
 export async function signOut(): Promise<void> {
+    await endSession('local', SIGN_OUT_FAILED_CODE);
+}
+
+/**
+ * Signs the reader out of every device at once (Email FR-10, Email Decision
+ * 16), from the form on its confirmation page: `scope: 'global'` revokes every
+ * session the account has, so each other device is signed out when it next
+ * refreshes its token.
+ *
+ * The remedy for a session someone else holds -- one started from a mailbox
+ * they read once, say -- since a new sign-in elsewhere ends no session. As
+ * with `signOut`, an access token already issued keeps working until it
+ * expires, up to an hour, and a failure goes to the auth error page, with
+ * wording of its own about the other devices.
+ */
+export async function signOutEverywhere(): Promise<void> {
+    await endSession('global', SIGN_OUT_EVERYWHERE_FAILED_CODE);
+}
+
+async function endSession(
+    scope: 'local' | 'global',
+    failureCode: string,
+): Promise<void> {
     const supabase = await createClient();
-    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    const { error } = await supabase.auth.signOut({ scope });
 
     // Every cached render was built for a signed-in reader -- the header, the
     // row toggles, their collection -- so drop them all, not just one path.
     revalidatePath('/', 'layout');
 
     if (error) {
-        console.error('Sign-out did not complete:', error);
-        redirect(authErrorPath({ errorCode: SIGN_OUT_FAILED_CODE }));
+        console.error(`Sign-out (${scope}) did not complete:`, error);
+        redirect(authErrorPath({ errorCode: failureCode }));
     }
     // Straight to the catalog: the collection page would bounce a signed-out
     // reader there anyway.

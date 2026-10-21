@@ -34,6 +34,14 @@ export function EmailStep({ next, errorId, hasError }: StepProps) {
             className="w-full max-w-sm space-y-3 text-left"
         >
             <input type="hidden" name="next" value={next} />
+            {/*
+             * Before the field, not after the button: it is meant to steer a
+             * returning GitHub user before they type an address.
+             */}
+            <p className="text-sm text-iron-600">
+                Signed in with GitHub before? Sign in with GitHub again to reach
+                your collection.
+            </p>
             <div>
                 <label htmlFor="email" className={LABEL}>
                     Email address
@@ -52,11 +60,6 @@ export function EmailStep({ next, errorId, hasError }: StepProps) {
             <button type="submit" className={SUBMIT}>
                 Send code
             </button>
-            <p className="text-sm text-iron-600">
-                A different email address means a different account. If you sign
-                in with GitHub, use the address on your GitHub account to reach
-                the same collection.
-            </p>
         </form>
     );
 }

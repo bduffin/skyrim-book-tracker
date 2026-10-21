@@ -35,6 +35,7 @@ export type AuthErrorKind =
     | 'accountBlocked'
     | 'misconfigured'
     | 'signOutIncomplete'
+    | 'signOutEverywhereIncomplete'
     | 'signedOut'
     | 'unknown';
 
@@ -55,6 +56,11 @@ export const AUTH_ERROR_COPY: Record<AuthErrorKind, string> = {
     // session could not be read at all, the reader is still signed in.
     signOutIncomplete:
         "Signing out didn't fully finish. To be sure, close your browser — or, if your name still shows at the top of the page, sign out again.",
+    // Sign out everywhere fails the same two ways, but what matters to the
+    // reader is the other devices: they may still be signed in, so the copy
+    // says that and how to retry, whether or not this browser is signed out.
+    signOutEverywhereIncomplete:
+        "Signing out everywhere didn't finish, so your other devices may still be signed in. Sign in here if you need to, then choose Sign out everywhere again.",
     // A write that arrived after the session had ended, without JavaScript:
     // the form's own page would only bounce a signed-out reader elsewhere,
     // so this is where the reason can be said.
@@ -88,10 +94,12 @@ export function authErrorPath(codes: {
  * later can never collide with one of these.
  */
 export const SIGN_OUT_FAILED_CODE = 'app_sign_out_failed';
+export const SIGN_OUT_EVERYWHERE_FAILED_CODE = 'app_sign_out_everywhere_failed';
 export const SIGNED_OUT_CODE = 'app_signed_out';
 
 const BY_APP_CODE = new Map<string, AuthErrorKind>([
     [SIGN_OUT_FAILED_CODE, 'signOutIncomplete'],
+    [SIGN_OUT_EVERYWHERE_FAILED_CODE, 'signOutEverywhereIncomplete'],
     [SIGNED_OUT_CODE, 'signedOut'],
 ]);
 
@@ -194,6 +202,7 @@ export function authErrorTitle(codes: {
 }): string {
     switch (authErrorKind(codes)) {
         case 'signOutIncomplete':
+        case 'signOutEverywhereIncomplete':
             return "Sign-out didn't finish";
         case 'signedOut':
             return 'Not saved';

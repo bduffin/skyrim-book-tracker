@@ -17,6 +17,7 @@ import {
     authErrorPath,
     authErrorMessage,
     authErrorTitle,
+    SIGN_OUT_EVERYWHERE_FAILED_CODE,
     SIGN_OUT_FAILED_CODE,
     SIGNED_OUT_CODE,
     type AuthErrorKind,
@@ -248,6 +249,35 @@ describe('sign-out failures', () => {
 
     test('the app code is namespaced away from Supabase’s', () => {
         assert.ok(SIGN_OUT_FAILED_CODE.startsWith('app_'));
+    });
+});
+
+describe('sign-out-everywhere failures (Email FR-10)', () => {
+    test('the app’s own code maps to a kind of its own', () => {
+        assert.equal(
+            authErrorKind({ errorCode: SIGN_OUT_EVERYWHERE_FAILED_CODE }),
+            'signOutEverywhereIncomplete',
+        );
+    });
+
+    // What matters after this one fails is the other devices.
+    test('the copy says other devices may be signed in, and how to retry', () => {
+        const message = authErrorMessage({
+            errorCode: SIGN_OUT_EVERYWHERE_FAILED_CODE,
+        });
+        assert.match(message, /other devices may still be signed in/);
+        assert.match(message, /Sign out everywhere again/);
+    });
+
+    test('the title says sign-out, not sign-in', () => {
+        assert.equal(
+            authErrorTitle({ errorCode: SIGN_OUT_EVERYWHERE_FAILED_CODE }),
+            "Sign-out didn't finish",
+        );
+    });
+
+    test('the app code is namespaced away from Supabase’s', () => {
+        assert.ok(SIGN_OUT_EVERYWHERE_FAILED_CODE.startsWith('app_'));
     });
 });
 
