@@ -3,13 +3,20 @@ import assert from 'node:assert/strict';
 
 import { avatarUrlFor, initialFor } from './avatar';
 
+/** An account GitHub signs in, with this `user_metadata`. */
+function github(user_metadata?: Record<string, unknown>) {
+    return { app_metadata: { providers: ['email', 'github'] }, user_metadata };
+}
+
 describe('avatarUrlFor', () => {
     test('uses a GitHub avatar, rebuilt from its id without the query', () => {
         assert.equal(
-            avatarUrlFor({
-                avatar_url:
-                    'https://avatars.githubusercontent.com/u/1234567?v=4',
-            }),
+            avatarUrlFor(
+                github({
+                    avatar_url:
+                        'https://avatars.githubusercontent.com/u/1234567?v=4',
+                }),
+            ),
             'https://avatars.githubusercontent.com/u/1234567',
         );
     });
@@ -24,7 +31,7 @@ describe('avatarUrlFor', () => {
             'https://avatars.githubusercontent.com/u/abc',
             'https://avatars.githubusercontent.com/u/',
         ]) {
-            const result = avatarUrlFor({ avatar_url: url });
+            const result = avatarUrlFor(github({ avatar_url: url }));
             assert.ok(
                 result === null ||
                     /^https:\/\/avatars\.githubusercontent\.com\/u\/\d+$/.test(
@@ -34,18 +41,20 @@ describe('avatarUrlFor', () => {
             );
         }
         assert.equal(
-            avatarUrlFor({
-                avatar_url: 'https://avatars.githubusercontent.com/u/abc',
-            }),
+            avatarUrlFor(
+                github({
+                    avatar_url: 'https://avatars.githubusercontent.com/u/abc',
+                }),
+            ),
             null,
         );
     });
 
     test('shows the initial when there is no avatar', () => {
-        assert.equal(avatarUrlFor(undefined), null);
-        assert.equal(avatarUrlFor({}), null);
-        assert.equal(avatarUrlFor({ avatar_url: '' }), null);
-        assert.equal(avatarUrlFor({ avatar_url: 42 }), null);
+        assert.equal(avatarUrlFor(github(undefined)), null);
+        assert.equal(avatarUrlFor(github({})), null);
+        assert.equal(avatarUrlFor(github({ avatar_url: '' })), null);
+        assert.equal(avatarUrlFor(github({ avatar_url: 42 })), null);
     });
 
     // user_metadata is editable by the user, so avatar_url can be anything.
@@ -62,7 +71,25 @@ describe('avatarUrlFor', () => {
             'javascript:alert(1)',
             'not a url',
         ]) {
-            assert.equal(avatarUrlFor({ avatar_url: url }), null, url);
+            assert.equal(avatarUrlFor(github({ avatar_url: url })), null, url);
+        }
+    });
+
+    // A sign-up can plant someone else's GitHub picture (Email FR-8).
+    test('is nothing unless GitHub signs the account in', () => {
+        const planted = {
+            avatar_url: 'https://avatars.githubusercontent.com/u/1',
+        };
+        for (const app_metadata of [
+            undefined,
+            {},
+            { providers: ['email'] },
+            { providers: 'github' },
+        ]) {
+            assert.equal(
+                avatarUrlFor({ app_metadata, user_metadata: planted }),
+                null,
+            );
         }
     });
 });
@@ -80,5 +107,9 @@ describe('initialFor', () => {
 
     test('keeps a character outside the basic plane whole', () => {
         assert.equal(initialFor('𝔅en'), '𝔅');
+    });
+
+    test('is nothing without a name, so the circle stays blank', () => {
+        assert.equal(initialFor(null), null);
     });
 });

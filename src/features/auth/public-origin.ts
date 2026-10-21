@@ -27,3 +27,19 @@ export function publicOrigin(
     const isHttps = headers.get('x-forwarded-proto')?.includes('https');
     return `${isHttps ? 'https' : 'http'}://${host}`;
 }
+
+/**
+ * Whether a request's `Origin` header names this site, failing closed: a
+ * missing header and the opaque `null` some browsers send both count as
+ * another site. When this site's own origin cannot be established there is
+ * nothing to compare with, so the caller refuses before asking.
+ *
+ * Route Handlers need this themselves. Next checks `Origin` against the host
+ * for Server Actions only, so without it any site could post a form to one.
+ */
+export function isSameOrigin(
+    originHeader: string | null,
+    origin: string,
+): boolean {
+    return originHeader === origin;
+}

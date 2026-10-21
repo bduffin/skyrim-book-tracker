@@ -224,16 +224,18 @@ enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
-# If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# If enabled, users need to confirm their email address before signing in. On, as on the hosted
+# project: a first email sign-in is confirmed by its code.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
-# Number of characters used in the email OTP.
-otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# 60s is the gap between two codes to one address that the hosted project uses.
+max_frequency = "60s"
+# Number of characters used in the email OTP. 8, not 6: see Email Decision 4.
+otp_length = 8
+# Number of seconds before the email OTP expires (defaults to 1 hour). 10 minutes (Email Decision 4).
+otp_expiry = 600
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
@@ -245,10 +247,23 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Every template a public endpoint or a signed-in user can trigger carries the code and no link
+# (Email Decision 12). The same files are pasted into the hosted project's dashboard.
+[auth.email.template.confirmation]
+subject = "Your Arcanaeum sign-in code"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your Arcanaeum sign-in code"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.recovery]
+subject = "Your Arcanaeum sign-in code"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your Arcanaeum email change"
+content_path = "./supabase/templates/email_change.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

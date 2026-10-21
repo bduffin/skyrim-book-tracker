@@ -1,8 +1,10 @@
 /**
  * The signed-in reader's avatar, if one can be trusted, and the initial shown
- * when not. Pure and dependency-free, so it is unit-tested and `next.config.ts`
- * can import the host from it.
+ * when not. Pure, so it is unit-tested and `next.config.ts` can import the
+ * host from it.
  */
+
+import { signedInWithGitHub, type AccountClaims } from './github-claims';
 
 /**
  * Where an avatar may be loaded from: GitHub's avatar CDN, under its
@@ -20,6 +22,11 @@ export const GITHUB_AVATAR_PATH_PREFIX = '/u/';
  * The avatar URL from the session's `user_metadata`, or `null` to show the
  * initial instead.
  *
+ * Only for an account GitHub signs in, by the same rule as the header's name
+ * (`signedInWithGitHub`): a sign-up can plant an `avatar_url` in GitHub's
+ * exact shape -- someone else's picture -- as easily as a name. The rule is
+ * here rather than in the header so that no caller can skip it.
+ *
  * Checked, never passed through: `user_metadata` is editable by the user
  * themselves (`supabase.auth.updateUser({ data })`), so `avatar_url` can hold
  * any string. Only the exact shape GitHub sign-in supplies is accepted --
@@ -29,10 +36,10 @@ export const GITHUB_AVATAR_PATH_PREFIX = '/u/';
  * allow-list. Anything else would fail that allow-list, and `next/image`
  * throws rather than falling back, so the page would fail with a 500.
  */
-export function avatarUrlFor(
-    metadata: Record<string, unknown> | undefined,
-): string | null {
-    const raw = metadata?.avatar_url;
+export function avatarUrlFor(claims: AccountClaims): string | null {
+    if (!signedInWithGitHub(claims)) return null;
+
+    const raw = claims.user_metadata?.avatar_url;
     if (typeof raw !== 'string') return null;
 
     let url: URL;
@@ -58,11 +65,15 @@ export function avatarUrlFor(
 }
 
 /**
- * The fallback's letter: the display name's first character, upper-cased.
+ * The fallback's letter: the name's first character, upper-cased.
  * By code point, not by UTF-16 unit, so a name starting with an emoji or an
  * astral-plane letter is not cut in half.
+ *
+ * `null` with no name (`headerNameFor`), for a blank circle: the initial of
+ * the "Signed in" shown in its place would read as a name.
  */
-export function initialFor(displayName: string): string {
-    const [first] = Array.from(displayName.trim());
+export function initialFor(name: string | null): string | null {
+    if (name === null) return null;
+    const [first] = Array.from(name.trim());
     return first ? first.toUpperCase() : '?';
 }

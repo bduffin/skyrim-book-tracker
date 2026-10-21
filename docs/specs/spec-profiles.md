@@ -14,7 +14,7 @@ The app knows who a user is — Supabase Auth and GitHub say so — but it has n
 
 - No `profile` table, locally or in the hosted project. Every user-owned table today is keyed by `auth.users.id` directly: `user_book`, `user_book_note`.
 - The hosted project has **one** user, signed in with GitHub. There are no triggers on `auth.users`.
-- The header reads the signed-in user's name and avatar from the session's `user_metadata` (`getDisplayName`, `avatarUrlFor`), which GitHub populates and the user can edit, so the avatar URL is validated against GitHub's avatar host rather than passed through.
+- The header reads the signed-in user's name and avatar from the session's `user_metadata` (`headerNameFor` per Email FR-8, and `avatarUrlFor`), which GitHub populates and the user can edit, so the avatar URL is validated against GitHub's avatar host rather than passed through.
 - `/collection/[user]` takes the Supabase user id and is **owner-only**: every other visitor is redirected to `/books` (Browse FR-8), which is the safe state Browse FR-10 requires until the setting exists.
 - Sign-in returns through `/auth/callback`, a Route Handler that exchanges the code and redirects to a validated `next` path. Nothing happens on a user's first sign-in that does not happen on every one.
 

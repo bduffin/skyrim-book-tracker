@@ -72,6 +72,12 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 These are the newer Supabase key names, not the legacy `ANON_KEY`.
 
+Email sign-in is behind a switch, off unless set, so the code can ship before the hosted project's Email provider is turned on. Add it to `.env.local` to work on it locally, where the codes arrive in Mailpit at `http://127.0.0.1:54324`:
+
+```
+EMAIL_SIGN_IN_ENABLED=true
+```
+
 GitHub sign-in additionally needs a GitHub OAuth App of its own for the local stack (GitHub → Settings → Developer settings → OAuth Apps), with homepage `http://localhost:3000` and callback `http://127.0.0.1:54321/auth/v1/callback`. Put its credentials in `supabase/.env.local` (gitignored), then restart the stack with `supabase stop && supabase start`:
 
 ```

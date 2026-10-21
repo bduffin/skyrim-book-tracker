@@ -1,7 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { publicOrigin } from './public-origin';
+import { isSameOrigin, publicOrigin } from './public-origin';
 
 describe('publicOrigin', () => {
     test('outside development, is the forwarded host over HTTPS', () => {
@@ -44,5 +44,20 @@ describe('publicOrigin', () => {
     test('is null with neither header', () => {
         assert.equal(publicOrigin(new Headers(), false), null);
         assert.equal(publicOrigin(new Headers(), true), null);
+    });
+});
+
+describe('isSameOrigin', () => {
+    const ORIGIN = 'https://arcanaeum.app';
+
+    test('is true only for exactly this site’s origin', () => {
+        assert.equal(isSameOrigin(ORIGIN, ORIGIN), true);
+        assert.equal(isSameOrigin('https://evil.example', ORIGIN), false);
+        assert.equal(isSameOrigin('http://arcanaeum.app', ORIGIN), false);
+    });
+
+    test('fails closed on a missing or opaque Origin', () => {
+        assert.equal(isSameOrigin(null, ORIGIN), false);
+        assert.equal(isSameOrigin('null', ORIGIN), false);
     });
 });
