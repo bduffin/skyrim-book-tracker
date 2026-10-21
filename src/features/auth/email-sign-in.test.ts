@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
     emailStepGate,
     isEmailSignInEnabled,
+    isSentParam,
     loginPath,
     parseCode,
     parseEmail,
@@ -115,6 +116,17 @@ describe('loginPath', () => {
         );
     });
 
+    test('carries sent=1 after a new code went out, and nothing else', () => {
+        assert.equal(
+            loginPath({ next: '/books', sent: true }),
+            '/login?next=%2Fbooks&sent=1',
+        );
+        assert.equal(
+            loginPath({ next: '/books', sent: false }),
+            '/login?next=%2Fbooks',
+        );
+    });
+
     test('leaves next off when it is /', () => {
         assert.equal(loginPath({ next: '/' }), '/login');
         assert.equal(
@@ -178,5 +190,14 @@ describe('emailStepGate', () => {
 
     test('sends a signed-in visitor on rather than replacing the session', () => {
         assert.equal(emailStepGate({ ...open, signedIn: true }), 'signed-in');
+    });
+});
+
+describe('isSentParam', () => {
+    test('is true for exactly 1, so the link carries no text of its own', () => {
+        assert.equal(isSentParam('1'), true);
+        for (const value of [undefined, '', '0', 'true', ['1']]) {
+            assert.equal(isSentParam(value), false, String(value));
+        }
     });
 });

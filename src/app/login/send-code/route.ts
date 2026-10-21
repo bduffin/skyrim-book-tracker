@@ -7,6 +7,7 @@ import {
 } from '@/features/auth/email-sign-in';
 import { logStepFailure, openEmailStep } from '@/features/auth/email-step';
 import {
+    CODE_STEP_EXPIRED_CODE,
     EMAIL_INVALID_CODE,
     sendFailure,
 } from '@/features/auth/login-error-message';
@@ -14,15 +15,30 @@ import { createClient } from '@/lib/supabase/server';
 
 /**
  * Emails a sign-in code (Email FR-4), posted by the sign-in page's plain
- * email form, so it works without JavaScript. Every answer is a redirect
- * back to the page (`openEmailStep`).
+ * email form, so it works without JavaScript, and by the code step's **Send a
+ * new code** with `resend=1`. Every answer is a redirect back to the page
+ * (`openEmailStep`).
+ *
+ * A resend takes its address from the pending-address cookie, as
+ * `verify-code` does, never from the form: the code step has one address, and
+ * nothing posted can change which account it is for.
  */
 export async function POST(request: Request) {
     const step = await openEmailStep(request);
     if (step instanceof Response) return step;
 
-    const email = parseEmail(step.form.get('email'));
-    if (email === null) return step.back(EMAIL_INVALID_CODE);
+    const cookieStore = await cookies();
+    const resend = step.form.get('resend') === '1';
+    const email = parseEmail(
+        resend
+            ? cookieStore.get(PENDING_EMAIL_COOKIE)?.value
+            : step.form.get('email'),
+    );
+    if (email === null) {
+        return step.back({
+            error: resend ? CODE_STEP_EXPIRED_CODE : EMAIL_INVALID_CODE,
+        });
+    }
 
     const supabase = await createClient();
     const { error } = await supabase.auth.signInWithOtp({
@@ -41,14 +57,23 @@ export async function POST(request: Request) {
         );
     }
 
-    // Set through `cookies()`, which Next writes onto the response returned
+    // Through `cookies()`, which Next writes onto the response returned
     // below, as it does the session cookies in /auth/callback.
-    if (!failure || failure.codeStep) {
-        (await cookies()).set(
-            PENDING_EMAIL_COOKIE,
-            email,
-            pendingEmailCookieOptions(),
-        );
+    const options = pendingEmailCookieOptions();
+    switch (failure?.pending ?? 'set') {
+        case 'set':
+            cookieStore.set(PENDING_EMAIL_COOKIE, email, options);
+            break;
+        case 'clear':
+            cookieStore.delete({
+                name: PENDING_EMAIL_COOKIE,
+                path: options.path,
+            });
+            break;
     }
-    return step.back(failure?.error);
+
+    if (failure) return step.back({ error: failure.error });
+    // From **Send a new code**: say that one went out, since the page looks
+    // the same either way.
+    return step.back({ sent: resend });
 }

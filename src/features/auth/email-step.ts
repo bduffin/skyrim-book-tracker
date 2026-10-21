@@ -24,12 +24,12 @@ export type EmailStep = {
     form: FormData;
     next: string;
     /**
-     * Back to `/login`, with `error` when there is one. Always a 303, which
+     * Back to `/login`, with an error or `sent` when there is one. Always a 303, which
      * the browser follows with a GET: the 307 `NextResponse.redirect` sends by
      * default would make it repeat the POST, and a repeated `send-code` sends
      * a second code that replaces the one on its way.
      */
-    back: (error?: string) => NextResponse;
+    back: (outcome?: { error?: string; sent?: boolean }) => NextResponse;
 };
 
 /** The request's step, or the response that ends it here. */
@@ -62,9 +62,9 @@ export async function openEmailStep(
         origin,
         form,
         next,
-        back: (error) =>
+        back: (outcome) =>
             NextResponse.redirect(
-                `${origin}${loginPath({ next, error })}`,
+                `${origin}${loginPath({ next, ...outcome })}`,
                 303,
             ),
     };

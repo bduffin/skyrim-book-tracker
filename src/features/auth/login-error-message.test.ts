@@ -5,9 +5,13 @@ import {
     CODE_INVALID_CODE,
     EMAIL_INVALID_CODE,
     loginErrorMessage,
+    loginPageMessages,
+    NEW_CODE_SENT_MESSAGE,
     SEND_FAILED_CODE,
     SEND_TOO_SOON_CODE,
     sendFailure,
+    TOO_MANY_CODE,
+    CODE_STEP_EXPIRED_CODE,
     VERIFY_FAILED_CODE,
     verifyFailure,
 } from './login-error-message';
@@ -20,6 +24,8 @@ describe('loginErrorMessage (Email FR-13)', () => {
             SEND_FAILED_CODE,
             SEND_TOO_SOON_CODE,
             VERIFY_FAILED_CODE,
+            TOO_MANY_CODE,
+            CODE_STEP_EXPIRED_CODE,
         ]) {
             assert.equal(typeof loginErrorMessage(code), 'string', code);
         }
@@ -50,6 +56,14 @@ describe('verifyFailure', () => {
         });
     });
 
+    // The whole site's Auth budget, spent: an error, not a typo.
+    test('a rate limit says so, and is logged as an error', () => {
+        assert.deepEqual(verifyFailure('over_request_rate_limit'), {
+            error: TOO_MANY_CODE,
+            expected: false,
+        });
+    });
+
     test('anything else is not, and is logged as an error', () => {
         for (const code of ['unexpected_failure', undefined]) {
             assert.deepEqual(verifyFailure(code), {
@@ -66,25 +80,69 @@ describe('sendFailure', () => {
         assert.deepEqual(sendFailure('over_email_send_rate_limit'), {
             error: SEND_TOO_SOON_CODE,
             expected: true,
-            codeStep: true,
+            pending: 'set',
         });
     });
 
-    test('an address Supabase refuses stays on the email step', () => {
+    test('a rate limit says so, stays put, and is logged as an error', () => {
+        assert.deepEqual(sendFailure('over_request_rate_limit'), {
+            error: TOO_MANY_CODE,
+            expected: false,
+            pending: 'keep',
+        });
+    });
+
+    // Never an address error on a code step, which has no field to fix.
+    test('an address Supabase refuses goes back to the email step', () => {
         assert.deepEqual(sendFailure('email_address_invalid'), {
             error: EMAIL_INVALID_CODE,
             expected: true,
-            codeStep: false,
+            pending: 'clear',
         });
     });
 
-    test('anything else is a failure to send, logged as an error', () => {
+    test('anything else is a failure to send, leaving the step as it was', () => {
         for (const code of ['unexpected_failure', undefined]) {
             assert.deepEqual(sendFailure(code), {
                 error: SEND_FAILED_CODE,
                 expected: false,
-                codeStep: false,
+                pending: 'keep',
             });
         }
+    });
+});
+
+describe('loginPageMessages', () => {
+    test('an error goes to the alert, and nothing to the status', () => {
+        assert.deepEqual(
+            loginPageMessages({
+                error: CODE_INVALID_CODE,
+                sent: '1',
+                codeStep: true,
+            }),
+            { error: loginErrorMessage(CODE_INVALID_CODE), notice: null },
+        );
+    });
+
+    test('a new code is announced on the code step only', () => {
+        assert.deepEqual(
+            loginPageMessages({ error: undefined, sent: '1', codeStep: true }),
+            { error: null, notice: NEW_CODE_SENT_MESSAGE },
+        );
+        assert.deepEqual(
+            loginPageMessages({ error: undefined, sent: '1', codeStep: false }),
+            { error: null, notice: null },
+        );
+    });
+
+    test('anything else in the URL shows nothing', () => {
+        assert.deepEqual(
+            loginPageMessages({
+                error: 'Your account is locked',
+                sent: 'hello',
+                codeStep: true,
+            }),
+            { error: null, notice: null },
+        );
     });
 });

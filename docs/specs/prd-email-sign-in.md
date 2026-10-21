@@ -60,23 +60,25 @@ The spec's Current State is the inventory, including what was verified in Supaba
 ```
 GET /login  (Referer: /books?source=base)
   ├─ signed in?                 → 307 next
-  ├─ pending-address cookie?    → code step
+  ├─ pending-address cookie?    → code step   (+ "new code sent" status when sent=1)
   └─ otherwise                  → GitHub button + email form   (hidden next=/books?source=base)
 
-POST /login/send-code  {email, next}
-  ├─ Origin ≠ public origin     → 403
-  ├─ switch off                 → 404
-  ├─ email malformed            → 303 /login?error=app_email_invalid&next=…
+Both handlers first:  Origin ≠ public origin → 403;  switch off → 404;  signed in → 303 next
+
+POST /login/send-code  {email, next}        or, from the code step, {resend=1, next}
+  ├─ address malformed          → 303 /login?error=app_email_invalid&next=…
+  │    (a resend's address comes from the cookie; none left → app_code_step_expired)
   ├─ signInWithOtp(email, shouldCreateUser: true)
   │    └─ error                 → 303 /login?error=<fixed code>&next=…
-  └─ set pending cookie         → 303 /login?next=…                 (code step)
+  │         too soon: cookie set (code step);  address refused: cookie cleared;  else: unchanged
+  └─ set pending cookie         → 303 /login?next=…                 (code step; &sent=1 on a resend)
 
-POST /login/verify-code  {code, next}
-  ├─ Origin ≠ public origin     → 403
+POST /login/verify-code  {code, next}       or {reset=1, next}
+  ├─ reset=1                    → clear pending cookie → 303 /login?next=…   (email step)
   ├─ no pending cookie          → 303 /login?error=app_code_step_expired&next=…
   ├─ code malformed             → 303 /login?error=app_code_invalid&next=…
   ├─ verifyOtp(email, code, type: 'email')     (session cookies set by the server client)
-  │    └─ error                 → 303 /login?error=<fixed code>&next=…
+  │    └─ error                 → 303 /login?error=<fixed code>&next=…   (cookie kept)
   └─ clear pending cookie       → 303 pathAfterSignIn(user, next)   (Profiles FR-4)
 ```
 
@@ -120,17 +122,17 @@ POST /login/verify-code  {code, next}
 - **FR-12 — The switch.** `EMAIL_SIGN_IN_ENABLED`, a server-only environment variable read as the string `true`. Unset in production until rollout step 7 (§12.7); set in `.env.local` for development. Not `NEXT_PUBLIC_`: nothing in the browser needs it.
 - **FR-13 — Error codes.** `src/features/auth/login-error-message.ts`, pure and unit-tested, in the shape of `auth-error-message.ts`: the handlers map Supabase's errors to the app's own `app_`-prefixed codes, and the page maps those codes to fixed copy. The page never renders Supabase's text or any free text from its URL.
 
-| App code                | From                                 | Message (draft)                                                             |
-| ----------------------- | ------------------------------------ | --------------------------------------------------------------------------- |
-| `app_email_invalid`     | input check; `email_address_invalid` | That doesn't look like an email address.                                    |
-| `app_send_too_soon`     | `over_email_send_rate_limit`         | We couldn't send a code just now. Please wait a little, then try again.     |
-| `app_too_many`          | `over_request_rate_limit`            | Too many attempts from here. Wait a few minutes, then try again.            |
-| `app_code_invalid`      | input check; `otp_expired`           | That code didn't work. Check it, or send a new one — codes last 10 minutes. |
-| `app_code_step_expired` | no pending-address cookie            | Your sign-in timed out. Enter your email address again.                     |
-| `app_send_failed`       | any other error from `signInWithOtp` | We couldn't send a code. Please try again.                                  |
-| `app_verify_failed`     | any other error from `verifyOtp`     | Something went wrong checking your code. Please try again.                  |
+| App code                | From                                        | Message                                                                                                                       |
+| ----------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `app_email_invalid`     | input check; `email_address_invalid`        | That doesn't look like an email address.                                                                                      |
+| `app_send_too_soon`     | `over_email_send_rate_limit`                | We couldn't send a new code just now. If one arrived in the last minute, enter it below; if not, wait a minute and try again. |
+| `app_too_many`          | `over_request_rate_limit`, from either step | Too many attempts from here. Wait a few minutes, then try again.                                                              |
+| `app_code_invalid`      | input check; `otp_expired`                  | That code didn't work. Check it, or send a new one — codes last 10 minutes.                                                   |
+| `app_code_step_expired` | no pending-address cookie                   | Your sign-in timed out. Enter your email address again.                                                                       |
+| `app_send_failed`       | any other error from `signInWithOtp`        | We couldn't send a code. Please try again.                                                                                    |
+| `app_verify_failed`     | any other error from `verifyOtp`            | Something went wrong checking your code. Please try again.                                                                    |
 
-Supabase reports a wrong code and an expired one with the same `otp_expired`, so one message covers both. Supabase reports the project-wide email cap and the per-address resend limit alike, as 429 with `over_email_send_rate_limit`, differing only in their message text ("email rate limit exceeded" against "you can only request this after 59 seconds", measured 2026-10-18). Telling them apart would mean parsing Supabase's wording, so `app_send_too_soon` covers both, worded to be true of either.
+Supabase reports a wrong code and an expired one with the same `otp_expired`, so one message covers both. Supabase reports the project-wide email cap and the per-address resend limit alike, as 429 with `over_email_send_rate_limit`, differing only in their message text ("email rate limit exceeded" against "you can only request this after 59 seconds", measured 2026-10-18). Telling them apart would mean parsing Supabase's wording, so `app_send_too_soon` covers both, worded to be true of either. A send refused this way still opens the code step: the usual cause is a second press of **Send code**, whose first press did send a code, and whose response the browser abandoned along with the cookie it set. **Send a new code** succeeding is not an error, so it is carried as `sent=1`, which, like `/settings`'s `saved=1`, carries no text of its own, and the page says a new code went out and that only the newest one works.
 
 - **FR-14 — Privacy notice and procedure** (Privacy FR-5), published at rollout step 5 (§12.7), before the Email provider is turned on and not behind the switch, so it is already true when the public API can first create an email account:
     - `/privacy` and `LAST_UPDATED`: what email sign-in stores (the address, its confirmation and sign-in times); Resend as a processor, with where it processes data as Resend states it when the domain is set up, receiving the address and the code, keeping its logs 30 days, which deleting an account does not remove; open and click tracking off; an address typed into the form is stored before it is confirmed and deleted about a day after its last code if never confirmed; the `email-sign-in` cookie; sessions last until signed out, here or everywhere, or about 90 days unused; the existing "sign-in records, kept at most two days" covers email sign-ins too, each of which leaves one; an export can include profile data sent when the account was first registered; one-time codes are never exported.

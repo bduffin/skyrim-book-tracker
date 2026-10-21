@@ -9,6 +9,7 @@ import {
 import { logStepFailure, openEmailStep } from '@/features/auth/email-step';
 import {
     CODE_INVALID_CODE,
+    CODE_STEP_EXPIRED_CODE,
     verifyFailure,
 } from '@/features/auth/login-error-message';
 import { pathAfterSignIn } from '@/features/profile/data';
@@ -40,10 +41,10 @@ export async function POST(request: Request) {
 
     const email = cookieStore.get(PENDING_EMAIL_COOKIE)?.value;
     // The code step has expired, or was never reached: back to the address.
-    if (!email) return step.back();
+    if (!email) return step.back({ error: CODE_STEP_EXPIRED_CODE });
 
     const token = parseCode(step.form.get('code'));
-    if (token === null) return step.back(CODE_INVALID_CODE);
+    if (token === null) return step.back({ error: CODE_INVALID_CODE });
 
     const supabase = await createClient();
     // `email` accepts both a first sign-in's confirmation code and a later
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
             error,
             failure.expected,
         );
-        return step.back(failure.error);
+        return step.back({ error: failure.error });
     }
 
     clearPending();

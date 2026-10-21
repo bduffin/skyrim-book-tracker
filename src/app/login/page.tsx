@@ -13,7 +13,7 @@ import {
     PENDING_EMAIL_COOKIE,
 } from '@/features/auth/email-sign-in';
 import { getViewerId } from '@/features/auth/get-viewer-id';
-import { loginErrorMessage } from '@/features/auth/login-error-message';
+import { loginPageMessages } from '@/features/auth/login-error-message';
 import { publicOrigin } from '@/features/auth/public-origin';
 import { loginPageNext } from '@/features/auth/return-path';
 
@@ -23,6 +23,9 @@ export const metadata: Metadata = {
 };
 
 const ERROR_ID = 'login-error';
+
+const MESSAGE =
+    'w-full max-w-sm rounded-md border border-steel-200 bg-steel-50 px-3 py-2.5 text-left text-sm text-steel-800 empty:hidden';
 
 /**
  * The sign-in page (Email FR-1), reached from every "Sign in" link: GitHub
@@ -57,7 +60,15 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
     const pendingEmail = emailEnabled
         ? (cookieStore.get(PENDING_EMAIL_COOKIE)?.value ?? null)
         : null;
-    const error = emailEnabled ? loginErrorMessage(params.error) : null;
+    // Email sign-in's messages only: GitHub's failures have a page of their
+    // own (`/auth/auth-error`).
+    const { error, notice } = emailEnabled
+        ? loginPageMessages({
+              error: params.error,
+              sent: params.sent,
+              codeStep: pendingEmail !== null,
+          })
+        : { error: null, notice: null };
     const step = { next, errorId: ERROR_ID, hasError: error !== null };
 
     return (
@@ -66,15 +77,15 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
 
             <div className="flex flex-col items-center gap-6 px-4 text-center">
                 {/*
-                 * Always in the document, so it is an established live region
-                 * before a message is put in it.
+                 * Both always in the document, so each is an established live
+                 * region before a message is put in it: errors as an alert,
+                 * the new-code notice as a polite status.
                  */}
-                <p
-                    id={ERROR_ID}
-                    role="alert"
-                    className="w-full max-w-sm rounded-md border border-steel-200 bg-steel-50 px-3 py-2.5 text-left text-sm text-steel-800 empty:hidden"
-                >
+                <p id={ERROR_ID} role="alert" className={MESSAGE}>
                     {error}
+                </p>
+                <p role="status" className={MESSAGE}>
+                    {notice}
                 </p>
 
                 {pendingEmail !== null ? (

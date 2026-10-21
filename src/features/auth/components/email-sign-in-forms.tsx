@@ -106,16 +106,27 @@ export function CodeStep({
                 </button>
             </form>
             {/*
-             * A form of its own, not a link: leaving the code step clears the
-             * pending-address cookie, which only a handler can do.
+             * Forms of their own, not links: each posts to a handler, one to
+             * send a new code to the pending address, one to clear the
+             * pending-address cookie, which only a handler can do. Neither
+             * posts the address: the handlers read it from the cookie.
              */}
-            <form method="post" action={`${LOGIN_PATH}/verify-code`}>
-                <input type="hidden" name="next" value={next} />
-                <input type="hidden" name="reset" value="1" />
-                <button type="submit" className={SECONDARY}>
-                    Use a different address
-                </button>
-            </form>
+            <div className="flex flex-wrap justify-between gap-x-4 gap-y-2">
+                <form method="post" action={`${LOGIN_PATH}/send-code`}>
+                    <input type="hidden" name="next" value={next} />
+                    <input type="hidden" name="resend" value="1" />
+                    <button type="submit" className={SECONDARY}>
+                        Send a new code
+                    </button>
+                </form>
+                <form method="post" action={`${LOGIN_PATH}/verify-code`}>
+                    <input type="hidden" name="next" value={next} />
+                    <input type="hidden" name="reset" value="1" />
+                    <button type="submit" className={SECONDARY}>
+                        Use a different address
+                    </button>
+                </form>
+            </div>
         </div>
     );
 }

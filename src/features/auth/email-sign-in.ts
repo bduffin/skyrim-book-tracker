@@ -84,23 +84,34 @@ export function parseCode(value: unknown): string | null {
 }
 
 /**
- * `/login`, carrying `next` and an error code. Built with `URLSearchParams`,
- * so a `next` with a query of its own arrives whole rather than as extra
- * parameters. `next` is left off when it is `/`, where the page falls back
- * anyway.
+ * `/login`, carrying `next`, an error code, and `sent=1` after a new code
+ * went out. Built with `URLSearchParams`, so a `next` with a query of its own
+ * arrives whole rather than as extra parameters. `next` is left off when it
+ * is `/`, where the page falls back anyway.
  */
 export function loginPath({
     next,
     error,
+    sent = false,
 }: {
     next: string;
     error?: string;
+    sent?: boolean;
 }): string {
     const params = new URLSearchParams();
     if (next !== '/') params.set('next', next);
     if (error !== undefined) params.set('error', error);
+    if (sent) params.set('sent', '1');
     const query = params.toString();
     return query === '' ? LOGIN_PATH : `${LOGIN_PATH}?${query}`;
+}
+
+/**
+ * Whether to say a new code was sent. Only exactly `1`, as `/settings`'s
+ * `saved`: the parameter carries no text of its own.
+ */
+export function isSentParam(value: unknown): boolean {
+    return value === '1';
 }
 
 /**
