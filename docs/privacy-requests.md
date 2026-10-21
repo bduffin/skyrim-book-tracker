@@ -20,7 +20,7 @@ In the Supabase dashboard, open **Authentication → Users** and search for the 
 yarn privacy:request show <user id> --linked
 ```
 
-This prints the stored email, GitHub username and numeric GitHub id. **Go on only if the email it prints is exactly the address you searched for**, ignoring letter case. The dashboard's search also returns partial matches, and step 2 sends a code to whatever address `show` prints, so a near miss would send it to a stranger. If nothing matches exactly, or more than one account does, stop and ask the requester for the email address on their GitHub account.
+This prints the stored email, GitHub username and numeric GitHub id. An account that signs in by email only has no GitHub identity, so both GitHub columns are empty. **Go on only if the email it prints is exactly the address you searched for**, ignoring letter case. The dashboard's search also returns partial matches, and step 2 sends a code to whatever address `show` prints, so a near miss would send it to a stranger. If nothing matches exactly, or more than one account does, stop and ask the requester for the email address on their account.
 
 The `From:` header proves nothing: it costs nothing to forge, and a request is never acted on because of it.
 
@@ -38,7 +38,9 @@ openssl rand -hex 5
 
 Act only on a reply that **contains the code**. Being in the same Gmail thread proves nothing, since Gmail threads by subject, and neither does a matching `From:`; only someone who received the message at the stored address knows the code.
 
-**Through GitHub, when the stored address cannot receive mail** — a `noreply` address, or a confirmation that bounces. Send the requester a code and ask them to post it, from the GitHub account they signed in with, in a public gist or briefly in their profile bio. Then check that the account showing it has the numeric GitHub id `show` printed. GitHub's public API answers in an ordinary browser, with no sign-in and nothing to install, and each response below shows the code and the id together:
+**An account that signs in by email only** can be confirmed this way and no other: there is no GitHub account to fall back on. If the requester has lost that mailbox, they cannot be confirmed, so nothing is deleted or sent; say so in reply to their request.
+
+**Through GitHub, when the stored address cannot receive mail** — a `noreply` address, or a confirmation that bounces — and only for an account with a GitHub identity (`show` printed a GitHub id). Send the requester a code and ask them to post it, from the GitHub account they signed in with, in a public gist or briefly in their profile bio. Then check that the account showing it has the numeric GitHub id `show` printed. GitHub's public API answers in an ordinary browser, with no sign-in and nothing to install, and each response below shows the code and the id together:
 
 - **A gist:** open `https://api.github.com/gists/<gist id>`, where the gist id is the long string at the end of the gist's URL. The code is in `files` → the file's `content`, and the account that posted it is `owner` → `id`.
 - **A profile bio:** open `https://api.github.com/users/<github username>`. The code is in `bio`, and the account is `id`.
@@ -53,7 +55,7 @@ The user's browser can still look signed in for up to an hour, until its access 
 
 ### Step 4: delete the sign-in records
 
-`auth.flow_state` has no foreign key to `auth.users`, so its rows survive step 3, and a row can hold the user's GitHub tokens:
+`auth.flow_state` has no foreign key to `auth.users`, so its rows survive step 3. Only GitHub sign-ins leave these rows (an email sign-in leaves none), and a row can hold the user's GitHub tokens:
 
 ```bash
 yarn privacy:request delete-flow-state <user id> --linked
@@ -71,7 +73,7 @@ It counts the rows for that id in every table in `auth` and `public` that has a 
 
 ### Step 6: reply
 
-In the confirmation thread, say that the account and its data are deleted. Add that they can also revoke the app's access to their GitHub account under GitHub's **Settings → Applications → Authorized OAuth Apps**, which only they can do.
+In the confirmation thread, say that the account and its data are deleted. If the account signed in with GitHub, add that they can also revoke the app's access to their GitHub account under GitHub's **Settings → Applications → Authorized OAuth Apps**, which only they can do. If it ever received a sign-in code, add that Resend's log of those emails is not reachable from here and expires on its own within 30 days, as `/privacy` says.
 
 ### Step 7: clean up the correspondence
 
@@ -85,7 +87,7 @@ Find the account and confirm the requester controls it exactly as in steps 1 and
 yarn privacy:request export <user id> --linked > "$TMPDIR/arcanaeum-data.json"
 ```
 
-It holds the account, the GitHub identity, sessions, the dates and method of each sign-in record (never the GitHub tokens, which are credentials rather than information about the user), marks, notes, and the profile: the public or private choice, and a username once usernames exist (`null` before setup). Open it before sending, and check it names the right account.
+It holds the account, including `profile_metadata` (for an email account, whatever was sent when it was first registered, which the notice says an export can include), its identities, GitHub or email, sessions, the dates and method of each sign-in record (never the GitHub tokens, which are credentials rather than information about the user), marks, notes, and the profile, never one-time codes: the public or private choice, and a username once usernames exist (`null` before setup). Open it before sending, and check it names the right account.
 
 Reply in the confirmation thread with the file attached, then delete the file. Clean up the correspondence as in step 7: the Sent copy carries the export, so it is held to the same 12 months.
 

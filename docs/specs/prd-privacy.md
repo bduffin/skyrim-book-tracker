@@ -113,7 +113,7 @@ No new dependency and no environment variable.
 ### Assumptions
 
 - A1. Requests are rare enough that a manual procedure is proportionate.
-- A2. GitHub remains the only sign-in provider (FR-5 covers a change).
+- A2. GitHub and email are the sign-in providers: email sign-in (`prd-email-sign-in.md`, Email FR-14) added the second, and changed the notice and `docs/privacy-requests.md` in the same rollout, before its provider was turned on. A third would be another FR-5 change.
 - A3. The project's Free-plan settings — no backups, 1-day log retention — stay as they are; a plan change is an FR-5 change.
 
 ## 7. Risks and Mitigations
@@ -191,7 +191,8 @@ Export (FR-6) — `yarn privacy:request export <user id> --linked`; sign-in reco
 select jsonb_pretty(jsonb_build_object(
   'account', (select jsonb_build_object(
       'id', u.id, 'email', u.email, 'created_at', u.created_at,
-      'last_sign_in_at', u.last_sign_in_at, 'github_profile', u.raw_user_meta_data)
+      'email_confirmed_at', u.email_confirmed_at,
+      'last_sign_in_at', u.last_sign_in_at, 'profile_metadata', u.raw_user_meta_data)
     from auth.users u where u.id = {{user_id}}),
   'identities', (select coalesce(jsonb_agg(jsonb_build_object(
       'provider', i.provider, 'identity_data', i.identity_data,

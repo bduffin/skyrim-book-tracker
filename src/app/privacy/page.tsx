@@ -11,7 +11,7 @@ export const metadata: Metadata = {
  * Set by hand whenever the notice's content changes, never computed: a build
  * date would claim changes that did not happen (Privacy FR-1).
  */
-const LAST_UPDATED = { iso: '2026-10-20', display: 'October 20, 2026' };
+const LAST_UPDATED = { iso: '2026-10-21', display: 'October 21, 2026' };
 
 const CONTACT = 'privacy@arcanaeum.app';
 
@@ -79,19 +79,38 @@ export default function PrivacyPage() {
                 <Section title="What is collected">
                     <p>
                         Browsing without signing in stores nothing about you in
-                        the site&apos;s database. When you sign in with GitHub,
-                        it stores:
+                        the site&apos;s database. You can sign in with GitHub or
+                        with your email address. Either way, it stores:
                     </p>
                     <ul className="list-disc space-y-2 pl-6">
                         <li>
-                            From your GitHub account: your email address, name,
-                            username, profile picture address and GitHub account
-                            number, and whether GitHub reports your email
-                            address as verified.
+                            Your email address, when your account was created,
+                            and when you last signed in.
                         </li>
                         <li>
-                            When your account was created, and when you last
-                            signed in.
+                            If you sign in with GitHub, from your GitHub
+                            account: your name, username, profile picture
+                            address and GitHub account number, and whether
+                            GitHub reports your email address as verified.
+                        </li>
+                        <li>
+                            If you sign in with your email address: when you
+                            confirmed it, and any profile details sent when the
+                            account was first registered. The site&apos;s own
+                            form sends none, but software calling the sign-in
+                            service directly can; they are stored, and never
+                            shown on the site.
+                        </li>
+                        <li>
+                            An email address typed into the sign-in form, as
+                            soon as a code is sent to it, before it is
+                            confirmed. If it is never confirmed, it is deleted
+                            within two days of the last code sent to it.
+                        </li>
+                        <li>
+                            The one-time code emailed to you, stored as a hash
+                            rather than as the code itself, until it is used or
+                            replaced.
                         </li>
                         <li>
                             For each device you are signed in on, when it signed
@@ -102,10 +121,10 @@ export default function PrivacyPage() {
                             in and keeps you signed in.
                         </li>
                         <li>
-                            A short-lived record of each sign-in while it
-                            completes, which can hold the access GitHub grants
-                            the site to sign you in. It is deleted within two
-                            days.
+                            For each GitHub sign-in, a short-lived record while
+                            it completes, which can hold the access GitHub
+                            grants the site to sign you in. It is deleted within
+                            two days.
                         </li>
                         <li>The books you mark as read or collected.</li>
                         <li>
@@ -125,8 +144,9 @@ export default function PrivacyPage() {
 
                 <Section title="Why">
                     <p>
-                        To sign you in and to keep what you save about the
-                        books. Nothing else.
+                        To sign you in, which includes emailing you sign-in
+                        codes, and to keep what you save about the books.
+                        Nothing else.
                     </p>
                 </Section>
 
@@ -142,7 +162,14 @@ export default function PrivacyPage() {
                             United States and across its global network.
                         </li>
                         <li>
-                            <strong>GitHub</strong> is how you sign in.
+                            <strong>GitHub</strong> is one way to sign in.
+                        </li>
+                        <li>
+                            <strong>Resend</strong> sends the sign-in codes by
+                            email, from the United States. It receives your
+                            email address and the code. Its open and click
+                            tracking are off, so it does not record when you
+                            read the email.
                         </li>
                         <li>
                             <strong>Cloudflare</strong> runs the site&apos;s
@@ -161,8 +188,14 @@ export default function PrivacyPage() {
                 <Section title="Cookies">
                     <p>
                         Only the ones signing in needs: session cookies that
-                        keep you signed in, and a short-lived cookie used during
-                        sign-in itself.
+                        keep you signed in; cookies used during a GitHub sign-in
+                        itself, which hold only random values and are deleted
+                        when GitHub sends you back, or when you next sign in or
+                        out if you leave partway; and, while you sign in by
+                        email, one holding the email address your code was sent
+                        to, so that the address never appears in a web address.
+                        That one is sent only to the sign-in page, and lasts 10
+                        minutes or until you sign in.
                     </p>
                 </Section>
 
@@ -175,11 +208,21 @@ export default function PrivacyPage() {
                         </li>
                         <li>
                             Each signed-in device&apos;s record: until you sign
-                            out on that device, or until it has gone about 90
-                            days unused, when it is deleted and that device is
-                            signed out.
+                            out on that device, or on every device at once from
+                            Settings, or until it has gone about 90 days unused,
+                            when it is deleted and that device is signed out.
+                        </li>
+                        <li>
+                            An email address that is never confirmed: within two
+                            days of the last code sent to it.
                         </li>
                         <li>Sign-in records: at most two days.</li>
+                        <li>
+                            Sign-in emails: Resend keeps a log of each one it
+                            sends, including your address and the code, for 30
+                            days. It expires on its own; deleting your account
+                            does not remove it.
+                        </li>
                         <li>
                             Request logs, which can include your IP address: up
                             to 1 day at Supabase and 1 hour at Vercel. They
@@ -218,8 +261,9 @@ export default function PrivacyPage() {
                             <strong>Public:</strong> anyone can see that your
                             account exists and that it is public, identified by
                             a random number the site gives your account, not by
-                            anything from GitHub, along with its username if it
-                            has one. Anyone can also list the public accounts.
+                            anything from GitHub or your email address, along
+                            with its username if it has one. Anyone can also
+                            list the public accounts.
                         </li>
                     </ul>
                     <p>
@@ -234,19 +278,32 @@ export default function PrivacyPage() {
                         <li>
                             Ask for a copy of your data, or for its deletion, by
                             emailing <Contact />. The reply goes to the email
-                            address on your GitHub account, to confirm the
-                            request came from you before anything is done, and
-                            the request is answered within one month.
+                            address on your account, to confirm the request came
+                            from you before anything is done, and the request is
+                            answered within one month. An account that signs in
+                            by email can be confirmed only through that mailbox.
+                        </li>
+                        <li>
+                            A copy of your data holds what is stored about you
+                            in the site&apos;s database, except one-time codes
+                            and the access GitHub grants during sign-in, which
+                            are credentials rather than information about you.
+                            For an account registered by email, it can include
+                            profile details sent when it was first registered.
                         </li>
                         <li>
                             Make your collection public or private at any time,
                             in Settings.
                         </li>
-                        <li>Sign out at any time.</li>
                         <li>
-                            Revoke the site&apos;s access to your GitHub
-                            account, in GitHub&apos;s settings under
-                            Applications, then Authorized OAuth Apps.
+                            Sign out at any time, on this device, or on every
+                            device at once from Settings.
+                        </li>
+                        <li>
+                            If you sign in with GitHub, revoke the site&apos;s
+                            access to your GitHub account, in GitHub&apos;s
+                            settings under Applications, then Authorized OAuth
+                            Apps.
                         </li>
                     </ul>
                 </Section>

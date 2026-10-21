@@ -84,7 +84,7 @@ Pain points:
 ## Assumptions
 
 - Requests will be rare: a handful a year at most while the user count is small.
-- GitHub stays the only sign-in provider. A second provider would change what is collected and needs the notice updated first (Privacy FR-5).
+- GitHub and email are the sign-in providers. Email sign-in (`prd-email-sign-in.md`, Email FR-14) added the second and updated the notice first; a third would need the same (Privacy FR-5).
 - The developer can act on a request within a month.
 
 ---
