@@ -1,7 +1,15 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isSafeReturnPath, returnPathFrom } from './return-path';
+import {
+    isLoginPath,
+    isSafeReturnPath,
+    loginNext,
+    loginPageNext,
+    returnPathFrom,
+    safeReturnPath,
+    signInNext,
+} from './return-path';
 
 const ORIGIN = 'http://localhost:3000';
 
@@ -126,5 +134,179 @@ describe('isSafeReturnPath', () => {
     test('accepts a query string carrying its own encoded characters', () => {
         assert.equal(isSafeReturnPath('/books?q=Oghma%20Infinium'), true);
         assert.equal(isSafeReturnPath('/books?q=Oghma+Infinium&page=2'), true);
+    });
+});
+
+describe('isLoginPath', () => {
+    test('is the sign-in page and anything under it', () => {
+        assert.equal(isLoginPath('/login'), true);
+        assert.equal(isLoginPath('/login/send-code'), true);
+    });
+
+    test('is not a path that merely starts with the same letters', () => {
+        assert.equal(isLoginPath('/logins'), false);
+        assert.equal(isLoginPath('/books'), false);
+        assert.equal(isLoginPath('/'), false);
+    });
+});
+
+describe('safeReturnPath', () => {
+    test('keeps one safe path', () => {
+        assert.equal(
+            safeReturnPath('/books?source=base'),
+            '/books?source=base',
+        );
+    });
+
+    test('reads anything else as absent', () => {
+        for (const value of [
+            undefined,
+            null,
+            '',
+            'https://example.com/',
+            '/auth/auth-error',
+            '/login',
+            ['/books', '/books'],
+        ]) {
+            assert.equal(safeReturnPath(value), null);
+        }
+    });
+});
+
+describe('loginNext', () => {
+    test('keeps a safe path, query string included', () => {
+        assert.equal(
+            loginNext('/books?read=true&source=base'),
+            '/books?read=true&source=base',
+        );
+    });
+
+    test('refuses the sign-in page and anything under it', () => {
+        assert.equal(loginNext('/login'), '/');
+        assert.equal(loginNext('/login?next=/books'), '/');
+        assert.equal(loginNext('/login/send-code'), '/');
+    });
+
+    test('refuses other sites and paths that resolve elsewhere', () => {
+        assert.equal(loginNext('https://example.com/'), '/');
+        assert.equal(loginNext('//example.com'), '/');
+        assert.equal(loginNext('/books/../auth/callback'), '/');
+    });
+
+    test('refuses anything that is not one string', () => {
+        assert.equal(loginNext(null), '/');
+        assert.equal(loginNext(undefined), '/');
+        assert.equal(loginNext(['/books', '/collection/abc']), '/');
+    });
+});
+
+describe('loginPageNext', () => {
+    test('prefers the next parameter over the referer', () => {
+        assert.equal(
+            loginPageNext({
+                param: '/books?read=true',
+                referer: `${ORIGIN}/collection/abc`,
+                origin: ORIGIN,
+            }),
+            '/books?read=true',
+        );
+    });
+
+    test('an unusable next parameter falls back to /, not the referer', () => {
+        assert.equal(
+            loginPageNext({
+                param: 'https://example.com/',
+                referer: `${ORIGIN}/collection/abc`,
+                origin: ORIGIN,
+            }),
+            '/',
+        );
+        assert.equal(
+            loginPageNext({
+                param: ['/books', '/books'],
+                referer: `${ORIGIN}/collection/abc`,
+                origin: ORIGIN,
+            }),
+            '/',
+        );
+    });
+
+    test('without a parameter, returns to the page the reader came from', () => {
+        assert.equal(
+            loginPageNext({
+                param: undefined,
+                referer: `${ORIGIN}/books?read=true&source=base`,
+                origin: ORIGIN,
+            }),
+            '/books?read=true&source=base',
+        );
+    });
+
+    // A reload of /login sends /login itself as the Referer.
+    test('a referer of /login itself falls back to /', () => {
+        assert.equal(
+            loginPageNext({
+                param: undefined,
+                referer: `${ORIGIN}/login`,
+                origin: ORIGIN,
+            }),
+            '/',
+        );
+    });
+
+    test('falls back to / when the origin cannot be established', () => {
+        assert.equal(
+            loginPageNext({
+                param: undefined,
+                referer: `${ORIGIN}/books`,
+                origin: null,
+            }),
+            '/',
+        );
+    });
+});
+
+describe('signInNext (Email FR-18)', () => {
+    function form(fields: Record<string, string>): FormData {
+        const data = new FormData();
+        for (const [name, value] of Object.entries(fields)) {
+            data.set(name, value);
+        }
+        return data;
+    }
+
+    test('prefers the posted next over the referer', () => {
+        assert.equal(
+            signInNext({
+                formData: form({ next: '/books?read=true&source=base' }),
+                referer: `${ORIGIN}/login`,
+                origin: ORIGIN,
+            }),
+            '/books?read=true&source=base',
+        );
+    });
+
+    test('a posted next that is empty or unsafe gives /, not the referer', () => {
+        for (const next of ['', '//example.com', '/login']) {
+            assert.equal(
+                signInNext({
+                    formData: form({ next }),
+                    referer: `${ORIGIN}/books`,
+                    origin: ORIGIN,
+                }),
+                '/',
+            );
+        }
+    });
+
+    test('without the field, falls back to the referer', () => {
+        assert.equal(
+            signInNext({
+                formData: form({}),
+                referer: `${ORIGIN}/books?read=true`,
+                origin: ORIGIN,
+            }),
+            '/books?read=true',
+        );
     });
 });

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { GitHubLoginButton } from '@/features/auth/components/github-login-button';
+import { SignInLink } from '@/features/auth/components/sign-in-link';
 
 import {
     FLAG_FILTER_NOTICE,
@@ -23,7 +23,7 @@ import { filtersHref, withoutFlagFilters, type BookFilters } from '../scope';
  * again. The visible copy stays readable, because a screen reader user who
  * reaches these links by reading the page needs the sentence before them.
  *
- * Two ways out: sign in, which returns to this same URL (`return-path.ts`),
+ * Two ways out: sign in, which returns to this same URL (`loginPageNext`),
  * or the same view without just these two filters -- unlike "Reset filters",
  * which drops everything.
  */
@@ -42,7 +42,7 @@ export function FlagFilterNotice({
                 <div className="mb-3 rounded-md border border-steel-200 bg-steel-50 px-3 py-2.5 text-sm text-steel-800">
                     <p>{FLAG_FILTER_NOTICE}</p>
                     <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <GitHubLoginButton tone="inline" />
+                        <SignInLink tone="inline" />
                         <Link
                             href={filtersHref(withoutFlagFilters(filters))}
                             className="underline underline-offset-2 transition-colors hover:text-iron-900"

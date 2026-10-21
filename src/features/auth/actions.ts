@@ -12,7 +12,7 @@ import {
     authErrorPath,
     SIGN_OUT_FAILED_CODE,
 } from './auth-error-message';
-import { returnPathFrom } from './return-path';
+import { signInNext } from './return-path';
 
 /**
  * Starts GitHub sign-in from a `<form>`, so it works with JavaScript disabled.
@@ -30,12 +30,16 @@ import { returnPathFrom } from './return-path';
  * `Origin` does not match its host, and Supabase checks the result against its
  * Redirect URLs allow-list regardless.
  */
-export async function signInWithGitHub(): Promise<void> {
+export async function signInWithGitHub(formData: FormData): Promise<void> {
     const requestHeaders = await headers();
     const origin = requestHeaders.get('origin');
     if (origin === null) redirect(AUTH_ERROR_PATH);
 
-    const next = returnPathFrom(requestHeaders.get('referer'), origin);
+    const next = signInNext({
+        formData,
+        referer: requestHeaders.get('referer'),
+        origin,
+    });
 
     const supabase = await createClient();
     const { data, error } = await supabase.auth.signInWithOAuth({

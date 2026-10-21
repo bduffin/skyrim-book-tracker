@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authErrorPath } from '@/features/auth/auth-error-message';
-import { isSafeReturnPath } from '@/features/auth/return-path';
+import { publicOrigin } from '@/features/auth/public-origin';
+import { loginNext } from '@/features/auth/return-path';
 import { pathAfterSignIn } from '@/features/profile/data';
 import { createClient } from '@/lib/supabase/server';
 
@@ -11,22 +12,16 @@ export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
 
-    // Vercel deployments sit behind a proxy, so `origin` can be internal in
-    // production -- prefer x-forwarded-host there, which Vercel sets to the
-    // host the reader asked for. Used for failures as well as success, so
-    // both land on the same site.
-    const forwardedHost = request.headers.get('x-forwarded-host');
-    const isLocalEnv = process.env.NODE_ENV === 'development';
-    const base =
-        !isLocalEnv && forwardedHost ? `https://${forwardedHost}` : origin;
+    // Used for failures as well as success, so both land on the same site.
+    // The request's own origin is a last resort only: behind Vercel's proxy
+    // it can be internal.
+    const base = publicOrigin(request.headers) ?? origin;
 
     // Only ever redirect to a safe relative path: an unvalidated `next` from
     // the query string is an open-redirect vector, and anyone can write a
     // callback URL, so this cannot rely on signInWithGitHub having checked it
-    // on the way out. Same rule as there (`isSafeReturnPath`).
-    const requested = searchParams.get('next');
-    const next =
-        requested !== null && isSafeReturnPath(requested) ? requested : '/';
+    // on the way out. Same rule as there (`loginNext`).
+    const next = loginNext(searchParams.get('next'));
 
     if (code) {
         const supabase = await createClient();

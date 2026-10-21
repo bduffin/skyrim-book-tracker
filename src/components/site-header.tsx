@@ -1,9 +1,9 @@
 import Link from 'next/link';
 
-import { createClient } from '@/lib/supabase/server';
+import { getViewerClaims } from '@/features/auth/get-viewer-id';
 import { getDisplayName } from '@/features/auth/get-display-name';
 import { AccountMenu } from '@/features/auth/components/account-menu';
-import { GitHubLoginButton } from '@/features/auth/components/github-login-button';
+import { SignInLink } from '@/features/auth/components/sign-in-link';
 import { MENU_ITEM_CLASS } from '@/features/auth/components/menu-item';
 import { SignOutButton } from '@/features/auth/components/sign-out-button';
 import { UserBadge } from '@/features/auth/components/user-badge';
@@ -13,20 +13,7 @@ import { collectionPath } from '@/features/collection/route';
 import { settingsPath } from '@/features/profile/profile-input';
 
 export async function SiteHeader() {
-    const supabase = await createClient();
-
-    // getClaims() can throw (e.g. on a network failure) rather than
-    // returning an error, and SiteHeader renders from the root layout,
-    // which sits outside any route's error.tsx boundary. Degrade to a
-    // signed-out header rather than letting it take down the whole app.
-    let claims;
-    try {
-        const { data } = await supabase.auth.getClaims();
-        claims = data?.claims;
-    } catch (error) {
-        console.error('Unable to determine auth state:', error);
-    }
-
+    const claims = await getViewerClaims();
     const displayName = claims ? getDisplayName(claims) : null;
 
     return (
@@ -49,7 +36,7 @@ export async function SiteHeader() {
                         <SignOutButton />
                     </AccountMenu>
                 ) : (
-                    <GitHubLoginButton />
+                    <SignInLink />
                 )}
             </header>
             <SiteNav

@@ -3,42 +3,28 @@ import { ActionFailureGuard } from '@/components/action-failure-guard';
 import { signInWithGitHub } from '../actions';
 
 /**
- * The sign-in button: a `<form>` posting to a Server Action, so signing in
- * works with JavaScript disabled, and returns the reader to the page they
- * signed in from (`return-path.ts`).
+ * The sign-in page's GitHub button: a `<form>` posting to a Server Action, so
+ * signing in works with JavaScript disabled.
+ *
+ * `next` travels as a hidden field, because the form's own `Referer` is the
+ * sign-in page. The action checks it again, since a hidden field can be
+ * changed before it is posted.
  *
  * A failure to start sign-in lands on `/auth/auth-error`, which says what went
  * wrong in fixed wording. A failure to reach the server at all never gets that
  * far, so it is said beside the button instead (`ActionFailureGuard`).
  */
-export function GitHubLoginButton({
-    tone = 'header',
-    insideLiveRegion = false,
-}: {
-    /**
-     * `header` is frost on the iron header; `inline` inverts it for the light
-     * page, where the frost fill would all but vanish.
-     */
-    tone?: 'header' | 'inline';
-    /** Set where the button sits inside a live region; see the guard. */
-    insideLiveRegion?: boolean;
-}) {
+export function GitHubLoginButton({ next }: { next: string }) {
     return (
         <ActionFailureGuard
-            insideLiveRegion={insideLiveRegion}
             message="Couldn’t reach the server to sign in. Check your connection and try again."
-            messageClassName={`max-w-xs pt-1.5 text-sm ${
-                tone === 'header' ? 'text-frost-50' : 'text-iron-900'
-            }`}
+            messageClassName="max-w-xs pt-1.5 text-sm text-iron-900"
         >
             <form action={signInWithGitHub}>
+                <input type="hidden" name="next" value={next} />
                 <button
                     type="submit"
-                    className={
-                        tone === 'header'
-                            ? 'rounded bg-frost-50 px-4 py-2 font-medium text-iron-900 transition-colors hover:bg-frost-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-frost-50'
-                            : 'rounded bg-iron-900 px-3 py-1.5 text-sm font-medium text-frost-50 transition-colors hover:bg-iron-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-steel-800'
-                    }
+                    className="rounded bg-iron-900 px-4 py-2 font-medium text-frost-50 transition-colors hover:bg-iron-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-steel-800"
                 >
                     Sign in with GitHub
                 </button>

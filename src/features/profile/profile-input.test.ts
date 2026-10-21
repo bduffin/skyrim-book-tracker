@@ -1,9 +1,10 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { safeReturnPath } from '@/features/auth/return-path';
+
 import {
     isSavedParam,
-    nextFromParam,
     parseProfileInput,
     pathAfterProfileCheck,
     PROFILE_FIELDS,
@@ -115,7 +116,7 @@ describe('settingsPath', () => {
     test('round-trips through the page’s own reading of next', () => {
         const next = '/books?source=base&page=2';
         const url = new URL(settingsPath(next), 'http://example.test');
-        assert.equal(nextFromParam(url.searchParams.get('next')!), next);
+        assert.equal(safeReturnPath(url.searchParams.get('next')), next);
     });
 });
 
@@ -135,24 +136,6 @@ describe('pathAfterProfileCheck (Profiles FR-4)', () => {
 
     test('a failed check: straight to next, never setup', () => {
         assert.equal(pathAfterProfileCheck('error', next), next);
-    });
-});
-
-describe('nextFromParam', () => {
-    test('keeps one safe path', () => {
-        assert.equal(nextFromParam('/books?source=base'), '/books?source=base');
-    });
-
-    test('reads anything else as absent', () => {
-        for (const value of [
-            undefined,
-            '',
-            'https://example.com/',
-            '/auth/auth-error',
-            ['/books', '/books'],
-        ]) {
-            assert.equal(nextFromParam(value), null);
-        }
     });
 });
 

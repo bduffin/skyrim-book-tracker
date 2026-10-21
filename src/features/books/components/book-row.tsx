@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 
-import { GitHubLoginButton } from '@/features/auth/components/github-login-button';
+import { SignInLink } from '@/features/auth/components/sign-in-link';
 import { FlagToggles } from '@/features/collection/components/flag-toggles';
 
 import type { BookRow as Book } from '../types';
@@ -210,11 +210,7 @@ export function BookRow({ book, signedIn }: { book: Book; signedIn: boolean }) {
                     isRead={book.isRead}
                     isCollected={book.isCollected}
                     signedIn={signedIn}
-                    // The toggle shows its sign-in prompt inside a live region
-                    // of its own, which also announces a failure to sign in.
-                    signInButton={
-                        <GitHubLoginButton tone="inline" insideLiveRegion />
-                    }
+                    signInLink={<SignInLink tone="inline" />}
                 />
                 <a
                     href={uespUrl(book.uespTitle)}

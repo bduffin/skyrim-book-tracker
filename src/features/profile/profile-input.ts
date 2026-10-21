@@ -10,7 +10,7 @@
  * action writes only `is_public`, so saving can never clear a username.
  */
 
-import { isSafeReturnPath } from '@/features/auth/return-path';
+import { safeReturnPath } from '@/features/auth/return-path';
 import { singleField, type FormFields } from '@/lib/form-fields';
 
 export const SETTINGS_PATH = '/settings';
@@ -67,7 +67,7 @@ export function parseProfileInput(form: FormFields): ProfileInput | null {
     const next = singleField(form, PROFILE_FIELDS.next);
     return {
         isPublic: isPublic === 'true',
-        next: next !== null && isSafeReturnPath(next) ? next : null,
+        next: safeReturnPath(next),
     };
 }
 
@@ -105,14 +105,6 @@ export function pathAfterProfileCheck(
 }
 
 type Param = string | string[] | undefined;
-
-/**
- * The page's `next` param, if it is one safe return path. Repeated or unsafe
- * reads as absent: the form then has no `next`, and saving stays here.
- */
-export function nextFromParam(value: Param): string | null {
-    return typeof value === 'string' && isSafeReturnPath(value) ? value : null;
-}
 
 /**
  * Whether to show the save confirmation. Only exactly `1`: the param carries

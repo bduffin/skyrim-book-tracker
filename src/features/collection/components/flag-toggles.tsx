@@ -43,7 +43,7 @@ export function FlagToggles({
     isRead,
     isCollected,
     signedIn,
-    signInButton,
+    signInLink,
 }: {
     bookId: string;
     title: string;
@@ -51,15 +51,15 @@ export function FlagToggles({
     isCollected: boolean;
     signedIn: boolean;
     /**
-     * The sign-in form, rendered by the server and passed in, so this Client
-     * Component never imports the sign-in action itself.
+     * The "Sign in" link, rendered by the server and passed in, so the auth
+     * feature owns how it looks.
      */
-    signInButton: ReactNode;
+    signInLink: ReactNode;
 }) {
     // One prompt per row at most: opening one toggle's closes the other's.
     const [prompt, setPrompt] = useState<FlagName | null>(null);
 
-    const shared = { bookId, title, signedIn, signInButton };
+    const shared = { bookId, title, signedIn, signInLink };
     return (
         // Positioned, so each toggle's prompt anchors to the pair rather than
         // to whichever toggle opened it -- the same place for both.
@@ -89,7 +89,7 @@ type ToggleProps = {
     /** Server truth, from the last render of the list. */
     pressed: boolean;
     signedIn: boolean;
-    signInButton: ReactNode;
+    signInLink: ReactNode;
     /** Whether this toggle's sign-in prompt was opened by pressing it. */
     promptOpen: boolean;
     setPromptOpen: (open: boolean) => void;
@@ -137,7 +137,7 @@ function FlagToggle({
     flag,
     pressed,
     signedIn,
-    signInButton,
+    signInLink,
     promptOpen,
     setPromptOpen,
 }: ToggleProps) {
@@ -239,7 +239,7 @@ function FlagToggle({
                     <SignInPrompt
                         flag={flag}
                         title={title}
-                        signInButton={signInButton}
+                        signInLink={signInLink}
                         onClose={() => close(true)}
                     />
                 )}
@@ -254,18 +254,18 @@ const subscribeNever = () => () => {};
 /**
  * The "sign in to track" prompt (FR-2), anchored under the row's toggles.
  *
- * The sign-in form returns the reader to this same URL, filters and page
- * included (`return-path.ts`).
+ * Signing in from its link returns the reader to this same URL, filters and
+ * page included (`loginPageNext`).
  */
 function SignInPrompt({
     flag,
     title,
-    signInButton,
+    signInLink,
     onClose,
 }: {
     flag: FlagName;
     title: string;
-    signInButton: ReactNode;
+    signInLink: ReactNode;
     onClose: () => void;
 }) {
     // "Not now" closes the prompt in place once JavaScript runs. Before that
@@ -288,7 +288,7 @@ function SignInPrompt({
                 progress.
             </p>
             <div className="mt-3 flex items-center gap-3">
-                {signInButton}
+                {signInLink}
                 {hydrated ? (
                     <button
                         type="button"

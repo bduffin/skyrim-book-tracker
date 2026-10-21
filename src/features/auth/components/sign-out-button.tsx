@@ -6,7 +6,8 @@ import { MENU_ITEM_CLASS } from './menu-item';
 
 /**
  * The account menu's sign-out item: a `<form>` posting to a Server Action, so
- * it works with JavaScript disabled, the same pattern as `GitHubLoginButton`.
+ * it works with JavaScript disabled, the same pattern as the sign-in page's
+ * GitHub button.
  *
  * A failure to reach the server at all is said inside the menu rather than
  * replacing the page (`ActionFailureGuard`). It says the reader is still

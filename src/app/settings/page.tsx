@@ -3,10 +3,11 @@ import { redirect } from 'next/navigation';
 
 import { PageTitle } from '@/components/page-title';
 import { getViewerId } from '@/features/auth/get-viewer-id';
+import { safeReturnPath } from '@/features/auth/return-path';
 import { BOOKS_PATH } from '@/features/books/scope';
 import { ProfileForm } from '@/features/profile/components/profile-form';
 import { getProfile } from '@/features/profile/data';
-import { isSavedParam, nextFromParam } from '@/features/profile/profile-input';
+import { isSavedParam } from '@/features/profile/profile-input';
 
 export const metadata: Metadata = {
     title: 'Settings',
@@ -55,7 +56,7 @@ export default async function SettingsPage({
                             ? lookup.profile.isPublic
                             : true
                     }
-                    next={nextFromParam(params.next)}
+                    next={safeReturnPath(params.next)}
                     saved={isSavedParam(params.saved)}
                 />
             </div>
