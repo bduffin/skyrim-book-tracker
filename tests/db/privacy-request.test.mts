@@ -164,6 +164,11 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
 
         assert.equal(data.account.id, a.userId);
         assert.equal(data.account.email, a.email);
+        // Named for what it holds, not for GitHub: an email account's is
+        // whatever was sent when it was first registered (Email FR-9).
+        assert.ok('profile_metadata' in data.account);
+        assert.ok(!('github_profile' in data.account));
+        assert.ok('email_confirmed_at' in data.account);
         assert.ok(
             data.identities.some(
                 (i: {

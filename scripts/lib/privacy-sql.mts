@@ -99,12 +99,16 @@ select u.id, u.email, u.created_at, u.last_sign_in_at,
 
     // FR-6: every stored item about the user. Sign-in records give dates and
     // method only, never the GitHub tokens, which are credentials rather than
-    // information about the user.
+    // information about the user. `profile_metadata` is `user_metadata`: GitHub's
+    // profile for a GitHub account, and for an email account whatever was sent
+    // when it was first registered (Email FR-9), so it is not named for GitHub.
+    // One-time codes are never exported.
     export: `
 select jsonb_pretty(jsonb_build_object(
   'account', (select jsonb_build_object(
       'id', u.id, 'email', u.email, 'created_at', u.created_at,
-      'last_sign_in_at', u.last_sign_in_at, 'github_profile', u.raw_user_meta_data)
+      'email_confirmed_at', u.email_confirmed_at,
+      'last_sign_in_at', u.last_sign_in_at, 'profile_metadata', u.raw_user_meta_data)
     from auth.users u where u.id = {{user_id}}),
   'identities', (select coalesce(jsonb_agg(jsonb_build_object(
       'provider', i.provider, 'identity_data', i.identity_data,

@@ -82,6 +82,10 @@ describe('buildStatement', () => {
         });
     }
 
+    test('export never selects one-time codes (Email FR-9)', () => {
+        assert.doesNotMatch(buildStatement('export', ID), /one_time_tokens/);
+    });
+
     test('export never selects the GitHub tokens', () => {
         const sql = buildStatement('export', ID);
         assert.doesNotMatch(

@@ -11,7 +11,7 @@ import {
     EMAIL_INVALID_CODE,
     sendFailure,
 } from '@/features/auth/login-error-message';
-import { createClient } from '@/lib/supabase/server';
+import { createStatelessClient } from '@/lib/supabase/stateless';
 
 /**
  * Emails a sign-in code (Email FR-4), posted by the sign-in page's plain
@@ -40,8 +40,10 @@ export async function POST(request: Request) {
         });
     }
 
-    const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithOtp({
+    // No session and no cookies: sending a code needs neither, and the
+    // server client's PKCE flow would leave verifier cookies behind
+    // (`createStatelessClient`).
+    const { error } = await createStatelessClient().auth.signInWithOtp({
         email,
         // Sign-up is open (Email Decision 2): a first code creates the
         // account, confirmed when the code is entered.

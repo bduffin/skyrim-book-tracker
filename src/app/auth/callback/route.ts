@@ -1,14 +1,30 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { authErrorPath } from '@/features/auth/auth-error-message';
 import { publicOrigin } from '@/features/auth/public-origin';
 import { loginNext } from '@/features/auth/return-path';
+import { clearCodeVerifierCookies } from '@/features/auth/sign-in-cookies';
 import { pathAfterSignIn } from '@/features/profile/data';
 import { createClient } from '@/lib/supabase/server';
 
 /** Enough of a logged value to diagnose from, without letting one flood logs. */
 const LOG_LIMIT = 500;
 
+/**
+ * GitHub's return from sign-in, success or failure. Whatever the outcome, the
+ * round trip it started is over, so its code-verifier cookies are cleared
+ * afterwards (`clearCodeVerifierCookies`) -- in a `finally`, so no path through
+ * the handler can skip it, and only after the code exchange has read them.
+ */
 export async function GET(request: Request) {
+    try {
+        return await handleCallback(request);
+    } finally {
+        clearCodeVerifierCookies(await cookies());
+    }
+}
+
+async function handleCallback(request: Request) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
 
