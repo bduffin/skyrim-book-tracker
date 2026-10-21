@@ -1,7 +1,7 @@
 # PRD: Email Sign-in
 
 > Stage: PRD — derived from `docs/specs/spec-email-sign-in.md` and grounded in `docs/architecture.md`.
-> Status: Reviewed — two red-team rounds; ready for Email M0.
+> Status: Reviewed — two red-team rounds. Email M0 and M1 done; Email M2, the hosted rollout, next.
 
 ## Core Thesis (preserved from spec)
 
@@ -36,15 +36,15 @@ Sign-in needs a second way in that depends on no third party: an emailed one-tim
 
 The spec's Current State is the inventory, including what was verified in Supabase Auth's source and on the local stack. What this PRD builds on in the code:
 
-- **Sign-in UI.** `GitHubLoginButton` (`src/features/auth/components/github-login-button.tsx`), a `<form action={signInWithGitHub}>`, is rendered in three places: the header (`src/components/site-header.tsx`) and, with `tone="inline"`, the signed-out prompts in `book-row.tsx` and `flag-filter-notice.tsx`. It returns the reader to the page they signed in from through the form's `Referer` (`returnPathFrom`, `src/features/auth/return-path.ts`).
-- **`/auth/callback`** (`src/app/auth/callback/route.ts`) is a Route Handler that exchanges GitHub's code, sets the session cookies through the server client and redirects; its base URL comes from `x-forwarded-host` outside development. It is the precedent for FR-4 and FR-5's handlers.
-- **Header name.** `getDisplayName` (`src/features/auth/get-display-name.ts`) reads `user_name`, `preferred_username`, `full_name` and `name` from `user_metadata`, then the email's local part. `UserBadge` shows `initialFor(displayName)` when there is no trusted avatar.
+- **Sign-in UI.** Since Email M1, every "Sign in" is a `SignInLink` to `/login` — the header and the signed-out prompts in `book-row.tsx` and `flag-filter-notice.tsx` — and `/login` offers `GitHubLoginButton`, plus the email steps when `EMAIL_SIGN_IN_ENABLED` is `true`. The return path is read from `/login`'s own `Referer` and carried as a hidden `next` (`loginPageNext`, `src/features/auth/return-path.ts`). Production runs it with the switch unset, so GitHub only.
+- **`/auth/callback`** (`src/app/auth/callback/route.ts`) is a Route Handler that exchanges GitHub's code, sets the session cookies through the server client and redirects; its base URL comes from `publicOrigin` (`src/features/auth/public-origin.ts`), which the email handlers share. It is the precedent for FR-4 and FR-5's handlers.
+- **Header name.** `headerNameFor` (`src/features/auth/header-name.ts`) shows GitHub's `user_name` only when the session's `providers` include `github`, and `avatarUrlFor` applies the same rule to the avatar; otherwise "Signed in" beside a person icon (FR-8). `getDisplayName` is gone.
 - **Error copy.** `src/features/auth/auth-error-message.ts` maps codes to fixed, app-written messages, and prefixes the app's own codes `app_`.
-- **Sign-out.** `signOut` (`src/features/auth/actions.ts`) uses `scope: 'local'`; its comment anticipates a separate "sign out everywhere".
-- **Database.** A `private` schema exists, not exposed by PostgREST, holding `private.rls_auto_enable()` with `EXECUTE` revoked from `public`, `anon` and `authenticated` (`20261001223138_enforce_rls_on_new_tables.sql`). `supabase_auth_admin` has no `USAGE` on it. The daily job `delete-expired-auth-records` (`20261003201942_schedule_auth_record_cleanup.sql`) deletes `auth.flow_state` rows over a day old and sessions unused for 90 days. On the local stack, `postgres` holds `DELETE` on `auth.users`, and `confirmation_sent_at` is a `timestamptz` (checked 2026-10-18). On the hosted project, checked the same day: `postgres` holds `TRIGGER` and `DELETE` on `auth.users`, which `supabase_auth_admin` owns, there are no triggers on it yet, and `supabase_auth_admin` has no `USAGE` on `private` there either. "Secure email change" (`double_confirm_changes`) is on in the hosted project, which Email Decision 12 relies on.
+- **Sign-out.** The account menu (`account-menu.tsx`, a `<details>` disclosure under the user's name) holds **Settings** and **Sign out** (`signOut`, `scope: 'local'`). `signOutEverywhere` (`scope: 'global'`) is posted from `/sign-out-everywhere`, linked from `/settings` (FR-10).
+- **Database.** A `private` schema exists, not exposed by PostgREST, holding `private.rls_auto_enable()` with `EXECUTE` revoked from `public`, `anon` and `authenticated` (`20261001223138_enforce_rls_on_new_tables.sql`). `supabase_auth_admin` has no `USAGE` on it. The daily job `delete-expired-auth-records` (`20261003201942_schedule_auth_record_cleanup.sql`) deletes `auth.flow_state` rows over a day old and sessions unused for 90 days. On the local stack, `postgres` holds `DELETE` on `auth.users`, and `confirmation_sent_at` is a `timestamptz` (checked 2026-10-18). On the hosted project, checked the same day: `postgres` holds `TRIGGER` and `DELETE` on `auth.users`, which `supabase_auth_admin` owns, there are no triggers on it yet, and `supabase_auth_admin` has no `USAGE` on `private` there either. "Secure email change" (`double_confirm_changes`) is on in the hosted project, which Email Decision 12 relies on. Since Email M1, the local stack also has the password trigger (`users_no_password`, `private.clear_password()`) and the `delete-abandoned-email-sign-ups` job; neither is on the hosted project until Email M2 step 2.
 - **What a code sign-in leaves behind**, measured on the local stack on 2026-10-18 with the target settings (confirmation on, 8-digit codes for 10 minutes, a 60-second resend gap, code-only templates): every code sign-in, first or later, writes an `auth.flow_state` row linked to the user when the server's PKCE client sends the code, and verifying the code does not remove it. The row holds the user id, the method and a PKCE challenge, no provider tokens; the existing daily job deletes it within two days. A send refused by the email cap creates no user.
-- **Local Auth settings** (`supabase/config.toml`): Email provider on, `enable_confirmations = false`, `otp_length = 6`, `otp_expiry = 3600`, `email_sent = 2` per hour, no custom templates; mail is caught by Mailpit at `http://127.0.0.1:54324`.
-- **Prerequisite from Profiles.** Profiles M1 adds `pathAfterSignIn(userId, next)` in `src/features/profile/data.ts`, returning the path rather than redirecting, for every sign-in path to call (Profiles FR-4).
+- **Local Auth settings** (`supabase/config.toml`), since Email M1: Email provider on, `enable_confirmations = true`, `otp_length = 8`, `otp_expiry = 600`, `max_frequency = "60s"`, and the four code-only templates in `supabase/templates/` (FR-11); mail is caught by Mailpit at `http://127.0.0.1:54324`.
+- **Prerequisite from Profiles.** Profiles M1 added `pathAfterSignIn(userId, next)` in `src/features/profile/data.ts`, returning the path rather than redirecting, for every sign-in path to call (Profiles FR-4).
 
 ## 4. Proposed Solution
 
@@ -180,8 +180,8 @@ Supabase reports a wrong code and an expired one with the same `otp_expired`, so
 
 ## 8. Milestones
 
-- **M0 — Prerequisites.** Profiles M1 has shipped, and `pathAfterSignIn` exists; `isSafeReturnPath` refuses a path whose dot segments resolve elsewhere (`/books/../auth/callback`), the separate fix this PRD's query-string `next` depends on. Exit: both checked on the local stack.
-- **M1 — Email sign-in, local.** FR-1 to FR-13, FR-18 and the `CLAUDE.md` part of FR-17: `/login`, the two handlers, `SignInLink`, both migrations, the header rule, Sign out everywhere, local configuration and templates, the switch, the error codes. Nothing hosted changes; production runs the new `/login` with GitHub only, since the switch is unset. Exit: AC-1 to AC-8 green on the local stack; `yarn test`, `yarn test:db`, ESLint, `tsc` and Prettier clean.
+- **M0 — Prerequisites.** Profiles M1 has shipped, and `pathAfterSignIn` exists; `isSafeReturnPath` refuses a path whose dot segments resolve elsewhere (`/books/../auth/callback`), the separate fix this PRD's query-string `next` depends on. Exit: both checked on the local stack. ✅ **Done.** **Exit:** met.
+- **M1 — Email sign-in, local.** FR-1 to FR-13, FR-18 and the `CLAUDE.md` part of FR-17: `/login`, the two handlers, `SignInLink`, both migrations, the header rule, Sign out everywhere, local configuration and templates, the switch, the error codes. Nothing hosted changes; production runs the new `/login` with GitHub only, since the switch is unset. Exit: AC-1 to AC-8 green on the local stack; `yarn test`, `yarn test:db`, ESLint, `tsc` and Prettier clean. ✅ **Done**, in vertical slices, and deployed to production with the switch unset; the migrations are applied locally only. Two changes from the plan, both now in their FRs: **Sign out everywhere** lives on `/settings` behind a confirmation page rather than in the account menu (FR-10), and abandoned sign-ups are deleted by **a job of their own**, aged from the later of a sign-in or reset code (FR-7). Four things carried forward to M2. **Count production's stored passwords at step 1** — the trigger clears a password only when its row is next written, and Supabase stores a random one on every account a code sign-up creates (FR-6). **`app_too_many` was never triggered for real** — the local stack let 39 wrong codes through in a row despite `token_verifications = 30`, so only unit tests cover it; check it against production while the developer is its only user. **Supabase leaves its PKCE code-verifier cookies behind after an email sign-in** (`sb-…-auth-token-code-verifier` and two `…flow…-code-verifier` ones), which FR-14's list of cookies may need to name. **`postgres` can drop the trigger but not disable it** — disabling needs ownership of `auth.users` — so R1's fallback is the drop migration, not `alter table … disable trigger`. **Exit:** met; AC-1 checked by hand with JavaScript off, AC-4's `app_too_many` by unit test only.
 - **M2 — Hosted rollout.** §12.7's steps, in order, each confirmed separately: production's readiness, the trigger and cleanup migrations on production with the GitHub checks, FR-15's settings and DNS, FR-16's rule, FR-14's notice and procedure, the provider, the switch; then the `architecture.md` part of FR-17. Exit: AC-9 to AC-13 green against production.
 
 ## 9. Acceptance Criteria
@@ -218,7 +218,7 @@ None open.
 
 ### 12.1 Password trigger (FR-6)
 
-Created with `supabase migration new no_passwords`:
+Created with `supabase migration new no_passwords`; applied locally at Email M1 as `20261021060243_no_passwords.sql`, which is the authority where the two differ:
 
 ```sql
 grant usage on schema private to supabase_auth_admin;
@@ -247,7 +247,7 @@ create trigger users_no_password
 
 ### 12.2 Cleanup job (FR-7)
 
-Created with `supabase migration new delete_abandoned_email_sign_ups`, a job of its own beside `delete-expired-auth-records`:
+Created with `supabase migration new delete_abandoned_email_sign_ups`, a job of its own beside `delete-expired-auth-records`; applied locally at Email M1 as `20261021061807_delete_abandoned_email_sign_ups.sql`, which is the authority where the two differ:
 
 ```sql
 select cron.schedule(
