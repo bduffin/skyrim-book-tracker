@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import { anonClient, localStack } from './lib/stack.mjs';
 
 const SENTINEL = 'rls-probe-result:';
+const SENTINEL_END = ':end-rls-probe-result';
 
 /**
  * Runs `body` inside a `do` block whose last statement raises `result` -- a
@@ -27,14 +28,19 @@ const SENTINEL = 'rls-probe-result:';
  * the block raises is a genuine failure and is rethrown.
  */
 function probe(body: string, result: string): Record<string, unknown> {
-    const sql = `do $$ begin ${body} raise exception '${SENTINEL}%', (${result}); end $$`;
+    const sql = `do $$ begin ${body} raise exception '${SENTINEL}%${SENTINEL_END}', (${result}); end $$`;
 
+    // `--agent no` because the CLI formats its output for whoever it thinks
+    // is running it: wrapped in its own JSON, with the message's quotes
+    // escaped, when it detects an agent, and plain text for a person. Pinned,
+    // the test reads the same output whoever runs it.
     let output: string;
     try {
-        output = execFileSync('supabase', ['db', 'query', '--local', sql], {
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
+        output = execFileSync(
+            'supabase',
+            ['db', 'query', '--local', '--agent', 'no', sql],
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+        );
     } catch (error) {
         const { stdout = '', stderr = '' } = error as {
             stdout?: string;
@@ -43,14 +49,16 @@ function probe(body: string, result: string): Record<string, unknown> {
         output = `${stdout}${stderr}`;
     }
 
-    const at = output.indexOf(SENTINEL);
-    if (at === -1) {
+    // Taken from between two markers of the probe's own, never "to the end of
+    // the line": the CLI decorates the line it prints, and colors it when
+    // FORCE_COLOR is set -- as some terminals set it -- which puts an escape
+    // code straight after the result.
+    const start = output.indexOf(SENTINEL);
+    const end = output.indexOf(SENTINEL_END, start);
+    if (start === -1 || end === -1) {
         throw new Error(`The probe did not reach its result:\n${output}`);
     }
-    // The CLI wraps the message in its own JSON, so the result arrives with
-    // its quotes escaped; it ends at the first unescaped quote or newline.
-    const raw = output.slice(at + SENTINEL.length).split(/(?<!\\)"|\n/)[0];
-    return JSON.parse(raw.replaceAll('\\"', '"'));
+    return JSON.parse(output.slice(start + SENTINEL.length, end));
 }
 
 /** Whether RLS is enabled on each named table, as a jsonb object. */
