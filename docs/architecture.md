@@ -334,17 +334,18 @@ The app runs on Vercel against one hosted Supabase project (`Skyrim Book Tracker
 
 ### 13.1 Current setup: one shared project
 
-**The hosted project is production, and local development talks to it too.** There is no separate dev database and no separate auth user pool.
+**The hosted project is production, and Vercel previews use it too. Local development uses the local stack** (`supabase start`), with its own auth users, its own GitHub OAuth App and its own import of the catalog, so nothing done locally reaches production until a migration is pushed.
 
-This is a deliberate, temporary choice. Until there are real users, the only data a development mistake can damage is the developer's own, so a second project protects nothing. It also keeps that one project active, which matters on Supabase's free plan, where a project with too little database activity over 7 days is paused ([Project Pausing](https://supabase.com/docs/guides/platform/free-project-pausing)).
+Sharing production with previews is a deliberate, temporary choice. Until there are real users, the only data a preview can damage is the developer's own, so a second hosted project protects nothing.
 
 Consequences while this holds:
 
 - Vercel preview deployments use the production database. Previews stay behind Vercel's Deployment Protection, and the preview wildcard is **not** in the project's Redirect URLs, so a preview cannot sign in a production user. Sign-in is tested locally or on production.
-- The project's Site URL is the production domain. `http://localhost:3000/**` stays in the Redirect URLs, which is what keeps local sign-in working: `signInWithGitHub` builds `redirectTo` from the request's `Origin`, and Supabase checks it against that list. Site URL is only the fallback. The entry needs the `/**`: Supabase matches the list against the whole return address, query string included, so an exact `http://localhost:3000/auth/callback` never matches the `?next=` that `signInWithGitHub` appends, and sign-in silently falls back to the Site URL (production) — which is what an exact entry did until 2026-10-04. Production passes regardless, because Supabase also accepts any address on the Site URL's own scheme and host.
+- Local sign-in goes through the local stack's own auth server, and so through a GitHub OAuth App of its own, whose callback is `http://127.0.0.1:54321/auth/v1/callback`: an OAuth App has one callback host, and production's is the hosted project. `[auth.external.github]` in `supabase/config.toml` reads its client id and secret from the gitignored `supabase/.env.local`.
+- Redirect URLs need the `/**`, locally (`additional_redirect_urls`) and on production: Supabase matches the list against the whole return address, query string included, so an exact `http://localhost:3000/auth/callback` never matches the `?next=` that `signInWithGitHub` appends, and sign-in silently falls back to the Site URL — which is what an exact entry on production did until 2026-10-04. Production's own domain passes regardless, because Supabase also accepts any address on the Site URL's own scheme and host. Production's list still carries `http://localhost:3000/**` from when local development used it; step 6 of §13.3 removes it.
 - `supabase db query --linked`, `yarn import:uesp --allow-remote` and every migration push act on production. Treat them that way.
 
-**Leave this setup when the first real user signs up**, or sooner if a development mistake could cost someone data. From then on, development against production risks real users' data for no benefit. In practice that is the email sign-in rollout (Email M2), which is what lets friends sign up: its last checks run on production while the developer is still its only user, and §13.3 follows it, before the next change to the database.
+**Leave this setup when the first real user signs up**, or sooner if a preview could cost someone data. From then on, previews against production risk real users' data for no benefit. In practice that is the email sign-in rollout (Email M2), which is what lets friends sign up: its last checks run on production while the developer is still its only user, and §13.3 follows it, before the next change to the database.
 
 ### 13.2 Keeping projects active
 
@@ -360,7 +361,7 @@ A separate dev project (§13.3) needs its own keep-alive, querying Supabase dire
 
 ### 13.3 Target: a separate dev project
 
-Once §13.2 is solved, development moves to a **new** hosted project, and **the current project stays production**.
+Once §13.2 is solved, previews move to a **new** hosted project, and **the current project stays production**. Local development stays on the local stack (§13.1).
 
 That direction is the point. Moving production to a new project instead would give every user a new `auth.users` id when they next signed in with GitHub, breaking the permanent `/collection/[user]` URLs Browse FR-8 promises and requiring every `user_book` row to be remapped. Creating the dev project instead moves nothing: it is built from the migrations and the import, which is exactly what a dev database needs.
 
@@ -369,10 +370,10 @@ Steps:
 1. Create the dev project. Whether Supabase's option to auto-enable RLS is on does not matter: `20261001223138_enforce_rls_on_new_tables.sql` replaces whatever that option creates with the migrations' own `ensure_rls` event trigger, so every project ends up the same.
 2. Push the migrations with `supabase db push --db-url <dev connection string>`, so the CLI's link to production does not change.
 3. Run `yarn import:uesp` against it with `--allow-remote`, and read the whole run report.
-4. Create a second GitHub OAuth App whose callback is the dev project's `https://<dev-ref>.supabase.co/auth/v1/callback`, and enable GitHub, and only GitHub, in the dev project's Auth providers.
+4. Create a GitHub OAuth App of its own, whose callback is the dev project's `https://<dev-ref>.supabase.co/auth/v1/callback`, and enable GitHub, and only GitHub, in the dev project's Auth providers.
 5. Set the dev project's Site URL to `http://localhost:3000`, and add `http://localhost:3000/**` and the Vercel preview wildcard to its Redirect URLs.
 6. Point Vercel's **Preview** environment variables at the dev project; **Production** keeps the current one. Remove the localhost entry from production's Redirect URLs.
-7. Point `.env.local` at the dev project.
+7. Leave `.env.local` on the local stack. Point it at the dev project only for a check the local stack cannot make.
 8. Give the dev project its own keep-alive. A check of `/books` reaches only the project behind the deployment it hits, and previews sit behind Deployment Protection, so the dev project's keep-alive should query Supabase directly.
 
-**Fallback:** if a second hosted project is never worth keeping alive, develop against the local stack (`supabase start`) instead. That needs its own GitHub OAuth App configured in `supabase/config.toml`, and a local import run, since the app — unlike `yarn test:db` — needs the catalog.
+**Fallback:** if a second hosted project is never worth keeping alive, previews keep using production, behind Deployment Protection and unable to sign in (§13.1). Local development is unaffected either way.

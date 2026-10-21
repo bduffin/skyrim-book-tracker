@@ -70,7 +70,16 @@ NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
-These are the newer Supabase key names, not the legacy `ANON_KEY`. GitHub sign-in additionally needs an OAuth app; see [`docs/architecture.md`](docs/architecture.md).
+These are the newer Supabase key names, not the legacy `ANON_KEY`.
+
+GitHub sign-in additionally needs a GitHub OAuth App of its own for the local stack (GitHub → Settings → Developer settings → OAuth Apps), with homepage `http://localhost:3000` and callback `http://127.0.0.1:54321/auth/v1/callback`. Put its credentials in `supabase/.env.local` (gitignored), then restart the stack with `supabase stop && supabase start`:
+
+```
+SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID=...
+SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET=...
+```
+
+Without them the stack still starts, and everything but sign-in works. Open the app at `http://localhost:3000`, not `127.0.0.1`, which is the address the stack's Redirect URLs allow. Why sign-in needs an app separate from production's is in [`docs/architecture.md`](docs/architecture.md) §13.1.
 
 ## Importing the catalog
 
@@ -125,7 +134,7 @@ Settings the repository cannot carry for you:
 
 - **Vercel environment variables:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `ENABLE_EXPERIMENTAL_COREPACK=1`. Without the last, Vercel installs with Yarn 1 whatever `packageManager` says. **Never add the Supabase secret key**: only the importer uses it, and it bypasses row-level security.
 - **Node** is pinned to 24.x by `engines.node` in `package.json`. Vercel does not read `.nvmrc`, so change both together.
-- **Supabase Auth URL configuration** (dashboard → Authentication → URL Configuration): Site URL is the production domain, and Redirect URLs list `https://<production domain>/**` alongside `http://localhost:3000/**`. Sign-in returns to whichever origin started it, and Supabase refuses any not on that list.
+- **Supabase Auth URL configuration** (dashboard → Authentication → URL Configuration): Site URL is the production domain, and Redirect URLs list `https://<production domain>/**`. Sign-in returns to whichever origin started it, and Supabase refuses any not on that list. Local development has its own list, in `supabase/config.toml`.
 - **Domain and DNS:** `arcanaeum.app` is registered at Cloudflare, and its DNS is there too. The site's two records, CNAMEs for `@` and `www` pointing at the target Vercel shows under Settings → Domains, must stay **DNS only** (grey cloud): Cloudflare's proxy in front of Vercel interferes with its certificates. `www` and the old `vercel.app` address 308-redirect to `arcanaeum.app`, configured in Vercel's Domains settings.
 - **GitHub OAuth App:** its callback URL is the Supabase project's `https://<project-ref>.supabase.co/auth/v1/callback`, not this app's.
 
