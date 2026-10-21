@@ -9,7 +9,7 @@
  * dashboard's Delete user (FR-4 step 3), which calls the same Auth endpoint.
  *
  * Two users throughout, because the failure that matters is a query that
- * reaches past its user: each has a session from a real password sign-in, a
+ * reaches past its user: each has a session from a real code sign-in, a
  * GitHub identity, a sign-in record holding tokens, a mark, a note and a
  * profile.
  */
@@ -174,7 +174,7 @@ describe('privacy requests (Privacy FR-4, FR-6)', () => {
                     i.identity_data.provider_id === a.githubId,
             ),
         );
-        assert.ok(data.sessions.length >= 1, 'the password sign-in session');
+        assert.ok(data.sessions.length >= 1, 'the code sign-in session');
         assert.equal(data.sign_in_records.length, 1);
         assert.deepEqual(Object.keys(data.sign_in_records[0]).sort(), [
             'created_at',

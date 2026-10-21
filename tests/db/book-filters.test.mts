@@ -43,14 +43,13 @@ import {
     type FlagFilter,
 } from '../../src/features/books/scope.js';
 
-import { localStack } from './lib/stack.mjs';
+import { createSignedInUser, localStack } from './lib/stack.mjs';
 
 /** `uesp_page_id` is NOT NULL and unique; real pages are far below this. */
 const FIXTURE_PAGE_ID_BASE = 990_000_000;
 
 const EMAIL = 'browse-m2-flag-filters@example.test';
 const OTHER_EMAIL = 'browse-m3-flag-display-other@example.test';
-const PASSWORD = 'correct-horse-battery-staple';
 
 /**
  * Counts books the way `getBooksPage` does, through the same
@@ -179,14 +178,11 @@ describe('read/collected filters against the database (FR-3)', () => {
             .map((row) => row.id);
         const [A, B, C] = bookIds;
 
-        const { data: created, error: userError } =
-            await admin.auth.admin.createUser({
-                email: EMAIL,
-                password: PASSWORD,
-                email_confirm: true,
-            });
-        if (userError) throw userError;
-        userId = created.user!.id;
+        ({ userId, client: viewer } = await createSignedInUser(
+            stack,
+            admin,
+            EMAIL,
+        ));
 
         const { error: trackError } = await admin.from('user_book').insert([
             { user_id: userId, book_id: A, is_read: true, is_collected: true },
@@ -200,22 +196,12 @@ describe('read/collected filters against the database (FR-3)', () => {
         // must return.
         untouched = baseline;
 
-        viewer = createClient(stack.url, stack.publishableKey, {
-            auth: { autoRefreshToken: false, persistSession: false },
-        });
-        const { error: signInError } = await viewer.auth.signInWithPassword({
-            email: EMAIL,
-            password: PASSWORD,
-        });
-        if (signInError) throw signInError;
-
         // A second user with the opposite flags on B and C, and no row on A.
         // Invisible to the viewer under today's RLS; the display tests below
         // read through the admin client, which is not.
         const { data: other, error: otherError } =
             await admin.auth.admin.createUser({
                 email: OTHER_EMAIL,
-                password: PASSWORD,
                 email_confirm: true,
             });
         if (otherError) throw otherError;

@@ -26,6 +26,8 @@ export type LocalStack = {
     url: string;
     publishableKey: string;
     secretKey: string;
+    /** Mailpit, which catches every email the local stack's Auth sends. */
+    mailpitUrl: string;
 };
 
 /**
@@ -64,6 +66,7 @@ export function localStack(): LocalStack {
         url,
         publishableKey: status.PUBLISHABLE_KEY ?? status.ANON_KEY,
         secretKey: status.SECRET_KEY ?? status.SERVICE_ROLE_KEY,
+        mailpitUrl: status.MAILPIT_URL ?? status.INBUCKET_URL,
     };
 }
 
@@ -85,27 +88,69 @@ export function adminClient(stack: LocalStack): SupabaseClient {
  * Creates a confirmed user and returns their id and a client signed in as
  * them. The caller deletes the user afterwards, which cascades to their
  * `user_book` and `user_book_note` rows.
+ *
+ * Signed in with a one-time code, as email sign-in does, never a password:
+ * no account can hold one (Email FR-6), so a password sign-in would fail.
+ * The code comes from the admin API's `generateLink`, which returns it without
+ * sending an email, so the tests neither wait on Mailpit nor run into the
+ * minimum gap between two emails to one address.
  */
 export async function createSignedInUser(
     stack: LocalStack,
     admin: SupabaseClient,
     email: string,
 ): Promise<{ userId: string; client: SupabaseClient }> {
-    const password = 'correct-horse-battery-staple';
-
     const { data, error } = await admin.auth.admin.createUser({
         email,
-        password,
         email_confirm: true,
     });
     if (error) throw error;
 
-    const client = anonClient(stack);
-    const { error: signInError } = await client.auth.signInWithPassword({
-        email,
-        password,
-    });
-    if (signInError) throw signInError;
-
+    const client = await signInWithCode(stack, admin, email);
     return { userId: data.user!.id, client };
+}
+
+/** A client signed in as an existing user, with a code from `generateLink`. */
+export async function signInWithCode(
+    stack: LocalStack,
+    admin: SupabaseClient,
+    email: string,
+): Promise<SupabaseClient> {
+    const { data: link, error: linkError } =
+        await admin.auth.admin.generateLink({ type: 'magiclink', email });
+    if (linkError) throw linkError;
+
+    const client = anonClient(stack);
+    const { error: verifyError } = await client.auth.verifyOtp({
+        email,
+        token: link.properties.email_otp,
+        type: 'email',
+    });
+    if (verifyError) throw verifyError;
+    return client;
+}
+
+/**
+ * The sign-in code in the newest email Auth sent to `email`, read from
+ * Mailpit, as the address's owner would read it. Waits briefly for delivery.
+ */
+export async function emailedCode(
+    stack: LocalStack,
+    email: string,
+): Promise<string> {
+    const search = `${stack.mailpitUrl}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`;
+    for (let attempt = 0; attempt < 20; attempt++) {
+        const { messages } = await (await fetch(search)).json();
+        if (messages.length > 0) {
+            const message = await (
+                await fetch(
+                    `${stack.mailpitUrl}/api/v1/message/${messages[0].ID}`,
+                )
+            ).json();
+            const code = /\b\d{8}\b/.exec(message.Text)?.[0];
+            if (code) return code;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw new Error(`No code reached Mailpit for ${email}`);
 }

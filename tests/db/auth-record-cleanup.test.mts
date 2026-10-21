@@ -13,48 +13,14 @@
  * copy of it, is what makes this a test of the migration.
  */
 
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { localStack } from './lib/stack.mjs';
+import { probe } from './lib/local-query.mjs';
 
-const SENTINEL = 'cleanup-probe-result:';
-const SENTINEL_END = ':end-cleanup-probe-result';
 const JOB = 'delete-expired-auth-records';
-
-function probe(body: string, result: string): Record<string, unknown> {
-    const sql = `do $$ begin ${body} raise exception '${SENTINEL}%${SENTINEL_END}', (${result}); end $$`;
-
-    // `--agent no` for the reason `rls-auto-enable.test.mts` gives: the CLI
-    // wraps its output in JSON only when it thinks an agent is running it,
-    // so pinning plain text makes the result read the same for anyone.
-    let output: string;
-    try {
-        output = execFileSync(
-            'supabase',
-            ['db', 'query', '--local', '--agent', 'no', sql],
-            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-        );
-    } catch (error) {
-        const { stdout = '', stderr = '' } = error as {
-            stdout?: string;
-            stderr?: string;
-        };
-        output = `${stdout}${stderr}`;
-    }
-
-    // Taken from between two markers, for the reason `rls-auto-enable.test.mts`
-    // gives: the CLI colors the line when FORCE_COLOR is set, which puts an
-    // escape code straight after the result.
-    const start = output.indexOf(SENTINEL);
-    const end = output.indexOf(SENTINEL_END, start);
-    if (start === -1 || end === -1) {
-        throw new Error(`The probe did not reach its result:\n${output}`);
-    }
-    return JSON.parse(output.slice(start + SENTINEL.length, end));
-}
 
 const runJob = `execute (select command from cron.job where jobname = '${JOB}');`;
 
