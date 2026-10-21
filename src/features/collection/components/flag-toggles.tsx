@@ -1,9 +1,6 @@
 'use client';
 
 import {
-    Component,
-    createRef,
-    Fragment,
     useActionState,
     useCallback,
     useEffect,
@@ -16,6 +13,7 @@ import {
 } from 'react';
 import { useFormStatus } from 'react-dom';
 
+import { ActionErrorBoundary } from '@/components/action-error-boundary';
 import { useToast } from '@/components/toast';
 
 import { setBookFlags } from '../actions';
@@ -97,98 +95,25 @@ type ToggleProps = {
     setPromptOpen: (open: boolean) => void;
 };
 
-/** Gives the error boundary below a way to raise a toast, which needs a hook. */
+/**
+ * The toggle inside an error boundary of its own, so an action that throws
+ * rather than answering -- a dropped connection -- raises a toast instead of
+ * replacing the page. Remounting the toggle shows the server's value again:
+ * the rollback FR-4 asks for, reached by a different road than a returned
+ * error.
+ */
 function GuardedToggle(props: ToggleProps) {
     const toast = useToast();
     return (
-        <UnreachableBoundary
-            onError={() =>
-                toast(flagFailureMessage('unreachable', props.title))
-            }
+        <ActionErrorBoundary
+            onError={(error) => {
+                console.error('Book flag action failed to complete:', error);
+                toast(flagFailureMessage('unreachable', props.title));
+            }}
         >
             <FlagToggle {...props} />
-        </UnreachableBoundary>
+        </ActionErrorBoundary>
     );
-}
-
-/**
- * Catches an action that threw instead of answering -- a dropped connection,
- * a server that did not respond -- which `useActionState` rethrows to the
- * nearest error boundary. Without this one, that is the route's `error.tsx`,
- * and a single failed click would replace the whole page.
- *
- * It cannot be avoided by wrapping the action in a client function that
- * catches: only a Server Action passed to `<form action>` directly still
- * submits with JavaScript disabled, which is why the toggle does not.
- *
- * On a catch it raises the toast and remounts the toggle, which resets its
- * action state and shows the server's value again -- the rollback FR-4 asks
- * for, reached by a different road than a returned error.
- *
- * Remounting replaces the button, and a focused element that leaves the page
- * drops focus to the start of the document -- so a keyboard user who pressed
- * the toggle would be sent back to the top of a fifty-row list. The boundary
- * notes whether focus was inside it just before the old button goes, and
- * puts it on the new one afterwards. Only then: restoring it unconditionally
- * would pull focus back from wherever the reader had moved on to.
- */
-class UnreachableBoundary extends Component<
-    { onError: () => void; children: ReactNode },
-    { failed: boolean; attempt: number }
-> {
-    state = { failed: false, attempt: 0 };
-
-    private readonly wrapper = createRef<HTMLDivElement>();
-    private restoreFocus = false;
-
-    static getDerivedStateFromError() {
-        return { failed: true };
-    }
-
-    /**
-     * Runs just before React commits the failed render that removes the
-     * button -- the last moment the old button is still in the document.
-     * `componentDidCatch` is too late: it runs after that commit, by which
-     * time focus has already fallen to the body.
-     */
-    getSnapshotBeforeUpdate(
-        _props: unknown,
-        previous: { failed: boolean },
-    ): boolean {
-        if (previous.failed || !this.state.failed) return false;
-        return this.wrapper.current?.contains(document.activeElement) ?? false;
-    }
-
-    componentDidUpdate(_props: unknown, _state: unknown, hadFocus: boolean) {
-        if (hadFocus) this.restoreFocus = true;
-        if (this.restoreFocus && !this.state.failed) {
-            this.restoreFocus = false;
-            this.wrapper.current?.querySelector('button')?.focus();
-        }
-    }
-
-    componentDidCatch(error: unknown) {
-        console.error('Book flag action failed to complete:', error);
-        this.props.onError();
-        this.setState(({ attempt }) => ({
-            failed: false,
-            attempt: attempt + 1,
-        }));
-    }
-
-    render() {
-        // The wrapper outlives the remount, so it is still there to look for
-        // focus in and to find the new button through.
-        return (
-            <div ref={this.wrapper}>
-                {this.state.failed ? null : (
-                    <Fragment key={this.state.attempt}>
-                        {this.props.children}
-                    </Fragment>
-                )}
-            </div>
-        );
-    }
 }
 
 const LABELS: Record<FlagName, string> = {

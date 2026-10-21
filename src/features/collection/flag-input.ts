@@ -13,6 +13,7 @@
  */
 
 import { returnPathFrom } from '@/features/auth/return-path';
+import { singleField, type FormFields } from '@/lib/form-fields';
 
 /** The form field names a toggle submits. One source, so they cannot drift. */
 export const FLAG_FIELDS = {
@@ -57,24 +58,7 @@ export type SetFlagResult =
 
 export const IDLE: SetFlagResult = { status: 'idle' };
 
-/**
- * The subset of `FormData` this reads. `getAll` rather than `get` so that a
- * repeated field is visible and can be rejected: `get` silently returns the
- * first, and there is no non-arbitrary way to choose between two book ids.
- */
-export type FormFields = {
-    getAll(name: string): unknown[];
-};
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** A field's single string value, or `null` if absent, repeated or a file. */
-function single(form: FormFields, name: string): string | null {
-    const values = form.getAll(name);
-    if (values.length !== 1) return null;
-    const [value] = values;
-    return typeof value === 'string' ? value : null;
-}
 
 /**
  * Reads a toggle's submission into a `SetFlagInput`, or `null` if any field is
@@ -85,9 +69,9 @@ function single(form: FormFields, name: string): string | null {
  * default view; a tampered *write* has no safe default, so it is rejected.
  */
 export function parseSetFlagInput(form: FormFields): SetFlagInput | null {
-    const bookId = single(form, FLAG_FIELDS.bookId);
-    const flag = single(form, FLAG_FIELDS.flag);
-    const value = single(form, FLAG_FIELDS.value);
+    const bookId = singleField(form, FLAG_FIELDS.bookId);
+    const flag = singleField(form, FLAG_FIELDS.flag);
+    const value = singleField(form, FLAG_FIELDS.value);
 
     if (bookId === null || !UUID.test(bookId)) return null;
     if (flag !== 'read' && flag !== 'collected') return null;

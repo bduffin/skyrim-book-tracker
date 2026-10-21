@@ -18,6 +18,7 @@ import {
     authErrorMessage,
     authErrorTitle,
     SIGN_OUT_FAILED_CODE,
+    SIGNED_OUT_CODE,
     type AuthErrorKind,
 } from './auth-error-message';
 
@@ -247,6 +248,32 @@ describe('sign-out failures', () => {
 
     test('the app code is namespaced away from Supabase’s', () => {
         assert.ok(SIGN_OUT_FAILED_CODE.startsWith('app_'));
+    });
+});
+
+describe('a write after the session ended', () => {
+    test('the app’s own code maps to the signed-out kind', () => {
+        assert.equal(
+            authErrorKind({ errorCode: SIGNED_OUT_CODE }),
+            'signedOut',
+        );
+    });
+
+    test('the copy says nothing was saved and how to recover', () => {
+        const message = authErrorMessage({ errorCode: SIGNED_OUT_CODE });
+        assert.match(message, /wasn't saved/);
+        assert.match(message, /Sign in/);
+    });
+
+    test('the title does not call it a failed sign-in', () => {
+        assert.equal(
+            authErrorTitle({ errorCode: SIGNED_OUT_CODE }),
+            'Not saved',
+        );
+    });
+
+    test('the app code is namespaced away from Supabase’s', () => {
+        assert.ok(SIGNED_OUT_CODE.startsWith('app_'));
     });
 });
 

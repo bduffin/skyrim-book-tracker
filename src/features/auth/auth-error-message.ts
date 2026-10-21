@@ -35,6 +35,7 @@ export type AuthErrorKind =
     | 'accountBlocked'
     | 'misconfigured'
     | 'signOutIncomplete'
+    | 'signedOut'
     | 'unknown';
 
 export const AUTH_ERROR_COPY: Record<AuthErrorKind, string> = {
@@ -54,6 +55,11 @@ export const AUTH_ERROR_COPY: Record<AuthErrorKind, string> = {
     // session could not be read at all, the reader is still signed in.
     signOutIncomplete:
         "Signing out didn't fully finish. To be sure, close your browser — or, if your name still shows at the top of the page, sign out again.",
+    // A write that arrived after the session had ended, without JavaScript:
+    // the form's own page would only bounce a signed-out reader elsewhere,
+    // so this is where the reason can be said.
+    signedOut:
+        "You're signed out, so your change wasn't saved. Sign in and try again.",
     unknown: 'Something went wrong while signing you in. Please try again.',
 };
 
@@ -82,9 +88,11 @@ export function authErrorPath(codes: {
  * later can never collide with one of these.
  */
 export const SIGN_OUT_FAILED_CODE = 'app_sign_out_failed';
+export const SIGNED_OUT_CODE = 'app_signed_out';
 
 const BY_APP_CODE = new Map<string, AuthErrorKind>([
     [SIGN_OUT_FAILED_CODE, 'signOutIncomplete'],
+    [SIGNED_OUT_CODE, 'signedOut'],
 ]);
 
 /*
@@ -176,15 +184,20 @@ export function authErrorMessage(codes: {
 }
 
 /**
- * The page's heading and title. Every kind is a failed sign-in except the one
- * that is not: a reader who was signing *out* should not be told sign-in
- * failed.
+ * The page's heading and title. Every kind is a failed sign-in except the two
+ * that are not: a reader who was signing *out*, or whose session had already
+ * ended, should not be told sign-in failed.
  */
 export function authErrorTitle(codes: {
     error?: string;
     errorCode?: string;
 }): string {
-    return authErrorKind(codes) === 'signOutIncomplete'
-        ? "Sign-out didn't finish"
-        : 'Sign-in failed';
+    switch (authErrorKind(codes)) {
+        case 'signOutIncomplete':
+            return "Sign-out didn't finish";
+        case 'signedOut':
+            return 'Not saved';
+        default:
+            return 'Sign-in failed';
+    }
 }
