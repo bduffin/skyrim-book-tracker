@@ -10,6 +10,8 @@ import { BOOKS_PATH } from '@/features/books/scope';
 import { ProgressSummary } from '@/features/collection/components/progress-summary';
 import { getMarkedBooksPage, getProgress } from '@/features/collection/data';
 import { collectionPath, isOwnCollection } from '@/features/collection/route';
+import { getProfile } from '@/features/profile/data';
+import { settingsPath } from '@/features/profile/profile-input';
 import { PAGE_SIZE, parsePageParam } from '@/lib/pagination';
 
 export const metadata: Metadata = {
@@ -42,12 +44,13 @@ export default async function CollectionPage({
 
     // Both from the database on every render, so a toggle's revalidation
     // brings the meters and the list back to true state together (NFR-6).
-    const [progress, books] = await Promise.all([
+    const [progress, books, profile] = await Promise.all([
         getProgress(viewerId),
         getMarkedBooksPage({
             userId: viewerId,
             page: parsePageParam(query.page),
         }),
+        getProfile(viewerId),
     ]);
 
     const first = (books.page - 1) * PAGE_SIZE + 1;
@@ -56,6 +59,27 @@ export default async function CollectionPage({
     return (
         <main className="mx-auto max-w-3xl py-6">
             <PageTitle>My collection</PageTitle>
+
+            {/*
+             * Profiles FR-4: a session that predates profiles never passes
+             * through sign-in's setup check, so its owner meets setup here.
+             * Only for a missing row -- a failed lookup says nothing, rather
+             * than nagging someone who has already chosen. A live region
+             * that exists before its content (Profiles NFR-4).
+             */}
+            <div role="status" className="px-4 empty:hidden">
+                {profile.status === 'none' && (
+                    <p className="mb-5 rounded-md border border-steel-200 bg-steel-50 px-3 py-2 text-iron-900">
+                        Your account isn’t fully set up yet.{' '}
+                        <Link
+                            href={settingsPath()}
+                            className="font-medium underline underline-offset-2 transition-colors hover:text-iron-600"
+                        >
+                            Finish setup
+                        </Link>
+                    </p>
+                )}
+            </div>
 
             <ProgressSummary progress={progress} />
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authErrorPath } from '@/features/auth/auth-error-message';
 import { isSafeReturnPath } from '@/features/auth/return-path';
+import { pathAfterSignIn } from '@/features/profile/data';
 import { createClient } from '@/lib/supabase/server';
 
 /** Enough of a logged value to diagnose from, without letting one flood logs. */
@@ -29,8 +30,14 @@ export async function GET(request: Request) {
 
     if (code) {
         const supabase = await createClient();
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (!error) return NextResponse.redirect(`${base}${next}`);
+        const { data, error } =
+            await supabase.auth.exchangeCodeForSession(code);
+        if (!error) {
+            // A first sign-in goes through setup on its way to `next`
+            // (Profiles FR-4).
+            const path = await pathAfterSignIn(data.user.id, next);
+            return NextResponse.redirect(`${base}${path}`);
+        }
 
         console.error('Failed to exchange the sign-in code:', error);
         return NextResponse.redirect(

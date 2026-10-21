@@ -210,7 +210,11 @@ export function BookRow({ book, signedIn }: { book: Book; signedIn: boolean }) {
                     isRead={book.isRead}
                     isCollected={book.isCollected}
                     signedIn={signedIn}
-                    signInButton={<GitHubLoginButton tone="inline" />}
+                    // The toggle shows its sign-in prompt inside a live region
+                    // of its own, which also announces a failure to sign in.
+                    signInButton={
+                        <GitHubLoginButton tone="inline" insideLiveRegion />
+                    }
                 />
                 <a
                     href={uespUrl(book.uespTitle)}

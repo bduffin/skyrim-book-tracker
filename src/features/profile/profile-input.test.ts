@@ -5,9 +5,11 @@ import {
     isSavedParam,
     nextFromParam,
     parseProfileInput,
+    pathAfterProfileCheck,
     PROFILE_FIELDS,
     SAVED_PATH,
     saveDestination,
+    settingsPath,
 } from './profile-input';
 
 /** Builds real FormData, since that is what the action receives. */
@@ -95,6 +97,44 @@ describe('saveDestination (Profiles FR-5)', () => {
             '/settings?saved=1',
         );
         assert.equal(SAVED_PATH, '/settings?saved=1');
+    });
+});
+
+describe('settingsPath', () => {
+    test('is plain /settings without a destination', () => {
+        assert.equal(settingsPath(), '/settings');
+    });
+
+    test('carries next encoded, so its own query survives intact', () => {
+        assert.equal(
+            settingsPath('/books?source=base&page=2'),
+            '/settings?next=%2Fbooks%3Fsource%3Dbase%26page%3D2',
+        );
+    });
+
+    test('round-trips through the page’s own reading of next', () => {
+        const next = '/books?source=base&page=2';
+        const url = new URL(settingsPath(next), 'http://example.test');
+        assert.equal(nextFromParam(url.searchParams.get('next')!), next);
+    });
+});
+
+describe('pathAfterProfileCheck (Profiles FR-4)', () => {
+    const next = '/books?source=base';
+
+    test('no row: setup, carrying next', () => {
+        assert.equal(
+            pathAfterProfileCheck('none', next),
+            '/settings?next=%2Fbooks%3Fsource%3Dbase',
+        );
+    });
+
+    test('a row: straight to next', () => {
+        assert.equal(pathAfterProfileCheck('found', next), next);
+    });
+
+    test('a failed check: straight to next, never setup', () => {
+        assert.equal(pathAfterProfileCheck('error', next), next);
     });
 });
 

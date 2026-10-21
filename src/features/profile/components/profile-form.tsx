@@ -20,6 +20,11 @@ import {
  * Inside an error boundary of its own, so an action that throws rather than
  * answering -- a dropped connection -- shows a message beside the form
  * instead of replacing the page.
+ *
+ * Not `ActionFailureGuard`, which does the same for forms with no action
+ * state: here a lost connection is one more failure of the form's own, shown
+ * in the single alert region the returned failures use and named by the
+ * fieldset's `aria-describedby`, not in a second region of the guard's.
  */
 export function ProfileForm(props: {
     /** The stored choice, or the default (public) when there is no row. */

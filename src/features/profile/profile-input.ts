@@ -76,6 +76,34 @@ export function saveDestination(input: ProfileInput): string {
     return input.next ?? SAVED_PATH;
 }
 
+/**
+ * `/settings`, carrying where to go after the first save. Only the first-login
+ * redirect adds `next` (Profiles FR-4), so the destination follows from how
+ * the user arrived.
+ */
+export function settingsPath(next?: string): string {
+    return next === undefined
+        ? SETTINGS_PATH
+        : `${SETTINGS_PATH}?${PROFILE_FIELDS.next}=${encodeURIComponent(next)}`;
+}
+
+/**
+ * Where a sign-in lands, given what the profile check found (Profiles FR-4):
+ * setup when there is no row, carrying `next`; otherwise `next` itself.
+ *
+ * A failed check goes to `next` too. The user's setting is unchanged either
+ * way -- no row stays owner-only (Profiles FR-3) -- and a database hiccup must
+ * not route every sign-in through setup.
+ *
+ * `next` must already have passed `isSafeReturnPath`.
+ */
+export function pathAfterProfileCheck(
+    status: 'found' | 'none' | 'error',
+    next: string,
+): string {
+    return status === 'none' ? settingsPath(next) : next;
+}
+
 type Param = string | string[] | undefined;
 
 /**

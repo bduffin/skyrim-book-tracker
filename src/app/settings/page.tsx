@@ -17,7 +17,8 @@ export const metadata: Metadata = {
 /**
  * One page for first-time setup and later changes (Profiles FR-5, Profiles
  * Decision 6). Sign-in sends a user here with `next` while they have no
- * profile row (Profiles FR-4).
+ * profile row (Profiles FR-4); otherwise it is reached from the account menu,
+ * or from the collection page's notice while there is no row.
  *
  * Signed out, it redirects to /books with a 307, as the collection page does.
  */
